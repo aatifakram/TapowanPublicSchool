@@ -1,0 +1,1083 @@
+/* Custom styles for the login page */
+:root {
+    --primary: #3B30A3; /* Deeper Indigo */
+    --primary-dark: #2C247A; /* Even Deeper Indigo */
+    --secondary: #0D9488; /* Teal 600 */
+    --accent: #D97706; /* Amber 700 */
+    --dark: #1F2937; /* Gray 800 */
+    --light: #F9FAFB; /* Gray 50 */
+    --gray-light: #E5E7EB; /* Gray 200 */
+    --gray-medium: #6B7280; /* Gray 500 */
+    --gray-dark: #374151; /* Gray 700 */
+    --border-color: #D1D5DB; /* Gray 300 for borders */
+    --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    --modal-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+}
+
+/* Dark Mode Variables */
+body.dark-mode {
+    --primary: #6D5EDF; /* Lighter Indigo for dark mode */
+    --primary-dark: #5A4DC2;
+    --secondary: #2DD4BF; /* Lighter Teal */
+    --accent: #FBBF24; /* Lighter Amber */
+    --dark: #F9FAFB; /* Light text */
+    --light: #1F2937; /* Dark background */
+    --gray-light: #374151; /* Darker gray for borders/dividers */
+    --gray-medium: #9CA3AF; /* Lighter gray for medium text */
+    --gray-dark: #E5E7EB; /* Even lighter gray for dark text */
+    --border-color: #4B5563; /* Darker border */
+    --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --modal-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--light);
+    color: var(--dark);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    margin: 0;
+    overflow: hidden; /* Prevent body scroll when modals are open */
+}
+
+/* Adjust elements for dark mode */
+body.dark-mode .login-container,
+body.dark-mode .modal-content,
+body.dark-mode .sidebar,
+body.dark-mode header,
+body.dark-mode .module-card,
+body.dark-mode .notification-dropdown,
+body.dark-mode .view-all-content,
+body.dark-mode .user-dropdown,
+body.dark-mode .holiday-list-item,
+body.dark-mode .module-content input,
+body.dark-mode .module-content select,
+body.dark-mode .module-content textarea,
+body.dark-mode .form-group input,
+body.dark-mode .form-group select,
+body.dark-mode .form-group textarea {
+    background-color: var(--light); /* Use dark background for these elements */
+    color: var(--dark); /* Use light text color */
+    border-color: var(--border-color);
+}
+
+body.dark-mode .login-header h1,
+body.dark-mode .modal-content h2,
+body.dark-mode .sidebar .logo-section h1,
+body.dark-mode header h2,
+body.dark-mode .notification-dropdown .header h4,
+body.dark-mode .view-all-header h3,
+body.dark-mode .module-card h3,
+body.dark-mode .module-card h4,
+body.dark-mode .module-content label,
+body.dark-mode .form-group label {
+    color: var(--dark); /* Ensure headings and labels are light */
+}
+
+body.dark-mode .text-gray-600,
+body.dark-mode .text-gray-500,
+body.dark-mode .text-gray-400,
+body.dark-mode .sidebar .nav-section h3,
+body.dark-mode .sidebar .nav-item,
+body.dark-mode .sidebar .nav-item i,
+body.dark-mode .notification-item .time,
+body.dark-mode .view-all-notification .time,
+body.dark-mode .user-dropdown-item,
+body.dark-mode .user-dropdown-item i,
+body.dark-mode thead th,
+body.dark-mode tbody td {
+    color: var(--gray-medium); /* Adjust text colors for readability */
+}
+
+body.dark-mode .sidebar .nav-item:hover,
+body.dark-mode .notification-item:hover,
+body.dark-mode .view-all-notification:hover,
+body.dark-mode tbody tr:hover {
+    background-color: var(--gray-light); /* Darker hover background */
+}
+
+body.dark-mode .sidebar .nav-item.active {
+    background-color: var(--gray-light); /* Darker active background */
+    border-left-color: var(--primary);
+    color: var(--primary);
+}
+body.dark-mode .sidebar .nav-item.active i {
+    color: var(--primary);
+}
+
+body.dark-mode .tab {
+    color: var(--gray-medium);
+}
+body.dark-mode .tab:hover {
+    background-color: var(--gray-light);
+    color: var(--dark);
+}
+body.dark-mode .tab.active {
+    background-color: var(--gray-light);
+    border-bottom-color: var(--primary);
+    color: var(--primary);
+}
+
+/* Specific adjustments for icons/buttons */
+body.dark-mode .icon-wrapper {
+    background-color: rgba(255,255,255,0.1); /* Slightly transparent white */
+}
+body.dark-mode .icon-wrapper.bg-blue-50 { background-color: rgba(59, 48, 163, 0.3); }
+body.dark-mode .icon-wrapper.bg-green-50 { background-color: rgba(13, 148, 136, 0.3); }
+body.dark-mode .icon-wrapper.bg-yellow-50 { background-color: rgba(217, 119, 6, 0.3); }
+body.dark-mode .icon-wrapper.bg-purple-50 { background-color: rgba(139, 92, 246, 0.3); }
+body.dark-mode .icon-wrapper.bg-red-50 { background-color: rgba(239, 68, 68, 0.3); }
+body.dark-mode .icon-wrapper.bg-indigo-50 { background-color: rgba(99, 102, 241, 0.3); }
+body.dark-mode .icon-wrapper.bg-orange-50 { background-color: rgba(249, 115, 22, 0.3); }
+body.dark-mode .icon-wrapper.bg-pink-50 { background-color: rgba(236, 72, 153, 0.3); }
+
+body.dark-mode .fc-day-today {
+    background-color: var(--gray-light) !important;
+}
+body.dark-mode .fc-toolbar-title {
+    color: var(--dark);
+}
+body.dark-mode .fc-daygrid-day-number {
+    color: var(--gray-medium);
+}
+body.dark-mode .fc-button {
+    background-color: var(--primary-dark) !important;
+}
+body.dark-mode .fc-button:hover {
+    background-color: var(--primary) !important;
+}
+body.dark-mode .fc-button-active {
+    background-color: var(--primary) !important;
+}
+
+
+/* Login UI Specific Styles */
+#login-ui {
+    display: flex; /* Initially flex to center content */
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    width: 100%;
+}
+
+.login-container {
+    background-color: #ffffff;
+    border-radius: 1.25rem; /* Slightly more rounded */
+    box-shadow: var(--modal-shadow); /* More pronounced shadow */
+    padding: 3rem; /* Increased padding */
+    width: 100%;
+    max-width: 480px; /* Slightly wider */
+    text-align: center;
+    animation: fadeIn 0.6s ease-out;
+}
+
+.login-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 2.5rem; /* Increased margin */
+}
+
+.login-header img {
+    width: 90px; /* Slightly larger */
+    height: 90px;
+    margin-bottom: 1.25rem;
+    animation: popIn 0.5s ease-out;
+}
+
+.login-header h1 {
+    font-size: 2.5rem; /* Larger font size */
+    font-weight: 700;
+    color: var(--primary-dark);
+    animation: slideInFromTop 0.5s ease-out;
+}
+
+.role-selection {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 2rem; /* Increased margin */
+    gap: 1.25rem; /* Increased gap */
+}
+
+.role-button {
+    flex: 1;
+    padding: 1rem 1.25rem; /* Increased padding */
+    border-radius: 0.75rem; /* More rounded */
+    border: 1px solid var(--border-color);
+    background-color: var(--light);
+    color: var(--gray-dark);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem; /* Increased gap */
+}
+
+.role-button i {
+    font-size: 1.75rem; /* Larger icons */
+    color: var(--gray-medium);
+}
+
+.role-button.active {
+    border-color: var(--primary);
+    background-color: var(--primary);
+    color: white;
+    box-shadow: 0 6px 15px rgba(59, 48, 163, 0.25); /* Stronger, primary-colored shadow */
+}
+
+.role-button.active i {
+    color: white;
+}
+
+.role-button:hover:not(.active) {
+    background-color: #F3F4F6; /* Lighter gray on hover */
+    color: var(--primary-dark);
+    border-color: var(--primary);
+}
+
+.role-button:hover:not(.active) i {
+    color: var(--primary);
+}
+
+.form-group {
+    margin-bottom: 1.5rem; /* Increased margin */
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.95rem; /* Slightly larger font */
+    font-weight: 500;
+    color: var(--gray-dark);
+    margin-bottom: 0.6rem; /* Increased margin */
+}
+
+.form-group input, .form-group select, .form-group textarea {
+    width: 100%;
+    padding: 0.85rem 1.1rem; /* Increased padding */
+    border: 1px solid var(--border-color);
+    border-radius: 0.6rem; /* More rounded */
+    font-size: 1.05rem; /* Slightly larger font */
+    color: var(--dark);
+    background-color: #ffffff; /* White background for inputs */
+    transition: all 0.2s ease;
+}
+
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(59, 48, 163, 0.15); /* Softer, primary-colored focus ring */
+}
+
+.login-button {
+    width: 100%;
+    padding: 1rem 1.75rem; /* Increased padding */
+    background-color: var(--primary);
+    color: white;
+    font-size: 1.15rem; /* Slightly larger font */
+    font-weight: 600;
+    border: none;
+    border-radius: 0.75rem; /* More rounded */
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+    box-shadow: 0 4px 10px rgba(59, 48, 163, 0.2);
+}
+
+.login-button:hover {
+    background-color: var(--primary-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(59, 48, 163, 0.3);
+}
+
+.login-button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 5px rgba(59, 48, 163, 0.2);
+}
+
+.forgot-password {
+    margin-top: 1.5rem; /* Increased margin */
+    font-size: 0.95rem; /* Slightly larger font */
+}
+
+.forgot-password a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s ease;
+}
+
+.forgot-password a:hover {
+    text-decoration: underline;
+    color: var(--primary-dark);
+}
+
+/* Keyframe Animations (copied from School Site.html for consistency) */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideInFromTop {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes popIn {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.65); /* Slightly darker overlay */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.modal-content {
+    background-color: #ffffff;
+    padding: 3rem; /* Increased padding */
+    border-radius: 1.25rem; /* More rounded */
+    box-shadow: var(--modal-shadow); /* Stronger shadow */
+    width: 100%;
+    max-width: 450px; /* Slightly wider */
+    text-align: center;
+    transform: translateY(-30px); /* More pronounced slide-in */
+    transition: transform 0.3s ease;
+    position: relative; /* For close button positioning */
+}
+
+.modal-overlay.active .modal-content {
+    transform: translateY(0);
+}
+
+.modal-close-button {
+    position: absolute;
+    top: 1.25rem; /* Adjusted position */
+    right: 1.25rem;
+    background: none;
+    border: none;
+    font-size: 1.75rem; /* Larger icon */
+    color: var(--gray-medium);
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.modal-close-button:hover {
+    color: var(--gray-dark);
+}
+
+.modal-content h2 {
+    font-size: 2rem; /* Larger font size */
+    font-weight: 700;
+    color: var(--primary-dark);
+    margin-bottom: 1.75rem; /* Increased margin */
+}
+
+.modal-content p {
+    color: var(--gray-dark);
+    margin-bottom: 1.75rem; /* Increased margin */
+    line-height: 1.6; /* Improved readability */
+}
+
+.modal-content .form-group {
+    margin-bottom: 1.75rem; /* Increased margin */
+}
+
+.modal-content .login-button {
+    margin-top: 1.5rem; /* Increased margin */
+}
+
+/* School Site UI Specific Styles */
+#school-site-ui {
+    display: none; /* Initially hidden */
+    width: 100%;
+    height: 100vh;
+    overflow: hidden; /* Ensure no scrollbars on the main body */
+    background-color: var(--light);
+    color: var(--dark);
+}
+
+/* General transitions for smoother UI */
+.sidebar, .nav-item, .module-card, .notification-dropdown, .view-all-modal, .tab, .user-dropdown, .fc-button {
+    transition: all 0.3s ease-in-out;
+}
+
+/* Custom Keyframe Animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideInFromLeft {
+    from { transform: translateX(-20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideInFromTop {
+    from { transform: translateY(-20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes popIn {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+
+/* Apply animations */
+.animate-fadeIn {
+    animation: fadeIn 0.5s ease-out forwards;
+}
+.animate-slideInFromLeft {
+    animation: slideInFromLeft 0.4s ease-out forwards;
+}
+.animate-slideInFromTop {
+    animation: slideInFromTop 0.4s ease-out forwards;
+}
+.animate-popIn {
+    animation: popIn 0.3s ease-out forwards;
+}
+
+/* Sidebar Styling */
+.sidebar {
+    background-color: #ffffff; /* White background */
+    box-shadow: var(--card-shadow); /* Subtle shadow */
+    padding-top: 1.5rem; /* Increased padding */
+}
+.sidebar .logo-section {
+    padding: 0 1.5rem 1.5rem; /* Adjusted padding */
+    border-bottom: 1px solid var(--gray-light);
+    margin-bottom: 1.5rem;
+}
+.sidebar .logo-section img {
+    width: 48px; /* Consistent size */
+    height: 48px;
+}
+.sidebar .logo-section h1 {
+    font-size: 1.35rem; /* Adjusted font size */
+    color: var(--primary-dark);
+}
+.sidebar .nav-section h3 {
+    font-size: 0.75rem; /* Smaller uppercase text */
+    color: var(--gray-medium);
+    margin-bottom: 0.75rem;
+    padding: 0 1.5rem; /* Align with nav items */
+}
+.sidebar .nav-item {
+    color: var(--gray-dark);
+    padding: 0.85rem 1.5rem; /* Increased padding */
+    border-radius: 0.75rem; /* More rounded corners */
+    display: flex;
+    align-items: center;
+    gap: 1rem; /* Increased space */
+    font-weight: 500;
+    margin: 0.25rem 0.75rem; /* Add horizontal margin for rounded effect */
+}
+.sidebar .nav-item i {
+    font-size: 1.15rem; /* Slightly larger icons */
+    color: var(--gray-medium);
+}
+.sidebar .nav-item:hover {
+    background-color: #F3F4F6; /* Light gray on hover */
+    color: var(--primary-dark);
+}
+.sidebar .nav-item:hover i {
+    color: var(--primary);
+}
+.sidebar .nav-item.active {
+    background-color: #EEF2FF; /* Light indigo background */
+    border-left: 4px solid var(--primary); /* Primary color border */
+    color: var(--primary-dark);
+    font-weight: 600;
+    margin-left: 0; /* Remove left margin for active item to align border */
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+.sidebar .nav-item.active i {
+    color: var(--primary);
+}
+
+/* Module Card Styling */
+.module-card {
+    background-color: #ffffff;
+    border-radius: 1rem; /* More rounded corners */
+    box-shadow: var(--card-shadow); /* Subtle initial shadow */
+    transition: all 0.2s ease-in-out;
+    border: 1px solid transparent; /* For hover effect */
+}
+.module-card:hover {
+    transform: translateY(-6px); /* More pronounced lift */
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12); /* Stronger shadow on hover */
+    border-color: var(--primary); /* Highlight border on hover */
+}
+.module-card .icon-wrapper {
+    padding: 0.85rem; /* Increased padding */
+    border-radius: 0.75rem; /* More rounded */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem; /* Larger icons */
+}
+
+/* Top Bar Styling */
+header {
+    background-color: #ffffff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    padding: 1.25rem 2rem; /* Increased padding */
+    border-bottom: 1px solid var(--gray-light);
+}
+header h2 {
+    font-size: 1.6rem; /* Larger title */
+    font-weight: 600;
+    color: var(--dark);
+}
+
+/* Notification Dropdown Styles */
+.notification-dropdown {
+    position: absolute;
+    top: 70px; /* Adjusted for better alignment */
+    right: 25px;
+    background-color: white;
+    border-radius: 1rem; /* Consistent rounding */
+    box-shadow: var(--modal-shadow); /* Stronger shadow */
+    width: 350px; /* Slightly wider */
+    max-height: 450px; /* Taller */
+    overflow-y: auto;
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(-20px); /* More pronounced slide-down */
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+    pointer-events: none;
+    border: 1px solid var(--border-color);
+}
+.notification-dropdown.active {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+.notification-dropdown .header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--gray-light);
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--dark);
+}
+.notification-item {
+    padding: 14px 1.5rem; /* Increased padding */
+    border-bottom: 1px solid #F3F4F6;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+.notification-item:last-child {
+    border-bottom: none;
+}
+.notification-item.unread {
+    background-color: #EEF2FF; /* Light indigo for unread */
+}
+.notification-item:hover {
+    background-color: #F9FAFB;
+}
+.notification-item.unread:hover {
+    background-color: #E0E7FF; /* Slightly darker indigo on hover */
+}
+.notification-item .title {
+    font-weight: 600;
+    color: var(--gray-dark);
+    margin-bottom: 6px; /* Increased margin */
+    font-size: 0.95rem;
+}
+.notification-item .time {
+    font-size: 0.7rem; /* Slightly smaller */
+    color: var(--gray-medium);
+}
+.notification-footer {
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #F3F4F6;
+}
+.notification-footer button, .notification-footer a {
+    color: var(--primary);
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+.notification-footer button:hover, .notification-footer a:hover {
+    text-decoration: underline;
+    color: var(--primary-dark);
+}
+
+/* View All Notifications Modal Styles */
+.view-all-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7); /* Darker overlay */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease-out;
+}
+.view-all-modal.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+.view-all-content {
+    background: white;
+    border-radius: 1.25rem; /* Even more rounded */
+    width: 90%;
+    max-width: 600px; /* Wider */
+    max-height: 90vh; /* Taller */
+    overflow-y: auto;
+    box-shadow: var(--modal-shadow); /* Stronger shadow */
+    display: flex;
+    flex-direction: column;
+    transform: scale(0.9); /* More pronounced scale animation */
+    transition: transform 0.3s ease-out;
+    border: 1px solid var(--border-color);
+}
+.view-all-modal.active .view-all-content {
+    transform: scale(1);
+}
+.view-all-header {
+    padding: 1.25rem 2rem; /* Increased padding */
+    border-bottom: 1px solid var(--gray-light);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.view-all-header h3 {
+    font-size: 1.75rem; /* Larger title */
+    font-weight: 700; /* Bolder */
+    color: var(--dark);
+}
+.view-all-header button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 2rem; /* Larger close icon */
+    color: var(--gray-medium);
+    line-height: 1;
+    transition: color 0.2s ease;
+}
+.view-all-header button:hover {
+    color: var(--gray-dark);
+}
+.view-all-notification {
+    padding: 14px 2rem; /* Increased padding */
+    border-bottom: 1px solid #F3F4F6;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+.view-all-notification:last-child {
+    border-bottom: none;
+}
+.view-all-notification.unread {
+    background-color: #EEF2FF;
+}
+.view-all-notification:hover {
+    background-color: #F9FAFB;
+}
+.view-all-notification.unread:hover {
+    background-color: #E0E7FF;
+}
+.view-all-notification .title {
+    font-weight: 600;
+    color: var(--gray-dark);
+    margin-bottom: 6px;
+    font-size: 0.95rem;
+}
+.view-all-notification .time {
+    font-size: 0.7rem;
+    color: var(--gray-medium);
+}
+.view-all-footer {
+    padding: 1.25rem 2rem;
+    border-top: 1px solid var(--gray-light);
+    text-align: right;
+}
+.view-all-footer button {
+    background-color: var(--primary);
+    color: white;
+    padding: 0.85rem 1.75rem; /* Increased padding */
+    border-radius: 0.75rem; /* More rounded */
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 4px 10px rgba(59, 48, 163, 0.2);
+}
+.view-all-footer button:hover {
+    background-color: var(--primary-dark);
+    box-shadow: 0 6px 15px rgba(59, 48, 163, 0.3);
+}
+
+/* Avatar Placeholder */
+.avatar-placeholder {
+    background-color: #EEF2FF;
+    color: var(--primary);
+}
+
+/* Calendar styles (from original file, adjusted for new palette) */
+.fc {
+    font-family: 'Inter', sans-serif;
+}
+.fc-toolbar-title {
+    font-weight: 600;
+    color: var(--dark);
+    font-size: 1.5rem; /* Larger title */
+}
+.fc-button {
+    background-color: var(--primary) !important;
+    border: none !important;
+    color: white !important; /* Ensure button text is white */
+    padding: 0.6rem 1.2rem; /* Adjust padding */
+    border-radius: 0.6rem; /* Rounded corners */
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+.fc-button:hover {
+    background-color: var(--primary-dark) !important;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+.fc-button-active {
+    background-color: var(--primary-dark) !important;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+}
+.fc-event {
+    cursor: pointer;
+    border-radius: 6px; /* More rounded */
+    font-size: 0.875rem;
+    padding: 3px 6px; /* Increased padding */
+    border: none !important; /* Remove default border */
+    opacity: 0.9;
+    transition: opacity 0.2s ease, transform 0.1s ease;
+}
+.fc-event:hover {
+    opacity: 1;
+    transform: translateY(-1px);
+}
+.fc-daygrid-day-number {
+    font-weight: 600;
+    color: var(--gray-dark);
+    font-size: 1.1rem; /* Larger day numbers */
+}
+.fc-day-today {
+    background-color: #EEF2FF !important; /* Light indigo for today */
+    border-radius: 0.75rem; /* More rounded */
+}
+.fc-day-today .fc-daygrid-day-number {
+    color: var(--primary-dark);
+}
+
+/* Holiday specific styling */
+.fc-event.holiday {
+    background-color: #DC2626 !important; /* Red 600 for holidays */
+    border-color: #B91C1C !important; /* Red 700 */
+    color: white !important;
+    font-weight: 600;
+}
+.holiday-list-item {
+    padding: 0.85rem 1.25rem; /* Increased padding */
+    border-bottom: 1px solid var(--gray-light);
+    border-radius: 0.75rem; /* Consistent with cards */
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    color: var(--dark);
+    background-color: #ffffff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    transition: all 0.2s ease;
+}
+.holiday-list-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+.holiday-list-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+.holiday-list-item .date {
+    font-weight: 600;
+    color: var(--primary-dark);
+    min-width: 90px; /* Slightly wider */
+    font-size: 0.95rem;
+}
+.holiday-list-item .name {
+    flex-grow: 1;
+    font-size: 0.95rem;
+}
+.holiday-list-item .fas {
+    color: var(--accent); /* Accent color for star */
+}
+
+
+/* Tabs styling */
+.tabs {
+    display: flex;
+    border-bottom: 1px solid var(--gray-light);
+    margin-bottom: 2rem; /* Increased margin */
+    padding-bottom: 0.25rem; /* Space for active tab border */
+}
+.tab {
+    padding: 0.85rem 1.75rem; /* Increased padding */
+    cursor: pointer;
+    border-bottom: 3px solid transparent; /* Thicker border */
+    margin-right: 0.75rem; /* Increased margin */
+    font-weight: 500;
+    color: var(--gray-medium);
+    transition: all 0.2s ease;
+    border-radius: 0.5rem 0.5rem 0 0; /* Rounded top corners */
+}
+.tab:hover {
+    color: var(--primary-dark);
+    background-color: #F3F4F6;
+}
+.tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    background-color: #EEF2FF; /* Light indigo background */
+    font-weight: 600;
+}
+
+/* User Dropdown Styles */
+.user-dropdown {
+    position: absolute;
+    top: 70px; /* Aligned with notification dropdown */
+    right: 25px;
+    background-color: white;
+    border-radius: 1rem;
+    box-shadow: var(--modal-shadow);
+    width: 220px; /* Slightly wider */
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(-20px);
+    pointer-events: none;
+    border: 1px solid var(--border-color);
+}
+.user-dropdown.active {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+.user-dropdown-item {
+    padding: 14px 1.5rem; /* Increased padding */
+    display: flex;
+    align-items: center;
+    gap: 1rem; /* Increased gap */
+    color: var(--gray-dark);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+.user-dropdown-item:hover {
+    background-color: #F3F4F6;
+}
+.user-dropdown-item:first-child {
+    border-top-left-radius: 1rem;
+    border-top-right-radius: 1rem;
+}
+.user-dropdown-item:last-child {
+    border-bottom-left-radius: 1rem;
+    border-bottom-right-radius: 1rem;
+}
+.user-dropdown-item i {
+    font-size: 1.15rem; /* Consistent icon size */
+    color: var(--gray-medium);
+}
+.user-dropdown-item:hover i {
+    color: var(--primary);
+}
+
+/* Table Styling */
+table {
+    width: 100%;
+    border-collapse: separate; /* Allows border-radius on cells */
+    border-spacing: 0;
+}
+thead th {
+    background-color: #F9FAFB; /* Light background for header */
+    color: var(--gray-dark);
+    font-weight: 600;
+    padding: 1rem 1.25rem; /* Increased padding */
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+tbody td {
+    padding: 1rem 1.25rem; /* Increased padding */
+    border-bottom: 1px solid #F3F4F6; /* Lighter border for rows */
+    color: var(--dark);
+    font-size: 0.95rem;
+}
+tbody tr:last-child td {
+    border-bottom: none;
+}
+tbody tr:hover {
+    background-color: #F9FAFB; /* Subtle hover effect */
+}
+.table-actions button {
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+.table-actions button i {
+    margin-right: 0.25rem;
+}
+.table-actions .text-blue-600:hover { color: var(--primary-dark); background-color: #EEF2FF; }
+.table-actions .text-red-600:hover { color: #B91C1C; background-color: #FEE2E2; }
+.table-actions .text-purple-600:hover { color: #7E22CE; background-color: #F3E8FF; }
+.table-actions .text-green-600:hover { color: #065F46; background-color: #D1FAE5; }
+.table-actions .text-orange-600:hover { color: #9A3412; background-color: #FFEDD5; }
+.table-actions .text-pink-600:hover { color: #9D174D; background-color: #FCE7F3; }
+
+/* Form elements within modules */
+.module-content input,
+.module-content select,
+.module-content textarea {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.6rem;
+    font-size: 1rem;
+    color: var(--dark);
+    background-color: #ffffff;
+    transition: all 0.2s ease;
+}
+.module-content input:focus,
+.module-content select:focus,
+.module-content textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 48, 163, 0.1);
+}
+.module-content label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--gray-dark);
+    margin-bottom: 0.4rem;
+}
+
+/* Buttons within modules */
+.module-content button {
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.6rem;
+    font-weight: 600;
+    transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+}
+.module-content button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+.module-content button:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+.module-content .bg-blue-600:hover { background-color: var(--primary-dark); }
+.module-content .bg-green-600:hover { background-color: #065F46; }
+.module-content .bg-purple-600:hover { background-color: #7E22CE; }
+.module-content .bg-pink-600:hover { background-color: #9D174D; }
+.module-content .bg-orange-500:hover { background-color: var(--accent); }
+.module-content .bg-indigo-600:hover { background-color: var(--primary-dark); }
+
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .sidebar {
+        position: fixed;
+        left: -100%;
+        top: 0;
+        height: 100%;
+        z-index: 100;
+        width: 280px; /* Slightly wider for mobile */
+        box-shadow: 0 0 20px rgba(0,0,0,0.2);
+    }
+    .sidebar.active {
+        left: 0;
+    }
+    .notification-dropdown, .user-dropdown {
+        right: 15px;
+        width: calc(100% - 30px);
+    }
+    .view-all-content {
+        width: calc(100% - 40px);
+    }
+    .tabs {
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    }
+    .tab {
+        flex-shrink: 0; /* Prevent tabs from shrinking */
+    }
+    .grid-cols-1.md\:grid-cols-2.lg\:grid-cols-4 {
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    }
+    .grid-cols-1.md\:grid-cols-2.lg\:grid-cols-3 {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+    .grid-cols-1.lg\:grid-cols-2 {
+        grid-template-columns: 1fr;
+    }
+    .lg\:col-span-2, .lg\:col-span-1 {
+        grid-column: auto;
+    }
+    .login-container {
+        padding: 2.5rem;
+        margin: 0 1rem;
+    }
+    .modal-content {
+        padding: 2.5rem;
+        margin: 0 1rem;
+    }
+    header {
+        padding: 1rem 1.5rem;
+    }
+    header h2 {
+        font-size: 1.4rem;
+    }
+    .module-content {
+        padding: 1.5rem;
+    }
+    .module-card {
+        padding: 1.5rem;
+    }
+    .module-card .icon-wrapper {
+        font-size: 1.2rem;
+    }
+    .holiday-list-item {
+        padding: 0.75rem 1rem;
+    }
+    .holiday-list-item .date, .holiday-list-item .name {
+        font-size: 0.9rem;
+    }
+    thead th, tbody td {
+        padding: 0.8rem 1rem;
+        font-size: 0.85rem;
+    }
