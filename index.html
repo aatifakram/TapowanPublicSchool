@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Tapowan Public School - Login / Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet"/>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+    <!-- Chart.js for reports -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- Login UI -->
+<div id="login-ui">
+    <div class="login-container">
+        <div class="login-header">
+            <img alt="SchoolPulse Logo" src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/e9554fd1-c066-4325-a649-08e555ad308c.png"/>
+            <h1>Tapowan Public School</h1>
+            <p class="text-sm text-gray-500" id="typed-welcome"></p>
+            <p class="text-gray-600 mt-2">Sign in to your account</p>
+        </div>
+        <div class="role-selection">
+            <button class="role-button active" data-role="admin" type="button">
+                <i class="fas fa-user-shield"></i>
+                <span>Admin</span>
+            </button>
+            <button class="role-button" data-role="teacher" type="button">
+                <i class="fas fa-chalkboard-teacher"></i>
+                <span>Teacher</span>
+            </button>
+            <button class="role-button" data-role="student" type="button">
+                <i class="fas fa-user-graduate"></i>
+                <span>Student</span>
+            </button>
+        </div>
+        <form id="loginForm">
+            <input id="selectedRole" name="role" type="hidden" value="admin"/>
+            <div class="form-group">
+                <label for="email">Username</label>
+                <input id="email" name="email" placeholder="mdtfansari@gmail.com" required="" type="email"/>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input id="password" name="password" placeholder="12345678" required="" type="password"/>
+            </div>
+            <button class="login-button" type="submit">Login</button>
+            <button class="mt-4 rounded-full p-2 bg-indigo-600 text-white" type="button" onclick="startVoiceAssistant()">
+                <i class="fas fa-microphone"></i>
+            </button>
+        </form>
+        <div class="forgot-password">
+            <a href="#" id="forgotPasswordLink">Forgot Password?</a>
+        </div>
+    </div>
+</div>
+<!-- Forgot Password Modal -->
+<div class="modal-overlay" id="forgotPasswordModal" aria-labelledby="forgotPasswordTitle" aria-modal="true" role="dialog" tabindex="-1">
+    <div class="modal-content">
+        <button class="modal-close-button" id="closeForgotPasswordModal" type="button" aria-label="Close forgot password modal">×</button>
+        <h2 id="forgotPasswordTitle">Forgot Password</h2>
+        <p>Enter your email address below and we'll send you a link to reset your password.</p>
+        <form id="forgotPasswordForm">
+            <div class="form-group">
+                <label for="forgotEmail">Email Address</label>
+                <input id="forgotEmail" name="forgotEmail" placeholder="your.email@example.com" required="" type="email"/>
+            </div>
+            <button class="login-button" type="submit">Send Reset Link</button>
+        </form>
+    </div>
+</div>
+<!-- School Site UI -->
+<div id="school-site-ui" class="hidden">
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <div class="sidebar w-64 bg-white shadow-md flex flex-col animate-slideInFromLeft">
+            <!-- Logo -->
+            <div class="logo-section flex items-center space-x-3">
+                <img alt="SchoolPulse Logo" class="rounded-lg animate-popIn" src="https://storage.googleapis.com/workspace-0f70711f-8b4e-4d94-86f1-2a93ccde5887/image/e9554fd1-c066-4325-a649-08e555ad308c.png"/>
+                <h1 class="font-bold animate-fadeIn" style="animation-delay: 0.2s;">Tapowan Public School</h1>
+            </div>
+            <!-- Navigation -->
+            <nav class="flex-1 overflow-y-auto">
+                <div class="space-y-1 nav-section">
+                    <h3 class="uppercase font-medium animate-fadeIn" style="animation-delay: 0.3s;">MAIN MENU</h3>
+                    <a class="nav-item active animate-slideInFromLeft" data-module="dashboard" href="#" style="animation-delay: 0.4s;">
+                        <i class="fas fa-tachometer-alt"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    <a class="nav-item animate-slideInFromLeft" data-module="profile" href="#profile" style="animation-delay: 0.5s;">
+                        <i class="fas fa-user-circle"></i>
+                        <span>Profile</span>
+                    </a>
+                </div>
+                <div class="space-y-1 mt-6 nav-section">
+                    <h3 class="uppercase font-medium animate-fadeIn" style="animation-delay: 0.6s;">MODULES</h3>
+                    <a class="nav-item animate-slideInFromLeft" data-module="students" href="#students" style="animation-delay: 0.7s;">
+                        <i class="fas fa-user-graduate"></i>
+                        <span>Students</span>
+                    </a>
+                    <a class="nav-item animate-slideInFromLeft" data-module="teachers" href="#teachers" style="animation-delay: 0.8s;">
+                        <i class="fas fa-chalkboard-teacher"></i>
+                        <span>Teachers</span>
+                    </a>
+                    <a class="nav-item animate-slideInFromLeft" data-module="payroll" href="#payroll" style="animation-delay: 0.9s;">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <span>Payroll</span>
+                    </a>
+                    <a class="nav-item animate-slideInFromLeft" data-module="finance" href="#finance" style="animation-delay: 1.0s;">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        <span>Finance</span>
+                    </a>
+                    <a class="nav-item animate-slideInFromLeft" data-module="attendance" href="#attendance" style="animation-delay: 1.05s;">
+                        <i class="fas fa-check-circle"></i>
+                        <span>Attendance</span>
+                    </a>
+                    <a class="nav-item animate-slideInFromLeft" data-module="teacher-attendance" href="#teacher-attendance" style="animation-delay: 1.15s;">
+                        <i class="fas fa-user-check"></i>
+                        <span>Teacher Attendance</span>
+                    </a>
+                    <a class="nav-item animate-slideInFromLeft" data-module="calendar" href="#calendar" style="animation-delay: 1.1s;">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span>Calendar</span>
+                    </a>
+                    <a class="nav-item animate-slideInFromLeft" data-module="reports" href="#reports" style="animation-delay: 1.2s;">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Reports</span>
+                    </a>
+                </div>
+                <div class="space-y-1 mt-6 nav-section">
+                    <h3 class="uppercase font-medium animate-fadeIn" style="animation-delay: 1.3s;">ADMIN</h3>
+                    <a class="nav-item animate-slideInFromLeft" data-module="user-management" href="#user-management" style="animation-delay: 1.4s;">
+                        <i class="fas fa-users-cog"></i>
+                        <span>User Management</span>
+                    </a>
+                    <a class="nav-item animate-slideInFromLeft" data-module="roles-permissions" href="#roles-permissions" style="animation-delay: 1.5s;">
+                        <i class="fas fa-user-shield"></i>
+                        <span>Roles &amp; Permissions</span>
+                    </a>
+                    <a class="nav-item animate-slideInFromLeft" data-module="system-settings" href="#system-settings" style="animation-delay: 1.6s;">
+                        <i class="fas fa-cogs"></i>
+                        <span>System Settings</span>
+                    </a>
+                    <a class="nav-item animate-slideInFromLeft" data-module="audit-logs" href="#audit-logs" style="animation-delay: 1.7s;">
+                        <i class="fas fa-clipboard-list"></i>
+                        <span>Audit Logs</span>
+                    </a>
+                    <a class="nav-item animate-slideInFromLeft" data-module="backup-restore" href="#backup-restore" style="animation-delay: 1.8s;">
+                        <i class="fas fa-database"></i>
+                        <span>Backup &amp; Restore</span>
+                    </a>
+                    <a class="nav-item animate-slideInFromLeft" data-module="announcements" href="#announcements" style="animation-delay: 1.9s;">
+                        <i class="fas fa-bullhorn"></i>
+                        <span>Announcements</span>
+                    </a>
+                </div>
+            </nav>
+        </div>
+        <!-- Main Content -->
+        <div class="flex-1 overflow-auto">
+            <!-- Top Bar -->
+            <header class="bg-white shadow-sm flex justify-between items-center relative animate-slideInFromTop">
+                <h2 id="currentModuleTitle">Dashboard</h2>
+                <div class="flex items-center space-x-4">
+                    <button class="p-2 rounded-full hover:bg-gray-100 relative" id="notificationButton" type="button">
+                        <i class="fas fa-bell text-gray-600"></i>
+                        <span class="absolute top-0 right-0 inline-flex items-center justify-center px-1.5 py-0.5 text-xs font-bold leading-none text-white bg-red-600 rounded-full" id="notificationCount">3</span>
+                    </button>
+                    <!-- NEW: Dark Mode Toggle -->
+                    <button class="p-2 rounded-full hover:bg-gray-100" id="darkModeToggle" type="button">
+                        <i class="fas fa-moon text-gray-600"></i> <!-- Moon icon for light mode -->
+                    </button>
+                    <!-- Notification Dropdown UI -->
+                    <div class="notification-dropdown hidden" id="notificationDropdown">
+                        <div class="header flex justify-between items-center">
+                            <h4>Notifications</h4>
+                            <span class="text-sm text-gray-500" id="newCount">3 New</span>
+                        </div>
+                        <div class="notification-list" id="notificationList">
+                            <!-- Notifications will be inserted here dynamically -->
+                        </div>
+                        <div class="notification-footer">
+                            <button id="markAllReadBtn" type="button">Mark all as read</button>
+                            <a href="#" id="viewAllNotificationsLink">View all</a>
+                        </div>
+                    </div>
+                    <!-- End Notification Dropdown UI -->
+                    <div class="flex items-center space-x-2 cursor-pointer p-2 rounded-md hover:bg-gray-100" id="userProfileToggle">
+                        <div class="avatar-placeholder w-8 h-8 rounded-full flex items-center justify-center overflow-hidden">
+                            <i class="fas fa-user text-sm"></i>
+                        </div>
+                        <span class="font-medium" id="loggedInUserName">Admin</span>
+                        <i class="fas fa-chevron-down text-xs text-gray-500"></i>
+                    </div>
+                    <!-- User Dropdown UI -->
+                    <div class="user-dropdown hidden" id="userDropdown">
+                        <div class="user-dropdown-item" data-module="profile">
+                            <i class="fas fa-user-cog"></i>
+                            <span>Profile Settings</span>
+                        </div>
+                        <div class="user-dropdown-item" id="logoutButton">
+                            <i class="fas fa-sign-out-alt"></i>
+                            <span>Logout</span>
+                        </div>
+                    </div>
+                    <!-- End User Dropdown UI -->
+                </div>
+            </header>
+            <!-- Dashboard Content -->
+            <main class="p-6 animate-fadeIn" id="dashboardMainContent" style="animation-delay: 0.5s;">
+                <!-- Module Tabs -->
+                <div class="tabs mb-6" id="moduleTabs">
+                    <button class="tab active" data-tab="dashboard" type="button">Dashboard</button>
+                    <button class="tab" data-tab="profile" type="button">Profile</button>
+                    <button class="tab" data-tab="students" type="button">Students</button>
+                    <button class="tab" data-tab="teachers" type="button">Teachers</button>
+                    <button class="tab" data-tab="payroll" type="button">Payroll</button>
+                    <button class="tab" data-tab="finance" type="button">Finance</button>
+                    <button class="tab" data-tab="attendance" type="button">Attendance</button>
+                    <button class="tab" data-tab="teacher-attendance" type="button">Teacher Attendance</button>
+                    <button class="tab" data-tab="calendar" type="button">Calendar</button>
+                    <button class="tab" data-tab="reports" type="button">Reports</button>
+                    <button class="tab" data-tab="user-management" type="button">User Management</button>
+                    <button class="tab" data-tab="roles-permissions" type="button">Roles &amp; Permissions</button>
+                    <button class="tab" data-tab="system-settings" type="button">System Settings</button>
+                    <button class="tab" data-tab="audit-logs" type="button">Audit Logs</button>
+                    <button class="tab" data-tab="backup-restore" type="button">Backup &amp; Restore</button>
+                    <button class="tab" data-tab="announcements" type="button">Announcements</button>
+                </div>
+                <!-- Stats Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="module-card p-6 animate-popIn" style="animation-delay: 0.6s;">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-gray-500">Total Students</p>
+                                <h3 class="text-2xl font-bold mt-1" id="totalStudentsCount">0</h3>
+                            </div>
+                            <div class="icon-wrapper bg-blue-50 text-blue-600">
+                                <i class="fas fa-user-graduate"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="module-card p-6 animate-popIn" style="animation-delay: 0.7s;">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-gray-500">Total Teachers</p>
+                                <h3 class="text-2xl font-bold mt-1" id="totalTeachersCount">0</h3>
+                            </div>
+                            <div class="icon-wrapper bg-green-50 text-green-600">
+                                <i class="fas fa-chalkboard-teacher"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="module-card p-6 animate-popIn" style="animation-delay: 0.8s;">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-gray-500">Monthly Revenue</p>
+                                <h3 class="text-2xl font-bold mt-1" id="monthlyRevenue">$0.00</h3>
+                            </div>
+                            <div class="icon-wrapper bg-yellow-50 text-yellow-600">
+                                <i class="fas fa-money-bill-wave"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="module-card p-6 animate-popIn" style="animation-delay: 0.9s;">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-gray-500">Upcoming Events</p>
+                                <h3 class="text-2xl font-bold mt-1" id="upcomingEventsCount">0</h3>
+                            </div>
+                            <div class="icon-wrapper bg-purple-50 text-purple-600">
+                                <i class="fas fa-calendar-alt"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Modules Section -->
+                <div class="module-card p-6 mb-8 animate-fadeIn" style="animation-delay: 1.0s;">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-lg font-semibold">Quick Access Modules</h3>
+                        <button class="text-blue-600 hover:text-blue-800" data-module="students" type="button">View All</button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Students Module -->
+                        <div class="module-card p-4 animate-popIn" style="animation-delay: 1.1s;">
+                            <div class="flex items-center space-x-4 mb-3">
+                                <div class="icon-wrapper bg-blue-50 text-blue-600">
+                                    <i class="fas fa-user-graduate"></i>
+                                </div>
+                                <h4 class="font-medium">Students</h4>
+                            </div>
+                            <p class="text-gray-500 text-sm mb-3">Manage student records, attendance, and performance</p>
+                            <button class="text-blue-600 text-sm font-medium open-module" data-module="students" type="button">Open Module</button>
+                        </div>
+                        <!-- Teachers Module -->
+                        <div class="module-card p-4 animate-popIn" style="animation-delay: 1.2s;">
+                            <div class="flex items-center space-x-4 mb-3">
+                                <div class="icon-wrapper bg-green-50 text-green-600">
+                                    <i class="fas fa-chalkboard-teacher"></i>
+                                </div>
+                                <h4 class="font-medium">Teachers</h4>
+                            </div>
+                            <p class="text-gray-500 text-sm mb-3">Manage faculty information and class assignments</p>
+                            <button class="text-blue-600 text-sm font-medium open-module" data-module="teachers" type="button">Open Module</button>
+                        </div>
+                        <!-- Payroll Module -->
+                        <div class="module-card p-4 animate-popIn" style="animation-delay: 1.3s;">
+                            <div class="flex items-center space-x-4 mb-3">
+                                <div class="icon-wrapper bg-yellow-50 text-yellow-600">
+                                    <i class="fas fa-money-bill-wave"></i>
+                                </div>
+                                <h4 class="font-medium">Payroll</h4>
+                            </div>
+                            <p class="text-gray-500 text-sm mb-3">Process salaries and manage staff payments</p>
+                            <button class="text-blue-600 text-sm font-medium open-module" data-module="payroll" type="button">Open Module</button>
+                        </div>
+                        <!-- Finance Module -->
+                        <div class="module-card p-4 animate-popIn" style="animation-delay: 1.4s;">
+                            <div class="flex items-center space-x-4 mb-3">
+                                <div class="icon-wrapper bg-purple-50 text-purple-600">
+                                    <i class="fas fa-file-invoice-dollar"></i>
+                                </div>
+                                <h4 class="font-medium">Finance</h4>
+                            </div>
+                            <p class="text-gray-500 text-sm mb-3">Generate invoices and manage school finances</p>
+                            <button class="text-blue-600 text-sm font-medium open-module" data-module="finance" type="button">Open Module</button>
+                        </div>
+                        <!-- Attendance Module -->
+                        <div class="module-card p-4 animate-popIn" style="animation-delay: 1.45s;">
+                            <div class="flex items-center space-x-4 mb-3">
+                                <div class="icon-wrapper bg-indigo-50 text-indigo-600">
+                                    <i class="fas fa-check-circle"></i>
+                                </div>
+                                <h4 class="font-medium">Attendance</h4>
+                            </div>
+                            <p class="text-gray-500 text-sm mb-3">Track and manage student attendance records</p>
+                            <button class="text-blue-600 text-sm font-medium open-module" data-module="attendance" type="button">Open Module</button>
+                        </div>
+                        <!-- Calendar Module -->
+                        <div class="module-card p-4 animate-popIn" style="animation-delay: 1.5s;">
+                            <div class="flex items-center space-x-4 mb-3">
+                                <div class="icon-wrapper bg-red-50 text-red-600">
+                                    <i class="fas fa-calendar-alt"></i>
+                                </div>
+                                <h4 class="font-medium">Calendar</h4>
+                            </div>
+                            <p class="text-gray-500 text-sm mb-3">View and manage school events and schedules</p>
+                            <button class="text-blue-600 text-sm font-medium open-module" data-module="calendar" type="button">Open Module</button>
+                        </div>
+                        <!-- Reports Module -->
+                        <div class="module-card p-4 animate-popIn" style="animation-delay: 1.6s;">
+                            <div class="flex items-center space-x-4 mb-3">
+                                <div class="icon-wrapper bg-indigo-50 text-indigo-600">
+                                    <i class="fas fa-chart-line"></i>
+                                </div>
+                                <h4 class="font-medium">Reports</h4>
+                            </div>
+                            <p class="text-gray-500 text-sm mb-3">Generate insights and analytics</p>
+                            <button class="text-blue-600 text-sm font-medium open-module" data-module="reports" type="button">Open Module</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Admin Options Section -->
+                <div class="module-card p-6 mb-8 animate-fadeIn" style="animation-delay: 1.7s;">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-lg font-semibold">Admin Options</h3>
+                        <button class="text-blue-600 hover:text-blue-800" data-module="user-management" type="button">View All</button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- User Management -->
+                        <div class="module-card p-4 animate-popIn" style="animation-delay: 1.8s;">
+                            <div class="flex items-center space-x-4 mb-3">
+                                <div class="icon-wrapper bg-red-50 text-red-600">
+                                    <i class="fas fa-users-cog"></i>
+                                </div>
+                                <h4 class="font-medium">User Management</h4>
+                            </div>
+                            <p class="text-gray-500 text-sm mb-3">Add, edit, or remove user accounts</p>
+                            <button class="text-blue-600 text-sm font-medium open-module" data-module="user-management" type="button">Open Module</button>
+                        </div>
+                        <!-- Role & Permissions -->
+                        <div class="module-card p-4 animate-popIn" style="animation-delay: 1.9s;">
+                            <div class="flex items-center space-x-4 mb-3">
+                                <div class="icon-wrapper bg-orange-50 text-orange-600">
+                                    <i class="fas fa-user-shield"></i>
+                                </div>
+                                <h4 class="font-medium">Role &amp; Permissions</h4>
+                            </div>
+                            <p class="text-gray-500 text-sm mb-3">Define and assign user roles and access rights</p>
+                            <button class="text-blue-600 text-sm font-medium open-module" data-module="roles-permissions" type="button">Open Module</button>
+                        </div>
+                        <!-- System Settings -->
+                        <div class="module-card p-4 animate-popIn" style="animation-delay: 2.0s;">
+                            <div class="flex items-center space-x-4 mb-3">
+                                <div class="icon-wrapper bg-green-50 text-green-600">
+                                    <i class="fas fa-cogs"></i>
+                                </div>
+                                <h4 class="font-medium">System Settings</h4>
+                            </div>
+                            <p class="text-gray-500 text-sm mb-3">Configure general application settings</p>
+                            <button class="text-blue-600 text-sm font-medium open-module" data-module="system-settings" type="button">Open Module</button>
+                        </div>
+                        <!-- Audit Logs -->
+                        <div class="module-card p-4 animate-popIn" style="animation-delay: 2.1s;">
+                            <div class="flex items-center space-x-4 mb-3">
+                                <div class="icon-wrapper bg-blue-50 text-blue-600">
+                                    <i class="fas fa-clipboard-list"></i>
+                                </div>
+                                <h4 class="font-medium">Audit Logs</h4>
+                            </div>
+                            <p class="text-gray-500 text-sm mb-3">Review system activity and user actions</p>
+                            <button class="text-blue-600 text-sm font-medium open-module" data-module="audit-logs" type="button">Open Module</button>
+                        </div>
+                        <!-- Backup & Restore -->
+                        <div class="module-card p-4 animate-popIn" style="animation-delay: 2.2s;">
+                            <div class="flex items-center space-x-4 mb-3">
+                                <div class="icon-wrapper bg-purple-50 text-purple-600">
+                                    <i class="fas fa-database"></i>
+                                </div>
+                                <h4 class="font-medium">Backup &amp; Restore</h4>
+                            </div>
+                            <p class="text-gray-500 text-sm mb-3">Manage database backups and restoration</p>
+                            <button class="text-blue-600 text-sm font-medium open-module" data-module="backup-restore" type="button">Open Module</button>
+                        </div>
+                        <!-- Announcements -->
+                        <div class="module-card p-4 animate-popIn" style="animation-delay: 2.3s;">
+                            <div class="flex items-center space-x-4 mb-3">
+                                <div class="icon-wrapper bg-pink-50 text-pink-600">
+                                    <i class="fas fa-bullhorn"></i>
+                                </div>
+                                <h4 class="font-medium">Announcements</h4>
+                            </div>
+                            <p class="text-gray-500 text-sm mb-3">Create and manage school-wide announcements</p>
+                            <button class="text-blue-600 text-sm font-medium open-module" data-module="announcements" type="button">Open Module</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Recent Activity and Calendar -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Recent Activity -->
+                    <div class="module-card p-6 animate-fadeIn" style="animation-delay: 2.4s;">
+                        <h3 class="text-lg font-semibold mb-4">Recent Activity</h3>
+                        <div class="space-y-4" id="recentActivityList">
+                            <!-- Activities will be dynamically loaded here -->
+                        </div>
+                    </div>
+                    <!-- Calendar -->
+                    <div class="module-card p-6 animate-fadeIn" style="animation-delay: 2.8s;">
+                        <h3 class="text-lg font-semibold mb-4">School Calendar</h3>
+                        <div class="min-h-[400px] fc-theme-standard" id="calendar"></div>
+                    </div>
+                </div>
+            </main>
+            <!-- Module Containers -->
+            <div class="hidden" id="modulesContainer">
+                <!-- Dashboard Module (kept hidden as per original, JS will show it) -->
+                <div id="dashboardModule" class="module-content hidden">
+                    <!-- Dashboard content is already in main#dashboardMainContent, this div is just a placeholder for the JS logic -->
+                </div>
+                <!-- Profile Module -->
+                <div class="module-content p-6 hidden" id="profileModule">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-semibold">User Profile</h3>
+                        <button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700" form="profileForm" type="submit">
+                            <i class="fas fa-save mr-2"></i>Save Changes
+                        </button>
+                    </div>
+                    <div class="module-card p-6">
+                        <form class="space-y-6" id="profileForm">
+                            <div class="flex items-center space-x-6">
+                                <div class="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                                    <img alt="Profile Picture" class="w-full h-full object-cover" id="profilePicturePreview" src="https://via.placeholder.com/96/cccccc/ffffff?text=User"/>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1" for="profilePicture">Change Profile Picture</label>
+                                    <input accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" id="profilePicture" name="profilePicture" type="file">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1" for="fullName">Full Name</label>
+                                    <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" id="fullName" name="fullName" required="" type="text" value="Admin User">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1" for="profileEmail">Email Address</label>
+                                    <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" id="profileEmail" name="email" required="" type="email" value="admin@tps.com">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1" for="role">Role</label>
+                                    <select class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" id="role" name="role">
+                                        <option value="admin">Admin</option>
+                                        <option value="Teacher">Teacher</option>
+                                        <option value="Student">Student</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1" for="phone">Phone Number</label>
+                                    <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" id="phone" name="phone" type="tel" value="+123 456 7890">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1" for="address">Address</label>
+                                <textarea class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" id="address" name="address" rows="3">123 School Lane, Education City</textarea>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <!-- User Management Module -->
+                <div class="module-content p-6 hidden" id="user-managementModule">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-semibold">User Management</h3>
+                        <button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700" type="button" onclick="showAddUserForm()">
+                            <i class="fas fa-plus mr-2"></i>Add User
+                        </button>
+                    </div>
+                    <div class="module-card p-6">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full">
+                                <thead>
+                                <tr>
+                                    <th class="text-left py-3 px-4">ID</th>
+                                    <th class="text-left py-3 px-4">Name</th>
+                                    <th class="text-left py-3 px-4">Email</th>
+                                    <th class="text-left py-3 px-4">Role</th>
+                                    <th class="text-left py-3 px-4">Status</th>
+                                    <th class="text-left py-3 px-4">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody id="userTableBody">
+                                <!-- Users will be dynamically loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Role & Permissions Module -->
+                <div class="module-content p-6 hidden" id="roles-permissionsModule">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-semibold">Role &amp; Permissions Management</h3>
+                        <button class="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700" type="button" onclick="alert('Add New Role functionality goes here!')">
+                            <i class="fas fa-plus mr-2"></i>Add New Role
+                        </button>
+                    </div>
+                    <div class="module-card p-6">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full">
+                                <thead>
+                                <tr>
+                                    <th class="text-left py-3 px-4">Role Name</th>
+                                    <th class="text-left py-3 px-4">Description</th>
+                                    <th class="text-left py-3 px-4">Permissions</th>
+                                    <th class="text-left py-3 px-4">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                <tr class="border-b hover:bg-gray-50">
+                                    <td class="py-3 px-4">Admin</td>
+                                    <td class="py-3 px-4">Full access to all modules and settings.</td>
+                                    <td class="py-3 px-4">All</td>
+                                    <td class="py-3 px-4">
+                                        <button class="text-blue-600 hover:text-blue-800 mr-3" title="Edit Role" type="button">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="text-purple-600 hover:text-purple-800" title="Manage Permissions" type="button">
+                                            <i class="fas fa-user-shield"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr class="border-b hover:bg-gray-50">
+                                    <td class="py-3 px-4">Teacher</td>
+                                    <td class="py-3 px-4">Manage students, grades, and attendance for assigned classes.</td>
+                                    <td class="py-3 px-4">Students, Calendar, Reports</td>
+                                    <td class="py-3 px-4">
+                                        <button class="text-blue-600 hover:text-blue-800 mr-3" title="Edit Role" type="button">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="text-purple-600 hover:text-purple-800" title="Manage Permissions" type="button">
+                                            <i class="fas fa-user-shield"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <tr class="border-b hover:bg-gray-50">
+                                    <td class="py-3 px-4">Student</td>
+                                    <td class="py-3 px-4">View personal profile, grades, and school calendar.</td>
+                                    <td class="py-3 px-4">Profile, Calendar</td>
+                                    <td class="py-3 px-4">
+                                        <button class="text-blue-600 hover:text-blue-800 mr-3" title="Edit Role" type="button">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button class="text-purple-600 hover:text-purple-800" title="Manage Permissions" type="button">
+                                            <i class="fas fa-user-shield"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- System Settings Module -->
+                <div class="module-content p-6 hidden" id="system-settingsModule">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-semibold">System Settings</h3>
+                        <button class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700" form="systemSettingsForm" type="submit">
+                            <i class="fas fa-save mr-2"></i>Save Settings
+                        </button>
+                    </div>
+                    <div class="module-card p-6">
+                        <form class="space-y-6" id="systemSettingsForm">
+                            <h4 class="text-lg font-medium text-gray-700 mb-3">General Settings</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1" for="schoolName">School Name</label>
+                                    <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" id="schoolName" name="schoolName" required="" type="text" value="Tapowan Public School"/>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1" for="schoolAddress">School Address</label>
+                                    <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" id="schoolAddress" name="schoolAddress" required="" type="text" value="123 Education Lane, School City"/>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1" for="contactEmail">Contact Email</label>
+                                    <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" id="contactEmail" name="contactEmail" required="" type="email" value="info@tps.com"/>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1" for="contactPhone">Contact Phone</label>
+                                    <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" id="contactPhone" name="contactPhone" type="tel" value="+1 (555) 123-4567"/>
+                                </div>
+                            </div>
+                            <h4 class="text-lg font-medium text-gray-700 mb-3 mt-8">Email Settings</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1" for="smtpHost">SMTP Host</label>
+                                    <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" id="smtpHost" name="smtpHost" type="text" value="smtp.example.com"/>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1" for="smtpPort">SMTP Port</label>
+                                    <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" id="smtpPort" name="smtpPort" type="number" value="587"/>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1" for="smtpUsername">SMTP Username</label>
+                                    <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" id="smtpUsername" name="smtpUsername" type="text" value="noreply@schoolpulse.com"/>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1" for="smtpPassword">SMTP Password</label>
+                                    <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" id="smtpPassword" name="smtpPassword" type="password" value="********"/>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <!-- Audit Logs Module -->
+                <div class="module-content p-6 hidden" id="audit-logsModule">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-semibold">Audit Logs</h3>
+                        <div class="flex items-center space-x-4">
+                            <input class="p-2 border border-gray-300 rounded-lg" type="date" name="auditLogStartDate"/>
+                            <input class="p-2 border border-gray-300 rounded-lg" type="date" name="auditLogEndDate"/>
+                            <button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700" type="button">
+                                <i class="fas fa-filter mr-2"></i>Filter
+                            </button>
+                        </div>
+                    </div>
+                    <div class="module-card p-6">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full">
+                                <thead>
+                                <tr>
+                                    <th class="text-left py-3 px-4">Timestamp</th>
+                                    <th class="text-left py-3 px-4">User</th>
+                                    <th class="text-left py-3 px-4">Action</th>
+                                    <th class="text-left py-3 px-4">Module</th>
+                                    <th class="text-left py-3 px-4">Details</th>
+                                </tr>
+                                </thead>
+                                <tbody id="auditLogTableBody">
+                                <!-- Audit logs will be dynamically loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Backup & Restore Module -->
+                <div class="module-content p-6 hidden" id="backup-restoreModule">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-semibold">Backup &amp; Restore</h3>
+                        <button class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700" type="button" onclick="alert('Initiating database backup...')">
+                            <i class="fas fa-database mr-2"></i>Create New Backup
+                        </button>
+                    </div>
+                    <div class="module-card p-6">
+                        <h4 class="text-lg font-medium text-gray-700 mb-3">Backup History</h4>
+                        <div class="overflow-x-auto mb-6">
+                            <table class="min-w-full">
+                                <thead>
+                                <tr>
+                                    <th class="text-left py-3 px-4">Backup ID</th>
+                                    <th class="text-left py-3 px-4">Date</th>
+                                    <th class="text-left py-3 px-4">Size</th>
+                                    <th class="text-left py-3 px-4">Type</th>
+                                    <th class="text-left py-3 px-4">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody id="backupTableBody">
+                                <!-- Backups will be dynamically loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <h4 class="text-lg font-medium text-gray-700 mb-3">Manual Restore</h4>
+                        <div class="flex items-center space-x-4">
+                            <input accept=".sql,.zip" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100" type="file" name="restoreFile">
+                            <button class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700" type="button" onclick="alert('Initiating manual restore...')">
+                                <i class="fas fa-upload mr-2"></i>Upload &amp; Restore
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Announcements Module -->
+                <div class="module-content p-6 hidden" id="announcementsModule">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-semibold">Announcements</h3>
+                        <button class="bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700" type="button" onclick="showAddAnnouncementModal()">
+                            <i class="fas fa-plus mr-2"></i>Add New Announcement
+                        </button>
+                    </div>
+                    <div class="module-card p-6">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full">
+                                <thead>
+                                <tr>
+                                    <th class="text-left py-3 px-4">Title</th>
+                                    <th class="text-left py-3 px-4">Content</th>
+                                    <th class="text-left py-3 px-4">Date Posted</th>
+                                    <th class="text-left py-3 px-4">Status</th>
+                                    <th class="text-left py-3 px-4">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody id="announcementTableBody">
+                                <!-- Announcements will be dynamically loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Students Module -->
+                <div class="module-content p-6 hidden" id="studentsModule">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-semibold">Students Management</h3>
+                        <div class="flex space-x-2"> <!-- Added a flex container for buttons -->
+                            <button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700" type="button" onclick="showAddStudentForm()">
+                                <i class="fas fa-plus mr-2"></i>Add Student
+                            </button>
+                            <button class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700" type="button" onclick="exportStudentsToExcel()">
+                                <i class="fas fa-file-excel mr-2"></i>Export to Excel
+                            </button>
+                        </div>
+                    </div>
+                    <div class="module-card p-6">
+                        <div class="flex flex-wrap items-center gap-4 mb-4">
+                            <input class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-auto" id="searchRoll" placeholder="Search by Roll No." type="text" name="searchRoll"/>
+                            <select class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-auto" id="searchClass" name="searchClass">
+                                <option value="">All Classes</option>
+                                <option>Grade 1</option>
+                                <option>Grade 2</option>
+                                <option>Grade 3</option>
+                                <option>Grade 4</option>
+                                <option>Grade 5</option>
+                                <option>Grade 6</option>
+                                <option>Grade 7</option>
+                                <option>Grade 8</option>
+                                <option>Grade 9</option>
+                                <option>Grade 10</option>
+                                <option>Grade 11</option>
+                                <option>Grade 12</option>
+                            </select>
+                            <button class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 w-full md:w-auto" id="applySearch" type="button">
+                                <i class="fas fa-search mr-2"></i>Search
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full" id="studentsTable"> <!-- Added ID for easy access -->
+                                <thead>
+                                <tr>
+                                    <th class="text-left py-3 px-4">ID</th>
+                                    <th class="text-left py-3 px-4">Name</th>
+                                    <th class="text-left py-3 px-4">Father's Name</th>
+                                    <th class="text-left py-3 px-4">Mother's Name</th>
+                                    <th class="text-left py-3 px-4">Class</th>
+                                    <th class="text-left py-3 px-4">Roll No.</th>
+                                    <th class="text-left py-3 px-4">Aadhar No.</th>
+                                    <th class="text-left py-3 px-4">Status</th>
+                                    <th class="text-left py-3 px-4">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody id="studentTableBody">
+                                <!-- Students will be dynamically loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Teachers Module -->
+                <div class="module-content p-6 hidden" id="teachersModule">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-semibold">Teachers Management</h3>
+                        <div class="flex space-x-2"> <!-- Added a flex container for buttons -->
+                            <button class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700" type="button" onclick="showAddTeacherForm()">
+                                <i class="fas fa-plus mr-2"></i>Add Teacher
+                            </button>
+                            <button class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700" type="button" onclick="exportTeachersToExcel()">
+                                <i class="fas fa-file-excel mr-2"></i>Export to Excel
+                            </button>
+                        </div>
+                    </div>
+                    <div class="module-card p-6">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full" id="teachersTable"> <!-- Added ID for easy access -->
+                                <thead>
+                                <tr>
+                                    <th class="text-left py-3 px-4">ID</th>
+                                    <th class="text-left py-3 px-4">Name</th>
+                                    <th class="text-left py-3 px-4">Subject</th>
+                                    <th class="text-left py-3 px-4">Classes</th>
+                                    <th class="text-left py-3 px-4">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody id="teacherTableBody">
+                                <!-- Teachers will be dynamically loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Payroll Module -->
+                <div class="module-content p-6 hidden" id="payrollModule">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-semibold">Payroll Management</h3>
+                        <button class="bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 flex items-center space-x-2" id="openPayrollModalBtn" type="button">
+                            <i class="fas fa-plus"></i>
+                            <span>Process Payroll</span>
+                        </button>
+                    </div>
+                    <div class="module-card p-6">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full">
+                                <thead>
+                                <tr>
+                                    <th class="text-left py-3 px-4">Period</th>
+                                    <th class="text-left py-3 px-4">Staff Count</th>
+                                    <th class="text-left py-3 px-4">Total Amount</th>
+                                    <th class="text-left py-3 px-4">Status</th>
+                                    <th class="text-left py-3 px-4">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody id="payrollTableBody">
+                                <!-- Payroll entries will be dynamically loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Finance Module -->
+                <div class="module-content p-6 hidden" id="financeModule">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-semibold">Finance Management</h3>
+                        <button class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center space-x-2" id="openAddInvoiceModalBtn" type="button">
+                            <i class="fas fa-plus"></i>
+                            <span>Add Invoice</span>
+                        </button>
+                    </div>
+                    <div class="module-card p-6">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full">
+                                <thead>
+                                <tr>
+                                    <th class="text-left py-3 px-4">Invoice #</th>
+                                    <th class="text-left py-3 px-4">Date</th>
+                                    <th class="text-left py-3 px-4">Amount</th>
+                                    <th class="text-left py-3 px-4">Status</th>
+                                    <th class="text-left py-3 px-4">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody id="financeTableBody">
+                                <!-- Invoices will be dynamically loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Attendance Module -->
+                <div class="module-content p-6 hidden" id="attendanceModule">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-semibold">Attendance Management</h3>
+                        <button class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700" type="button" onclick="showAddAttendanceModal()">
+                            <i class="fas fa-plus mr-2"></i>Mark Attendance
+                        </button>
+                    </div>
+                    <div class="module-card p-6">
+                        <div class="flex flex-wrap items-center gap-4 mb-4">
+                            <input class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto" id="attendanceStudentNameFilter" placeholder="Search by Student Name" type="text" name="attendanceStudentNameFilter"/>
+                            <select class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto" id="attendanceClassFilter" name="attendanceClassFilter">
+                                <option value="">All Classes</option>
+                                <option>Grade 1</option>
+                                <option>Grade 2</option>
+                                <option>Grade 3</option>
+                                <option>Grade 4</option>
+                                <option>Grade 5</option>
+                                <option>Grade 6</option>
+                                <option>Grade 7</option>
+                                <option>Grade 8</option>
+                                <option>Grade 9</option>
+                                <option>Grade 10</option>
+                                <option>Grade 11</option>
+                                <option>Grade 12</option>
+                            </select>
+                            <input class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full md:w-auto" id="attendanceDateFilter" type="date" name="attendanceDateFilter"/>
+                            <button class="bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-600 w-full md:w-auto" id="applyAttendanceFilter" type="button">
+                                <i class="fas fa-filter mr-2"></i>Filter
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div class="module-card p-4 text-center">
+                                <p class="text-gray-500 text-sm">Total Students</p>
+                                <h4 class="text-xl font-bold" id="attendanceTotalStudents">0</h4>
+                            </div>
+                            <div class="module-card p-4 text-center">
+                                <p class="text-gray-500 text-sm">Present</p>
+                                <h4 class="text-xl font-bold text-green-600" id="attendanceTotalPresent">0</h4>
+                            </div>
+                            <div class="module-card p-4 text-center">
+                                <p class="text-gray-500 text-sm">Absent</p>
+                                <h4 class="text-xl font-bold text-red-600" id="attendanceTotalAbsent">0</h4>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full">
+                                <thead>
+                                <tr>
+                                    <th class="text-left py-3 px-4">Student Name</th>
+                                    <th class="text-left py-3 px-4">Roll No.</th>
+                                    <th class="text-left py-3 px-4">Class</th>
+                                    <th class="text-left py-3 px-4">Date</th>
+                                    <th class="text-left py-3 px-4">Status</th>
+                                    <th class="text-left py-3 px-4">Remarks</th>
+                                    <th class="text-left py-3 px-4">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody id="attendanceTableBody">
+                                <!-- Attendance records will be dynamically loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Teacher Attendance Module -->
+                <div class="module-content p-6 hidden" id="teacher-attendanceModule">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-semibold">Teacher Attendance Management</h3>
+                        <button class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700" type="button" onclick="showAddTeacherAttendanceModal()">
+                            <i class="fas fa-plus mr-2"></i>Mark Teacher Attendance
+                        </button>
+                    </div>
+                    <div class="module-card p-6">
+                        <div class="flex flex-wrap items-center gap-4 mb-4">
+                            <input class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 w-full md:w-auto" id="teacherAttendanceNameFilter" placeholder="Search by Teacher Name" type="text" name="teacherAttendanceNameFilter"/>
+                            <select class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 w-full md:w-auto" id="teacherAttendanceSubjectFilter" name="teacherAttendanceSubjectFilter">
+                                <option value="">All Subjects</option>
+                                <option>English</option>
+                                <option>Hindi</option>
+                                <option>Science</option>
+                                <option>Math</option>
+                                <option>Computer</option>
+                                <option>Sanskrit</option>
+                                <option>Social Study</option>
+                                <option>Soil Science</option>
+                            </select>
+                            <input class="p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 w-full md:w-auto" id="teacherAttendanceDateFilter" type="date" name="teacherAttendanceDateFilter"/>
+                            <button class="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 w-full md:w-auto" id="applyTeacherAttendanceFilter" type="button">
+                                <i class="fas fa-filter mr-2"></i>Filter
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div class="module-card p-4 text-center">
+                                <p class="text-gray-500 text-sm">Total Teachers</p>
+                                <h4 class="text-xl font-bold" id="teacherAttendanceTotalTeachers">0</h4>
+                            </div>
+                            <div class="module-card p-4 text-center">
+                                <p class="text-gray-500 text-sm">Present</p>
+                                <h4 class="text-xl font-bold text-green-600" id="teacherAttendanceTotalPresent">0</h4>
+                            </div>
+                            <div class="module-card p-4 text-center">
+                                <p class="text-gray-500 text-sm">Absent</p>
+                                <h4 class="text-xl font-bold text-red-600" id="teacherAttendanceTotalAbsent">0</h4>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full">
+                                <thead>
+                                <tr>
+                                    <th class="text-left py-3 px-4">Teacher Name</th>
+                                    <th class="text-left py-3 px-4">Subject</th>
+                                    <th class="text-left py-3 px-4">Date</th>
+                                    <th class="text-left py-3 px-4">Status</th>
+                                    <th class="text-left py-3 px-4">Remarks</th>
+                                    <th class="text-left py-3 px-4">Actions</th>
+                                </tr>
+                                </thead>
+                                <tbody id="teacherAttendanceTableBody">
+                                <!-- Teacher attendance records will be dynamically loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Calendar Module -->
+                <div class="module-content p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 hidden" id="calendarModule">
+                    <div class="lg:col-span-2 module-card p-6">
+                        <h3 class="text-2xl font-semibold mb-4 text-gray-800">School Event Calendar</h3>
+                        <div class="min-h-[500px]" id="calendar-full"></div>
+                    </div>
+                    <div class="lg:col-span-1 module-card p-6">
+                        <h3 class="text-2xl font-semibold mb-4 text-gray-800">Upcoming Holidays</h3>
+                        <div class="space-y-2" id="holidayList">
+                            <!-- Holidays will be dynamically loaded here -->
+                        </div>
+                    </div>
+                </div>
+                <!-- Reports Module -->
+                <div class="module-content p-6 hidden" id="reportsModule">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-semibold">Reports Dashboard</h3>
+                        <button class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700" type="button" onclick="alert('Generate Report functionality goes here!')">
+                            <i class="fas fa-plus mr-2"></i>Generate Report
+                        </button>
+                    </div>
+                    <div class="module-card p-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="p-4 border rounded-lg">
+                                <h4 class="font-medium mb-3">Student Attendance</h4>
+                                <canvas class="w-full h-64" id="attendanceChart"></canvas>
+                            </div>
+                            <div class="p-4 border rounded-lg">
+                                <h4 class="font-medium mb-3">Exam Performance</h4>
+                                <canvas class="w-full h-64" id="performanceChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- View All Notifications Modal -->
+            <div aria-labelledby="viewAllTitle" aria-modal="true" class="view-all-modal hidden" id="viewAllModal" role="dialog" tabindex="-1">
+                <div class="view-all-content">
+                    <div class="view-all-header">
+                        <h3 id="viewAllTitle">All Notifications</h3>
+                        <button aria-label="Close notifications modal" id="closeViewAllModal" type="button">×</button>
+                    </div>
+                    <div class="overflow-y-auto" id="viewAllNotificationList" style="max-height: 60vh;">
+                        <!-- All notifications will be inserted here -->
+                    </div>
+                    <div class="view-all-footer">
+                        <button id="modalMarkAllReadBtn" type="button">Mark all as read</button>
+                    </div>
+                </div>
+            </div>
+            <!-- Process Payroll Modal -->
+            <div class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="payrollModal" aria-labelledby="payrollModalTitle" aria-modal="true" role="dialog" tabindex="-1">
+                <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold" id="payrollModalTitle">Process Payroll</h3>
+                        <button class="text-gray-500 hover:text-gray-700" id="closePayrollModalBtn" type="button" aria-label="Close payroll modal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form class="space-y-4" id="payrollForm">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="payrollPeriod">Payroll Period</label>
+                            <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" id="payrollPeriod" name="payrollPeriod" required="" type="month">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="staffCount">Staff Count</label>
+                            <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" id="staffCount" min="1" name="staffCount" placeholder="Enter number of staff" required="" type="number">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="totalAmount">Total Amount ($)</label>
+                            <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" id="totalAmount" min="0" name="totalAmount" placeholder="Enter total payroll amount" required="" step="0.01" type="number">
+                        </div>
+                        <button class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 font-semibold" type="submit">
+                            Submit Payroll
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <!-- Add Invoice Modal -->
+            <div class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="addInvoiceModal" aria-labelledby="addInvoiceModalTitle" aria-modal="true" role="dialog" tabindex="-1">
+                <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold" id="addInvoiceModalTitle">Add New Invoice</h3>
+                        <button class="text-gray-500 hover:text-gray-700" id="closeAddInvoiceModalBtn" type="button" aria-label="Close add invoice modal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form class="space-y-4" id="addInvoiceForm">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="invoiceNumber">Invoice #</label>
+                            <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" id="invoiceNumber" name="invoiceNumber" placeholder="e.g., INV-2023-0043" required="" type="text">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="invoiceDate">Date</label>
+                            <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" id="invoiceDate" name="invoiceDate" required="" type="date">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="invoiceAmount">Amount ($)</label>
+                            <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" id="invoiceAmount" min="0" name="invoiceAmount" placeholder="e.g., 1500.00" required="" step="0.01" type="number">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="invoiceStatus">Status</label>
+                            <select class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" id="invoiceStatus" name="invoiceStatus" required="">
+                                <option value="Paid">Paid</option>
+                                <option value="Pending">Pending</option>
+                                <option value="Overdue">Overdue</option>
+                            </select>
+                        </div>
+                        <button class="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 font-semibold" type="submit">
+                            Add Invoice
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <!-- Add/Edit User Modal -->
+            <div class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="userModal" aria-labelledby="userModalTitle" aria-modal="true" role="dialog" tabindex="-1">
+                <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold" id="userModalTitle">Add New User</h3>
+                        <button class="text-gray-500 hover:text-gray-700" id="closeUserModal" type="button" aria-label="Close user modal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form class="space-y-4" id="userForm">
+                        <input id="userId" type="hidden" name="userId"/>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="userFullName">Full Name</label>
+                            <input class="w-full p-2 border rounded-lg" id="userFullName" name="userFullName" required="" type="text"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="userEmail">Email</label>
+                            <input class="w-full p-2 border rounded-lg" id="userEmail" name="userEmail" required="" type="email"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="userRole">Role</label>
+                            <select class="w-full p-2 border rounded-lg" id="userRole" name="userRole" required="">
+                                <option value="">Select Role</option>
+                                <option>Admin</option>
+                                <option>Teacher</option>
+                                <option>Student</option>
+                                <option>Staff</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="userPassword">Password</label>
+                            <input class="w-full p-2 border rounded-lg" id="userPassword" name="userPassword" placeholder="Leave blank to keep current password" type="password"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="userStatus">Status</label>
+                            <select class="w-full p-2 border rounded-lg" id="userStatus" name="userStatus" required="">
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                            </select>
+                        </div>
+                        <button class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700" id="userFormSubmitBtn" type="submit">
+                            Add User
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <!-- Add/Edit Announcement Modal -->
+            <div class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="announcementModal" aria-labelledby="announcementModalTitle" aria-modal="true" role="dialog" tabindex="-1">
+                <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold" id="announcementModalTitle">Add New Announcement</h3>
+                        <button class="text-gray-500 hover:text-gray-700" id="closeAnnouncementModal" type="button" aria-label="Close announcement modal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form class="space-y-4" id="announcementForm">
+                        <input id="announcementId" type="hidden" name="announcementId">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="announcementTitle">Title</label>
+                            <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" id="announcementTitle" name="announcementTitle" required="" type="text">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="announcementContent">Content</label>
+                            <textarea class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" id="announcementContent" name="announcementContent" required="" rows="4"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="announcementStatus">Status</label>
+                            <select class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-500" id="announcementStatus" name="announcementStatus" required="">
+                                <option value="Active">Active</option>
+                                <option value="Archived">Archived</option>
+                            </select>
+                        </div>
+                        <button class="w-full bg-pink-600 text-white py-2 rounded-lg hover:bg-pink-700 font-semibold" id="announcementFormSubmitBtn" type="submit">
+                            Publish Announcement
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <!-- Add/Edit Student Modal -->
+            <div class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="studentModal" aria-labelledby="studentModalTitle" aria-modal="true" role="dialog" tabindex="-1">
+                <div class="bg-white rounded-lg p-6 w-full max-w-md">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold" id="studentModalTitle">Add New Student</h3>
+                        <button class="text-gray-500 hover:text-gray-700" id="closeStudentModal" type="button" aria-label="Close student modal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form class="space-y-4" id="studentForm">
+                        <input id="studentId" type="hidden" name="studentId">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="studentFullName">Full Name</label>
+                            <input class="w-full p-2 border rounded-lg" id="studentFullName" name="studentFullName" required="" type="text"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="studentFatherName">Father's Name</label>
+                            <input class="w-full p-2 border rounded-lg" id="studentFatherName" name="studentFatherName" required="" type="text"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="studentMotherName">Mother's Name</label>
+                            <input class="w-full p-2 border rounded-lg" id="studentMotherName" name="studentMotherName" required="" type="text"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="studentClass">Class</label>
+                            <select class="w-full p-2 border rounded-lg" id="studentClass" name="studentClass" required="">
+                                <option value="">Select Class</option>
+                                <option>Grade 1</option>
+                                <option>Grade 2</option>
+                                <option>Grade 3</option>
+                                <option>Grade 4</option>
+                                <option>Grade 5</option>
+                                <option>Grade 6</option>
+                                <option>Grade 7</option>
+                                <option>Grade 8</option>
+                                <option>Grade 9</option>
+                                <option>Grade 10</option>
+                                <option>Grade 11</option>
+                                <option>Grade 12</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="studentRollNo">Roll No.</label>
+                            <input class="w-full p-2 border rounded-lg" id="studentRollNo" name="studentRollNo" required="" type="text"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="studentAadharNo">Aadhar No.</label>
+                            <input class="w-full p-2 border rounded-lg" id="studentAadharNo" name="studentAadharNo" required="" type="text"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="studentEmail">Email</label>
+                            <input class="w-full p-2 border rounded-lg" id="studentEmail" name="studentEmail" type="email"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="studentPhone">Phone</label>
+                            <input class="w-full p-2 border rounded-lg" id="studentPhone" name="studentPhone" type="tel"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="studentStatus">Status</label>
+                            <select class="w-full p-2 border rounded-lg" id="studentStatus" name="studentStatus" required="">
+                                <option value="Active">Active</option>
+                                <option value="Inactive">Inactive</option>
+                            </select>
+                        </div>
+                        <button class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700" id="studentFormSubmitBtn" type="submit">
+                            Add Student
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <!-- Add/Edit Teacher Modal -->
+            <div class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="teacherModal" aria-labelledby="teacherModalTitle" aria-modal="true" role="dialog" tabindex="-1">
+                <div class="bg-white rounded-lg p-6 w-full max-w-md">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold" id="teacherModalTitle">Add New Teacher</h3>
+                        <button class="text-gray-500 hover:text-gray-700" id="closeTeacherModal" type="button" aria-label="Close teacher modal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form class="space-y-4" id="teacherForm">
+                        <input id="teacherId" type="hidden" name="teacherId">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="teacherFullName">Full Name</label>
+                            <input class="w-full p-2 border rounded-lg" id="teacherFullName" name="teacherFullName" required="" type="text"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="teacherSubject">Subject</label>
+                            <select class="w-full p-2 border rounded-lg" id="teacherSubject" name="teacherSubject" required="">
+                                <option value="">Select Subject</option>
+                                <option>English</option>
+                                <option>Hindi</option>
+                                <option>Science</option>
+                                <option>Math</option>
+                                <option>Computer</option>
+                                <option>Sanskrit</option>
+                                <option>Social Study</option>
+                                <option>Soil Science</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="teacherEmail">Email</label>
+                            <input class="w-full p-2 border rounded-lg" id="teacherEmail" name="teacherEmail" required="" type="email"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="teacherClasses">Classes</label>
+                            <input class="w-full p-2 border rounded-lg" id="teacherClasses" name="teacherClasses" placeholder="Grade 9-10" type="text"/>
+                        </div>
+                        <button class="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700" id="teacherFormSubmitBtn" type="submit">
+                            Add Teacher
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <!-- Add/Edit Attendance Modal -->
+            <div class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="attendanceModal" aria-labelledby="attendanceModalTitle" aria-modal="true" role="dialog" tabindex="-1">
+                <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold" id="attendanceModalTitle">Mark Attendance</h3>
+                        <button class="text-gray-500 hover:text-gray-700" id="closeAttendanceModal" type="button" aria-label="Close attendance modal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form class="space-y-4" id="attendanceForm">
+                        <input id="attendanceId" type="hidden" name="attendanceId">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="attendanceStudentSelect">Student Name</label>
+                            <select class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" id="attendanceStudentSelect" name="attendanceStudentSelect" required="">
+                                <option value="">Select Student</option>
+                                <!-- Students will be dynamically loaded here -->
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="attendanceDate">Date</label>
+                            <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" id="attendanceDate" name="attendanceDate" required="" type="date">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="attendanceStatus">Status</label>
+                            <select class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" id="attendanceStatus" name="attendanceStatus" required="">
+                                <option value="Present">Present</option>
+                                <option value="Absent">Absent</option>
+                                <option value="Leave">Leave</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="attendanceRemarks">Remarks (Optional)</label>
+                            <textarea class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500" id="attendanceRemarks" name="attendanceRemarks" rows="2"></textarea>
+                        </div>
+                        <div class="flex flex-col space-y-2">
+                            <button class="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 font-semibold" id="registerStudentFingerprintBtn" type="button">
+                                <i class="fas fa-fingerprint mr-2"></i>Register Fingerprint
+                            </button>
+                            <button class="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 font-semibold" id="verifyStudentFingerprintBtn" type="button">
+                                <i class="fas fa-fingerprint mr-2"></i>Verify Fingerprint (Mark Present)
+                            </button>
+                        </div>
+                        <button class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 font-semibold" id="attendanceFormSubmitBtn" type="submit">
+                            Mark Attendance
+                        </button>
+                    </form>
+                </div>
+            </div>
+            <!-- Add/Edit Teacher Attendance Modal -->
+            <div class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" id="teacherAttendanceModal" aria-labelledby="teacherAttendanceModalTitle" aria-modal="true" role="dialog" tabindex="-1">
+                <div class="bg-white rounded-lg p-6 w-full max-w-md shadow-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold" id="teacherAttendanceModalTitle">Mark Teacher Attendance</h3>
+                        <button class="text-gray-500 hover:text-gray-700" id="closeTeacherAttendanceModal" type="button" aria-label="Close teacher attendance modal">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form class="space-y-4" id="teacherAttendanceForm">
+                        <input id="teacherAttendanceId" type="hidden" name="teacherAttendanceId">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="teacherAttendanceTeacherSelect">Teacher Name</label>
+                            <select class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" id="teacherAttendanceTeacherSelect" name="teacherAttendanceTeacherSelect" required="">
+                                <option value="">Select Teacher</option>
+                                <!-- Teachers will be dynamically loaded here -->
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="teacherAttendanceDate">Date</label>
+                            <input class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" id="teacherAttendanceDate" name="teacherAttendanceDate" required="" type="date">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="teacherAttendanceStatus">Status</label>
+                            <select class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" id="teacherAttendanceStatus" name="teacherAttendanceStatus" required="">
+                                <option value="Present">Present</option>
+                                <option value="Absent">Absent</option>
+                                <option value="Leave">Leave</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1" for="teacherAttendanceRemarks">Remarks (Optional)</label>
+                            <textarea class="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" id="teacherAttendanceRemarks" name="teacherAttendanceRemarks" rows="2"></textarea>
+                        </div>
+                        <div class="flex flex-col space-y-2">
+                            <button class="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 font-semibold" id="registerTeacherFingerprintBtn" type="button">
+                                <i class="fas fa-fingerprint mr-2"></i>Register Fingerprint
+                            </button>
+                            <button class="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 font-semibold" id="verifyTeacherFingerprintBtn" type="button">
+                                <i class="fas fa-fingerprint mr-2"></i>Verify Fingerprint (Mark Present)
+                            </button>
+                        </div>
+                        <button class="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 font-semibold" id="teacherAttendanceFormSubmitBtn" type="submit">
+                            Mark Attendance
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
