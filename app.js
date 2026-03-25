@@ -194,7 +194,7 @@ async function api(path, options = {}) {
   }
   return response.json();
 }
-
+ 
 async function loadStore() {
   const data = await api("/api/store");
   serverStore = data;
