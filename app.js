@@ -221,14 +221,25 @@ async function login(username, password) {
 async function handleLogin() {
   console.log("LOGIN CLICKED");
 
-  const username = document.getElementById("username").value;
-  const password = document.getElementById("password").value;
+  const username = document.getElementById("loginUsername").value;
+  const password = document.getElementById("loginPassword").value;
+
+  if (!username || !password) {
+    alert("Enter username & password");
+    return;
+  }
 
   try {
     const user = await login(username, password);
+
     console.log("Login success:", user);
+
+    // hide login screen
+    document.getElementById("authOverlay").style.display = "none";
+
   } catch (err) {
     console.error("Login failed:", err.message);
+    alert(err.message);
   }
 }
 async function signup(payload) {
