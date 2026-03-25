@@ -198,6 +198,12 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script>
+    // Default backend when hosted on GitHub Pages.
+    if (location.hostname.endsWith("github.io")) {
+      window.API_BASE_URL = "https://tapowanpublicschool-o1s2.onrender.com";
+    }
+  </script>
   <script src="app.js"></script>
 </body>
 </html>

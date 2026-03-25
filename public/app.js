@@ -1206,10 +1206,13 @@ refs.loginForm.addEventListener("submit", async (e) => {
   try {
     const user = await login(String(form.get("username")).trim(), String(form.get("password")).trim());
     applyAuthUI(user);
+    refs.authSubtitle.textContent = "Sign in to continue";
     await loadStore();
     renderAll();
   } catch (err) {
-    window.alert(err.message);
+    const msg = String(err?.message || "Login failed");
+    refs.authSubtitle.textContent = msg;
+    window.alert(msg);
   }
 });
 
