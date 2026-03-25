@@ -16,8 +16,15 @@ app.use(cors({
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
-    const defaults = ["https://aatifakram.github.io"];
-    if (!allowed.length) return cb(null, defaults.includes(origin));
+    const defaults = [
+      "https://aatifakram.github.io",
+      "https://tapowanpublicschool-o1s2.onrender.com"
+    ];
+
+    // If not configured, don't break the app: allow all origins.
+    // (Set CORS_ORIGIN for a strict allowlist in production.)
+    if (!allowed.length) return cb(null, true);
+
     return cb(null, allowed.includes(origin) || defaults.includes(origin));
   },
   credentials: true
