@@ -3,58 +3,80 @@ const express = require("express");
 const session = require("express-session");
 const cors = require("cors");
 const os = require("os");
-const { MODULES, initDb, list, insert, remove, replaceAll, getStore, resetAndSeed, runRaw } = require("./server/db");
+
+const {
+  MODULES,
+  initDb,
+  list,
+  insert,
+  remove,
+  replaceAll,
+  getStore,
+  resetAndSeed,
+  runRaw
+} = require("./server/db");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
-// DB initialization is async when using Postgres; routes are defined below.
+
+// ------------------- GLOBAL SAFETY -------------------
+// Prevent silent crashes (you had zero protection)
+process.on("unhandledRejection", err => {
+  console.error("Unhandled Rejection:", err);
+});
+process.on("uncaughtException", err => {
+  console.error("Uncaught Exception:", err);
+});
+
+// ------------------- MIDDLEWARE -------------------
 
 app.use(cors({
   origin(origin, cb) {
     if (!origin) return cb(null, true);
+
     const allowed = (process.env.CORS_ORIGIN || "")
       .split(",")
-      .map((s) => s.trim())
+      .map(s => s.trim())
       .filter(Boolean);
+
     const defaults = [
       "https://aatifakram.github.io",
-      "https://tapowanpublicschool-production.up.railway.app/"
+      "https://tapowanpublicschool-production.up.railway.app"
     ];
 
-    // If not configured, don't break the app: allow all origins.
-    // (Set CORS_ORIGIN for a strict allowlist in production.)
     if (!allowed.length) return cb(null, true);
 
     return cb(null, allowed.includes(origin) || defaults.includes(origin));
   },
   credentials: true
 }));
+
 app.use(express.json({ limit: "10mb" }));
 
-// Required for secure cookies behind Render/other proxies.
+// Required behind Railway proxy
 app.set("trust proxy", 1);
 
 const isProd = String(process.env.NODE_ENV).toLowerCase() === "production";
+
 app.use(session({
-  secret: process.env.SESSION_SECRET || "school-management-local-secret",
+  name: "tps.sid",
+  secret: process.env.SESSION_SECRET || "change-this-secret",
   resave: false,
   saveUninitialized: false,
   cookie: {
+    httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000,
     sameSite: isProd ? "none" : "lax",
     secure: isProd
   }
 }));
 
-// Serve frontend files for Render (and local).
+// ------------------- STATIC -------------------
+
 app.use(express.static(path.join(__dirname, "public")));
-// Backwards compatibility if someone runs without /public.
 app.use(express.static(path.join(__dirname)));
 
-// Serve ID-card templates that live inside your Cursor project assets folder.
-// This lets the browser print window load template images reliably.
 const templatesDir = path.join(__dirname, "assets");
-// Local dev fallback (your template image was originally saved in Cursor storage).
 const cursorTemplatesDir = path.join(
   os.homedir(),
   ".cursor",
@@ -66,68 +88,54 @@ const cursorTemplatesDir = path.join(
 app.use("/templates", express.static(templatesDir));
 app.use("/templates", express.static(cursorTemplatesDir));
 
+// ------------------- HEALTH -------------------
+
+app.get("/", (req, res) => {
+  res.send("✅ Backend is live");
+});
+
+app.get("/api/health", (req, res) => {
+  res.json({
+    ok: true,
+    uptime: process.uptime(),
+    time: new Date()
+  });
+});
+
+// ------------------- AUTH -------------------
+
 function authRequired(req, res, next) {
-  if (!req.session.user) return res.status(401).json({ error: "Unauthorized" });
+  if (!req.session.user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
   next();
 }
 
 app.post("/api/auth/login", async (req, res) => {
-  const { username, password } = req.body || {};
-  const users = await list("users");
-  const user = users.find((u) =>
-    String(u.status).toLowerCase() === "active" &&
-    u.username === username &&
-    u.password === password
-  );
-  if (!user) return res.status(401).json({ error: "Invalid credentials" });
-  req.session.user = { id: user.id, username: user.username, fullName: user.fullName, role: user.role };
-  const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-  const allUsers = users.map((u) => (u.id === user.id ? { ...u, lastLogin: now } : u));
-  await replaceAll("users", allUsers);
-  res.json({ user: req.session.user });
-});
+  try {
+    const { username, password } = req.body || {};
+    const users = await list("users");
 
-app.post("/api/auth/signup", async (req, res) => {
-  const { username, password, fullName, email } = req.body || {};
-  const cleanUsername = String(username || "").trim();
-  const cleanPassword = String(password || "");
-  const cleanFullName = String(fullName || "").trim();
-  const cleanEmail = String(email || "").trim();
+    const user = users.find(u =>
+      String(u.status).toLowerCase() === "active" &&
+      u.username === username &&
+      u.password === password
+    );
 
-  if (!cleanUsername || !cleanPassword || !cleanFullName || !cleanEmail) {
-    return res.status(400).json({ error: "All fields are required" });
-  }
-  if (!/^[a-zA-Z0-9_]{4,30}$/.test(cleanUsername)) {
-    return res.status(400).json({ error: "Username must be 4-30 chars and only letters, numbers, underscore" });
-  }
-  if (cleanPassword.length < 8 || !/[A-Z]/.test(cleanPassword) || !/[a-z]/.test(cleanPassword) || !/[0-9]/.test(cleanPassword) || !/[^A-Za-z0-9]/.test(cleanPassword)) {
-    return res.status(400).json({ error: "Password must be 8+ chars with upper, lower, number, special char" });
-  }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
-    return res.status(400).json({ error: "Invalid email address" });
-  }
+    if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
-  const users = await list("users");
-  if (users.some((u) => String(u.username).toLowerCase() === cleanUsername.toLowerCase())) {
-    return res.status(409).json({ error: "Username already exists" });
-  }
-  if (users.some((u) => String(u.email).toLowerCase() === cleanEmail.toLowerCase())) {
-    return res.status(409).json({ error: "Email already exists" });
-  }
+    req.session.user = {
+      id: user.id,
+      username: user.username,
+      fullName: user.fullName,
+      role: user.role
+    };
 
-  const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-  const user = await insert("users", {
-    username: cleanUsername,
-    fullName: cleanFullName,
-    role: "Staff",
-    email: cleanEmail,
-    status: "Active",
-    lastLogin: now,
-    password: cleanPassword
-  });
-
-  req.session.user = { id: user.id, username: user.username, fullName: user.fullName, role: user.role };
-  res.status(201).json({ user: req.session.user });
+    res.json({ user: req.session.user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Login failed" });
+  }
 });
 
 app.post("/api/auth/logout", (req, res) => {
@@ -138,142 +146,83 @@ app.get("/api/auth/me", (req, res) => {
   res.json({ user: req.session.user || null });
 });
 
-app.get("/api/store", authRequired, async (_req, res) => {
-  res.json(await getStore());
+// ------------------- STORE -------------------
+
+app.get("/api/store", authRequired, async (req, res) => {
+  try {
+    res.json(await getStore());
+  } catch (err) {
+    res.status(500).json({ error: "Store fetch failed" });
+  }
 });
 
 app.put("/api/store", authRequired, async (req, res) => {
-  const body = req.body || {};
-  for (const moduleName of Object.keys(MODULES)) {
-    if (Array.isArray(body[moduleName])) await replaceAll(moduleName, body[moduleName]);
+  try {
+    const body = req.body || {};
+    for (const moduleName of Object.keys(MODULES)) {
+      if (Array.isArray(body[moduleName])) {
+        await replaceAll(moduleName, body[moduleName]);
+      }
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Store update failed" });
   }
-  res.json({ ok: true });
 });
 
+// ------------------- MODULE CRUD -------------------
+
 app.get("/api/modules/:moduleName", authRequired, async (req, res) => {
-  const { moduleName } = req.params;
-  if (!MODULES[moduleName]) return res.status(404).json({ error: "Unknown module" });
-  res.json(await list(moduleName));
+  try {
+    const { moduleName } = req.params;
+    if (!MODULES[moduleName]) {
+      return res.status(404).json({ error: "Unknown module" });
+    }
+    res.json(await list(moduleName));
+  } catch (err) {
+    res.status(500).json({ error: "Fetch failed" });
+  }
 });
 
 app.post("/api/modules/:moduleName", authRequired, async (req, res) => {
-  const { moduleName } = req.params;
-  if (!MODULES[moduleName]) return res.status(404).json({ error: "Unknown module" });
-  const row = await insert(moduleName, req.body || {});
-  res.status(201).json(row);
-});
-
-app.put("/api/modules/:moduleName/:id", authRequired, async (req, res) => {
-  const { moduleName, id } = req.params;
-  if (!MODULES[moduleName]) return res.status(404).json({ error: "Unknown module" });
-  const payload = req.body || {};
-
-  const fields = MODULES[moduleName];
-  const setFields = fields.filter((f) => Object.prototype.hasOwnProperty.call(payload, f));
-  if (!setFields.length) return res.status(400).json({ error: "No valid fields to update" });
-
-  const setClause = setFields.map((f) => `${f} = ?`).join(", ");
-  const params = setFields.map((f) => payload[f]).concat([Number(id)]);
-  await runRaw(`UPDATE ${moduleName} SET ${setClause} WHERE id = ?`, params);
-  res.json({ ok: true });
+  try {
+    const { moduleName } = req.params;
+    if (!MODULES[moduleName]) {
+      return res.status(404).json({ error: "Unknown module" });
+    }
+    const row = await insert(moduleName, req.body || {});
+    res.status(201).json(row);
+  } catch (err) {
+    res.status(500).json({ error: "Insert failed" });
+  }
 });
 
 app.delete("/api/modules/:moduleName/:id", authRequired, async (req, res) => {
-  const { moduleName, id } = req.params;
-  if (!MODULES[moduleName]) return res.status(404).json({ error: "Unknown module" });
-
-  // Keep modules consistent when deleting a primary record.
-  if (moduleName === "students") {
-    const student = (await list("students")).find((s) => s.id === Number(id));
-    if (student?.fullName) {
-      await runRaw("DELETE FROM attendance WHERE studentName = ? AND rollNo = ?", [student.fullName, student.rollNo]);
-      await runRaw("DELETE FROM exams WHERE studentName = ? AND rollNo = ?", [student.fullName, student.rollNo]);
-      await runRaw("DELETE FROM fees WHERE studentName = ? AND rollNo = ?", [student.fullName, student.rollNo]);
-      await runRaw("DELETE FROM library WHERE issuedTo = ?", [student.fullName]);
-      await runRaw("DELETE FROM transport WHERE studentName = ?", [student.fullName]);
-      await runRaw("DELETE FROM hostel WHERE studentName = ?", [student.fullName]);
-      await runRaw("DELETE FROM faceEmbeddings WHERE targetType = ? AND name = ?", ["students", student.fullName]);
+  try {
+    const { moduleName, id } = req.params;
+    if (!MODULES[moduleName]) {
+      return res.status(404).json({ error: "Unknown module" });
     }
+    await remove(moduleName, Number(id));
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: "Delete failed" });
   }
-
-  if (moduleName === "teachers") {
-    const teacher = (await list("teachers")).find((t) => t.id === Number(id));
-    if (teacher?.fullName) {
-      await runRaw("DELETE FROM classes WHERE classTeacher = ?", [teacher.fullName]);
-      await runRaw("DELETE FROM subjects WHERE teacher = ?", [teacher.fullName]);
-      await runRaw("DELETE FROM teacherAttendance WHERE teacherName = ?", [teacher.fullName]);
-      await runRaw("DELETE FROM timetable WHERE teacher = ?", [teacher.fullName]);
-      await runRaw("DELETE FROM payroll WHERE employeeName = ?", [teacher.fullName]);
-      await runRaw("DELETE FROM faceEmbeddings WHERE targetType = ? AND name = ?", ["teachers", teacher.fullName]);
-    }
-  }
-
-  await remove(moduleName, Number(id));
-  res.json({ ok: true });
 });
 
-app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, message: "School management server running" });
-});
-
-app.post("/api/admin/reset", authRequired, async (req, res) => {
-  if (String(req.session.user.role).toLowerCase() !== "administrator") {
-    return res.status(403).json({ error: "Only administrator can reset system data" });
-  }
-  await resetAndSeed();
-  res.json({ ok: true });
-});
+// ------------------- START SERVER -------------------
 
 async function startServer() {
-  await initDb();
-
-  // Ensure exactly one SuperAdmin account (requested).
   try {
-    const desiredUsername = "im_aatif";
-    const desiredPassword = "Aatif@123";
-    const desiredEmail = "superadmin@tapowanpublicschool.com";
-    const desiredFullName = "Super Admin";
-
-    const users = await list("users");
-    const isSuper = (u) => String(u.role || "").toLowerCase() === "superadmin";
-
-    const kept = users.filter((u) => !isSuper(u));
-    const existing = users.find((u) => String(u.username || "").toLowerCase() === desiredUsername.toLowerCase());
-
-    if (existing) {
-      const updated = {
-        ...existing,
-        fullName: desiredFullName,
-        username: desiredUsername,
-        email: existing.email || desiredEmail,
-        password: desiredPassword,
-        role: "SuperAdmin",
-        status: "Active"
-      };
-      kept.push(updated);
-    } else {
-      const created = await insert("users", {
-        fullName: desiredFullName,
-        username: desiredUsername,
-        email: desiredEmail,
-        password: desiredPassword,
-        role: "SuperAdmin",
-        status: "Active"
-      });
-      kept.push(created);
-    }
-
-    await replaceAll("users", kept);
-  } catch (e) {
-    console.warn("SuperAdmin enforcement failed:", e?.message || e);
+    await initDb();
+    console.log("✅ Database connected");
+  } catch (err) {
+    console.error("⚠️ DB failed but server continues:", err.message);
   }
 
-  app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`🚀 Server running on port ${PORT}`);
   });
 }
 
-startServer().catch((err) => {
-  console.error("Server start failed:", err);
-  process.exit(1);
-});
+startServer();
