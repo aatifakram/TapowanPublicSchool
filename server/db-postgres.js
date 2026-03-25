@@ -47,9 +47,9 @@ async function ensureColumns(tableName, fields) {
     `SELECT column_name FROM information_schema.columns WHERE table_name = $1 AND column_name <> 'id'`,
     [tableName]
   );
-  const existing = new Set(res.rows.map((r) => r.column_name));
+  const existing = new Set(res.rows.map((r) => r.column_name.toLowerCase()));
   for (const field of fields) {
-    if (!existing.has(field)) {
+    if (!existing.has(field.toLowerCase())) {
      await pool.query(`ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS ${field} TEXT;`);
     }
   }
