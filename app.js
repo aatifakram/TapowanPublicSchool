@@ -82,6 +82,8 @@ const refs = {
   assistantPrintIdBtn: document.getElementById("assistantPrintIdBtn"),
   assistantPanel: document.getElementById("assistantPanel"),
   assistantOutput: document.getElementById("assistantOutput"),
+  apiBaseInput: document.getElementById("apiBaseInput"),
+  apiSaveBtn: document.getElementById("apiSaveBtn"),
   enrollFaceBtn: document.getElementById("enrollFaceBtn"),
   faceEnrollStudentField: document.getElementById("faceEnrollStudentField"),
   faceEnrollStudentSelect: document.getElementById("faceEnrollStudentSelect"),
@@ -163,13 +165,22 @@ function videoFrameToResizedDataUrl(videoEl, maxDim = 240, quality = 0.7) {
   return canvas.toDataURL("image/jpeg", quality);
 }
 
-const API_BASE_URL = (() => {
+function normalizeApiBaseUrl(v) {
+  const s = (v ?? "").toString().trim();
+  if (!s) return "";
+  return s.replace(/\/$/, "");
+}
+
+function getApiBaseUrl() {
   const qs = new URLSearchParams(window.location.search || "");
-  const fromQuery = qs.get("api");
-  const fromWindow = window.API_BASE_URL;
-  const base = (fromQuery || fromWindow || "").toString();
-  return base.replace(/\/$/, "");
-})();
+  const fromQuery = normalizeApiBaseUrl(qs.get("api"));
+  if (fromQuery) localStorage.setItem("API_BASE_URL", fromQuery);
+  const fromStorage = normalizeApiBaseUrl(localStorage.getItem("API_BASE_URL"));
+  const fromWindow = normalizeApiBaseUrl(window.API_BASE_URL);
+  return fromQuery || fromStorage || fromWindow || "";
+}
+
+let API_BASE_URL = getApiBaseUrl();
 
 async function api(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -1382,6 +1393,18 @@ refs.assistantAutoAttendanceBtn?.addEventListener("click", async () => {
   if (autoCaptureTimer) clearInterval(autoCaptureTimer);
   autoCaptureTimer = setInterval(() => autoCaptureTick().catch((e) => console.warn(e)), intervalMs);
   autoCaptureTick().catch((e) => console.warn(e));
+});
+
+refs.apiSaveBtn?.addEventListener("click", () => {
+  const input = refs.apiBaseInput;
+  if (!input) return;
+  const base = normalizeApiBaseUrl(input.value);
+  if (!base) return window.alert("Enter backend URL (Render) first.");
+  API_BASE_URL = base;
+  localStorage.setItem("API_BASE_URL", base);
+  if (refs.assistantOutput) {
+    assistantAppend(`Backend URL saved: ${base}\nNow login/attendance should work.`);
+  }
 });
 
 refs.assistantPrintIdBtn?.addEventListener("click", async () => {
