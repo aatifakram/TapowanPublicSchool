@@ -9,6 +9,7 @@ body {
   background: #f3f6fb;
   color: #1f2937;
   animation: appFadeIn 0.45s ease;
+  overflow-x: hidden;
 }
 
 .hidden {
@@ -129,6 +130,7 @@ body {
 
 .main {
   padding: 24px;
+  min-width: 0;
 }
 
 .topbar {
@@ -282,6 +284,7 @@ textarea {
 table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 760px;
 }
 
 th,
@@ -369,10 +372,43 @@ tbody tr {
   .sidebar {
     position: static;
     height: auto;
+    overflow: visible;
+    padding: 14px;
+  }
+
+  #moduleNav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .face-grid {
     grid-template-columns: 1fr;
+  }
+
+  .main {
+    padding: 12px;
+  }
+
+  .panel {
+    padding: 12px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .actions {
+    justify-content: stretch;
+  }
+
+  .actions button {
+    width: 100%;
+  }
+
+  .topbar-actions .dark,
+  .topbar-actions .danger {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 140px;
+    text-align: center;
   }
 
   .assistant-panel {
@@ -412,4 +448,95 @@ tbody tr {
   overflow: auto;
   font-size: 0.92rem;
   color: #0f172a;
+}
+
+@media (max-width: 1100px) {
+  .app {
+    grid-template-columns: 220px 1fr;
+  }
+
+  .main {
+    padding: 16px;
+  }
+
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .topbar-actions {
+    width: 100%;
+  }
+
+  .panel-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .panel-head input,
+  .panel-actions input {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .auth-card {
+    width: 96vw;
+    padding: 14px;
+    border-radius: 10px;
+  }
+
+  .brand h1 {
+    font-size: 1.2rem;
+  }
+
+  .brand p {
+    margin-bottom: 10px;
+  }
+
+  #moduleNav {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-btn {
+    font-size: 0.92rem;
+    padding: 9px 10px;
+  }
+
+  .topbar h2 {
+    font-size: 1.1rem;
+  }
+
+  .topbar p {
+    font-size: 0.9rem;
+  }
+
+  .topbar-actions .dark,
+  .topbar-actions .danger {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
+  th,
+  td {
+    padding: 8px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+
+  #faceVideo,
+  #faceCanvas {
+    min-height: 180px;
+  }
+
+  .assistant-actions {
+    flex-direction: column;
+  }
+
+  .assistant-actions .dark,
+  .assistant-actions input {
+    width: 100%;
+  }
 }
