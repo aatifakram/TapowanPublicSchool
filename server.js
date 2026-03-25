@@ -8,11 +8,18 @@ const { MODULES, initDb, list, insert, remove, replaceAll, getStore, resetAndSee
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 // DB initialization is async when using Postgres; routes are defined below.
+
 app.use(cors({
-  origin: [
-    "https://aatifakram.github.io",
-    "https://tapowanpublicschool-o1s2.onrender.com"
-  ],
+  origin(origin, cb) {
+    if (!origin) return cb(null, true);
+    const allowed = (process.env.CORS_ORIGIN || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const defaults = ["https://aatifakram.github.io"];
+    if (!allowed.length) return cb(null, defaults.includes(origin));
+    return cb(null, allowed.includes(origin) || defaults.includes(origin));
+  },
   credentials: true
 }));
 app.use(express.json({ limit: "10mb" }));
@@ -212,6 +219,48 @@ app.post("/api/admin/reset", authRequired, async (req, res) => {
 
 async function startServer() {
   await initDb();
+
+  // Ensure exactly one SuperAdmin account (requested).
+  try {
+    const desiredUsername = "im_aatif";
+    const desiredPassword = "Aatif@123";
+    const desiredEmail = "superadmin@tapowanpublicschool.com";
+    const desiredFullName = "Super Admin";
+
+    const users = await list("users");
+    const isSuper = (u) => String(u.role || "").toLowerCase() === "superadmin";
+
+    const kept = users.filter((u) => !isSuper(u));
+    const existing = users.find((u) => String(u.username || "").toLowerCase() === desiredUsername.toLowerCase());
+
+    if (existing) {
+      const updated = {
+        ...existing,
+        fullName: desiredFullName,
+        username: desiredUsername,
+        email: existing.email || desiredEmail,
+        password: desiredPassword,
+        role: "SuperAdmin",
+        status: "Active"
+      };
+      kept.push(updated);
+    } else {
+      const created = await insert("users", {
+        fullName: desiredFullName,
+        username: desiredUsername,
+        email: desiredEmail,
+        password: desiredPassword,
+        role: "SuperAdmin",
+        status: "Active"
+      });
+      kept.push(created);
+    }
+
+    await replaceAll("users", kept);
+  } catch (e) {
+    console.warn("SuperAdmin enforcement failed:", e?.message || e);
+  }
+
   app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
   });
