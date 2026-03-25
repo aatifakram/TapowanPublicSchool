@@ -180,7 +180,7 @@ function getApiBaseUrl() {
   return fromQuery || fromStorage || fromWindow || "";
 }
 
-let API_BASE_URL = getApiBaseUrl() || "https://tapowanpublicschool-o1s2.onrender.com";
+let API_BASE_URL = getApiBaseUrl() || "https://tapowanpublicschool-production.up.railway.app/";
 
 async function api(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
