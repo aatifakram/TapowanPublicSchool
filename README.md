@@ -68,3 +68,36 @@ All data is stored in SQL database file: `server/school.db`
 - Includes persistent CRUD for all modules through local server APIs.
 - Face attendance works with camera + face embedding matching in browser and is persisted in DB-backed attendance tables.
 - Existing `schema.sql` remains for MySQL reference, while this fully working local system runs on SQLite by default.
+
+## Online Deployment (Vercel + Render + Railway)
+
+### What this project uses
+- Frontend (Vercel): static HTML/CSS/JS from `public/`
+- Backend (Render): Express API from `server.js`
+- Database (Railway): PostgreSQL using `DATABASE_URL`
+
+### 1) Railway (Postgres)
+1. Create a Postgres database on Railway.
+2. Copy the connection string into an environment variable named `DATABASE_URL`.
+
+### 2) Render (Backend)
+1. Create a Web Service on Render using this GitHub repo.
+2. Environment variables to set on Render:
+   - `DATABASE_URL` (from Railway)
+   - `SESSION_SECRET` (any strong random string)
+   - `NODE_ENV=production`
+3. Start command:
+   - `npm start`
+
+### 3) Vercel (Frontend)
+1. Deploy the same GitHub repo on Vercel.
+2. Use `public/` as your static content (Vercel will detect it automatically).
+3. Important: your frontend must know where the backend is.
+   - Open your deployed frontend with:
+     - `?api=<YOUR_RENDER_BACKEND_BASE_URL>`
+   - Example:
+     - `https://your-school-app.vercel.app/?api=https://your-render-service.onrender.com`
+
+### Login / Sessions
+- The backend uses cookies (`express-session`).
+- CORS + cookie settings are configured for cross-origin use when `NODE_ENV=production`.
