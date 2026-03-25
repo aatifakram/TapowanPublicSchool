@@ -180,7 +180,7 @@ function getApiBaseUrl() {
   return fromQuery || fromStorage || fromWindow || "";
 }
 
-let API_BASE_URL = getApiBaseUrl();
+let API_BASE_URL = getApiBaseUrl() || "https://tapowanpublicschool-jogp.onrender.com";
 
 async function api(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
