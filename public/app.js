@@ -37,6 +37,9 @@ let autoRecognitionStreakByKey = {};
 let autoLastAutoMarkAtByKey = {};
 
 const refs = {
+  sidebar: document.getElementById("sidebar"),
+  mobileMenuBtn: document.getElementById("mobileMenuBtn"),
+  mobileSidebarBackdrop: document.getElementById("mobileSidebarBackdrop"),
   moduleNav: document.getElementById("moduleNav"),
   moduleTitle: document.getElementById("moduleTitle"),
   moduleSubtitle: document.getElementById("moduleSubtitle"),
@@ -92,6 +95,16 @@ const refs = {
   faceStatusField: document.getElementById("faceStatusField"),
   faceAutoControls: document.getElementById("faceAutoControls")
 };
+
+function isMobileLayout() {
+  return window.matchMedia("(max-width: 900px)").matches;
+}
+
+function setMobileSidebarOpen(open) {
+  if (!refs.sidebar || !refs.mobileSidebarBackdrop) return;
+  refs.sidebar.classList.toggle("mobile-open", !!open);
+  refs.mobileSidebarBackdrop.classList.toggle("hidden", !open);
+}
 
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
@@ -274,6 +287,7 @@ function renderNav() {
     btn.addEventListener("click", () => {
       currentModule = name;
       refs.searchInput.value = "";
+      if (isMobileLayout()) setMobileSidebarOpen(false);
       renderAll();
     });
     refs.moduleNav.appendChild(btn);
@@ -1261,6 +1275,19 @@ refs.signupForm.addEventListener("submit", async (e) => {
 
 refs.showLoginBtn.addEventListener("click", () => setAuthMode("login"));
 refs.showSignupBtn.addEventListener("click", () => setAuthMode("signup"));
+
+refs.mobileMenuBtn?.addEventListener("click", () => {
+  const opening = !refs.sidebar?.classList.contains("mobile-open");
+  setMobileSidebarOpen(opening);
+});
+
+refs.mobileSidebarBackdrop?.addEventListener("click", () => {
+  setMobileSidebarOpen(false);
+});
+
+window.addEventListener("resize", () => {
+  if (!isMobileLayout()) setMobileSidebarOpen(false);
+});
 
 refs.logoutBtn.addEventListener("click", async () => {
   await logout();
