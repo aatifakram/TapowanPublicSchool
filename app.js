@@ -218,7 +218,19 @@ async function login(username, password) {
   });
   return data.user;
 }
+async function handleLogin() {
+  console.log("LOGIN CLICKED");
 
+  const username = document.getElementById("username").value;
+  const password = document.getElementById("password").value;
+
+  try {
+    const user = await login(username, password);
+    console.log("Login success:", user);
+  } catch (err) {
+    console.error("Login failed:", err.message);
+  }
+}
 async function signup(payload) {
   const data = await api("/api/auth/signup", {
     method: "POST",
