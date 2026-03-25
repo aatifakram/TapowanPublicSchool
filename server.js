@@ -10,7 +10,7 @@ const PORT = 3000;
 // DB initialization is async when using Postgres; routes are defined below.
 
 app.use(cors({
-  origin: "https://aatifakram.github.io/TapowanPublicSchool/",
+  origin: "https://aatifakram.github.io",
   credentials: true
 }));
 app.use(express.json({ limit: "10mb" }));
