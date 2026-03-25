@@ -183,16 +183,41 @@ function getApiBaseUrl() {
 let API_BASE_URL = getApiBaseUrl();
 
 async function api(path, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options
-  });
+  const controller = new AbortController();
+  const timeoutMs = Number(options.timeoutMs) > 0 ? Number(options.timeoutMs) : 70000; // Render free tier can take ~50s to wake
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      signal: controller.signal,
+      ...options
+    });
+  } catch (e) {
+    const isAbort = String(e?.name || "").toLowerCase().includes("abort");
+    throw new Error(isAbort
+      ? "Backend is waking up (Render free tier). Please wait 60 seconds and try again."
+      : "Network error. Check your internet and Backend URL (Render)."
+    );
+  } finally {
+    clearTimeout(timer);
+  }
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
     throw new Error(payload.error || "Request failed");
   }
   return response.json();
+}
+
+async function warmupBackend() {
+  if (!API_BASE_URL) return;
+  try {
+    // Don't block UI; just try to wake Render.
+    await api("/api/health", { timeoutMs: 70000 });
+  } catch {
+    // ignore; login will show a readable message
+  }
 }
 
 async function loadStore() {
@@ -1426,6 +1451,8 @@ if (refs.assistantOutput) {
 async function boot() {
   try {
     setAuthMode("login");
+    // Wake Render free-tier backend early to avoid "Provisional headers".
+    warmupBackend();
     const user = await getSessionUser();
     if (!user) {
       applyAuthUI(null);
