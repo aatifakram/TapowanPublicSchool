@@ -8,17 +8,11 @@ const { MODULES, initDb, list, insert, remove, replaceAll, getStore, resetAndSee
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 // DB initialization is async when using Postgres; routes are defined below.
-
 app.use(cors({
-  origin(origin, cb) {
-    if (!origin) return cb(null, true);
-    const allowed = (process.env.CORS_ORIGIN || "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (!allowed.length) return cb(null, true);
-    return cb(null, allowed.includes(origin));
-  },
+  origin: [
+    "https://aatifakram.github.io",
+    "https://tapowanpublicschool-o1s2.onrender.com"
+  ],
   credentials: true
 }));
 app.use(express.json({ limit: "10mb" }));
