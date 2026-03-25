@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "build": "echo 'skip build (static frontend served by Vercel)'"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",

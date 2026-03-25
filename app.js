@@ -670,7 +670,7 @@ function printDocumentByModule() {
 
   if (currentModule === "students") {
     const schoolName = "Tapowan Public School";
-    const templateFile = "c__Users_Admin_AppData_Roaming_Cursor_User_workspaceStorage_d191a0cf1c5e8cd91e5fb540345fb0b6_images_image-3c0afea8-d470-4a09-8bb8-ffe9c38898a2.png";
+    const templateFile = "tapowan-id-template.png";
 
     const escapeHtml = (v) => String(v ?? "")
       .replaceAll("&", "&amp;")

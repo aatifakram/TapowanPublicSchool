@@ -30,14 +30,18 @@ app.use(express.static(path.join(__dirname)));
 
 // Serve ID-card templates that live inside your Cursor project assets folder.
 // This lets the browser print window load template images reliably.
-const templatesDir = path.join(
+const templatesDir = path.join(__dirname, "assets");
+// Local dev fallback (your template image was originally saved in Cursor storage).
+const cursorTemplatesDir = path.join(
   os.homedir(),
   ".cursor",
   "projects",
   "c-Users-Admin-school-management-system-node-modules",
   "assets"
 );
+
 app.use("/templates", express.static(templatesDir));
+app.use("/templates", express.static(cursorTemplatesDir));
 
 function authRequired(req, res, next) {
   if (!req.session.user) return res.status(401).json({ error: "Unauthorized" });
