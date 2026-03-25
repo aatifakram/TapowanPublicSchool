@@ -16,16 +16,19 @@
         <button id="showSignupBtn" class="dark" type="button">Sign Up</button>
       </div>
       <form id="loginForm" class="auth-form">
-        <div class="field">
-          <label for="loginUsername">Username</label>
-          <input id="loginUsername" name="username" placeholder="Enter username" required />
-        </div>
-        <div class="field">
-          <label for="loginPassword">Password</label>
-          <input id="loginPassword" name="password" type="password" placeholder="Enter password" required />
-        </div>
-        <button type="submit">Login</button>
-      </form>
+  <div class="field">
+    <label>Username</label>
+    <input id="loginUsername" placeholder="Enter username" required />
+  </div>
+
+  <div class="field">
+    <label>Password</label>
+    <input id="loginPassword" type="password" placeholder="Enter password" required />
+  </div>
+
+  <!-- 🔥 IMPORTANT -->
+  <button type="button" onclick="handleLogin()">Login</button>
+</form>
       <form id="signupForm" class="auth-form hidden">
         <div class="field">
           <label for="signupFullName">Full Name</label>
