@@ -24,6 +24,18 @@ const pool = new Pool({
   ssl: process.env.PGSSLMODE === "disable" ? false : { rejectUnauthorized: false }
 });
 
+function normalizeRowKeys(moduleName, row) {
+  if (!row || typeof row !== "object") return row;
+  const out = { ...row };
+  const fields = MODULES[moduleName] || [];
+  for (const f of fields) {
+    if (out[f] !== undefined) continue;
+    const lower = f.toLowerCase();
+    if (out[lower] !== undefined) out[f] = out[lower];
+  }
+  return out;
+}
+
 function convertQuestionMarksToDollarParams(sql, paramsLength) {
   let i = 0;
   return sql.replace(/\?/g, () => {
@@ -132,7 +144,7 @@ async function initDb() {
 
 async function list(moduleName) {
   const res = await pool.query(`SELECT * FROM ${moduleName} ORDER BY id DESC`);
-  return res.rows;
+  return res.rows.map((r) => normalizeRowKeys(moduleName, r));
 }
 
 async function insert(moduleName, payload) {
@@ -145,7 +157,7 @@ async function insert(moduleName, payload) {
     `INSERT INTO ${moduleName} (${cols}) VALUES (${placeholders}) RETURNING *`,
     values
   );
-  return res.rows[0];
+  return normalizeRowKeys(moduleName, res.rows[0]);
 }
 
 async function remove(moduleName, id) {
