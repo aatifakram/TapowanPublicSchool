@@ -50,7 +50,7 @@ async function ensureColumns(tableName, fields) {
   const existing = new Set(res.rows.map((r) => r.column_name));
   for (const field of fields) {
     if (!existing.has(field)) {
-      await pool.query(`ALTER TABLE ${tableName} ADD COLUMN ${field} TEXT;`);
+     await pool.query(`ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS ${field} TEXT;`);
     }
   }
 }
