@@ -18,7 +18,7 @@ app.use(cors({
       .filter(Boolean);
     const defaults = [
       "https://aatifakram.github.io",
-      "https://tapowanpublicschool-o1s2.onrender.com"
+      "https://tapowanpublicschool-production.up.railway.app/"
     ];
 
     // If not configured, don't break the app: allow all origins.
