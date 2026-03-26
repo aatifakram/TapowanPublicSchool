@@ -4,14 +4,19 @@ const CLASS_STANDARD_OPTIONS = ["Nursery", "LKG", "UKG", "I", "II", "III", "IV",
 
 const moduleConfig = {
   dashboard: { title: "Dashboard", subtitle: "School overview and quick statistics", fields: [], columns: ["Metric", "Value"] },
-  students: { title: "Students", subtitle: "Manage student admissions and profiles", fields: ["admissionNo", "rollNo", "fullName", "className", "gender", "dob", "parentName", "phone", "address", "photo"], columns: ["id", "admissionNo", "rollNo", "fullName", "className", "gender", "dob", "parentName", "phone"] },
+  students: {
+    title: "Students",
+    subtitle: "Manage student admissions and profiles",
+    fields: ["admissionNo", "rollNo", "fullName", "className", "gender", "dob", "parentName", "phone", "address", "photo", "status", "aadhar", "tc", "reportCard"],
+    columns: ["fullName", "rollNo", "classPart", "sectionPart", "phone", "status"]
+  },
   teachers: { title: "Teachers", subtitle: "Manage teacher records and contacts", fields: ["employeeNo", "fullName", "department", "qualification", "phone", "email", "joinDate"], columns: ["id", "employeeNo", "fullName", "department", "qualification", "phone", "email"] },
   classes: { title: "Classes", subtitle: "Create classes and assign class teachers", fields: ["className", "section", "classTeacher", "roomNo", "capacity"], columns: ["id", "className", "section", "classTeacher", "roomNo", "capacity"] },
   subjects: { title: "Subjects", subtitle: "Define subjects and assign faculty", fields: ["subjectCode", "subjectName", "className", "teacher", "credits"], columns: ["id", "subjectCode", "subjectName", "className", "teacher", "credits"] },
   attendance: { title: "Attendance", subtitle: "Track daily student attendance", fields: ["date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks"], columns: ["id", "date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks"] },
   teacherAttendance: { title: "Teacher Attendance", subtitle: "Track daily teacher attendance", fields: ["date", "department", "teacherName", "status", "remarks"], columns: ["id", "date", "department", "teacherName", "status", "remarks"] },
   exams: { title: "Exams & Results", subtitle: "Manage exams and student marks", fields: ["examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"], columns: ["id", "examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"] },
-  fees: { title: "Fees", subtitle: "Record fee structures and payments", fields: ["studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"], columns: ["id", "studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"] },
+  fees: { title: "Fees", subtitle: "Record fee structures and payments", fields: ["studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod"], columns: ["id", "studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"] },
   library: { title: "Library", subtitle: "Manage books, issues and returns", fields: ["bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"], columns: ["id", "bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"] },
   transport: { title: "Transport", subtitle: "Track routes, buses and student allocation", fields: ["routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"], columns: ["id", "routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"] },
   hostel: { title: "Hostel", subtitle: "Manage hostel rooms and allocations", fields: ["hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"], columns: ["id", "hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"] },
@@ -35,6 +40,8 @@ let autoLastAutoMarkKey = "";
 let autoLastAutoMarkAt = 0;
 let autoRecognitionStreakByKey = {};
 let autoLastAutoMarkAtByKey = {};
+let editStudentId = null;
+let pendingStudentPrefill = null;
 
 const refs = {
   sidebar: document.getElementById("sidebar"),
@@ -93,7 +100,15 @@ const refs = {
   faceManualNameField: document.getElementById("faceManualNameField"),
   faceManualClassField: document.getElementById("faceManualClassField"),
   faceStatusField: document.getElementById("faceStatusField"),
-  faceAutoControls: document.getElementById("faceAutoControls")
+  faceAutoControls: document.getElementById("faceAutoControls"),
+
+  studentProfileBackdrop: document.getElementById("studentProfileBackdrop"),
+  studentProfileModal: document.getElementById("studentProfileModal"),
+  studentProfileCloseBtn: document.getElementById("studentProfileCloseBtn"),
+  studentProfileName: document.getElementById("studentProfileName"),
+  studentProfileSub: document.getElementById("studentProfileSub"),
+  studentProfileContent: document.getElementById("studentProfileContent"),
+  studentProfileTabs: document.querySelectorAll('.student-profile-tab')
 };
 
 function isMobileLayout() {
@@ -130,7 +145,10 @@ function saveFaceStore(v) { localStorage.setItem(FACE_KEY, JSON.stringify(v)); }
 function toLabel(key) {
   const custom = {
     className: "Class",
+    classPart: "Class",
+    sectionPart: "Section",
     rollNo: "Roll No",
+    phone: "Mobile",
     admissionNo: "Admission No",
     employeeNo: "Employee No",
     roomNo: "Room No",
@@ -143,6 +161,16 @@ function toLabel(key) {
   return key.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase());
 }
 function asNum(value) { return Number(value) || 0; }
+
+function splitClassName(value) {
+  const s = String(value ?? "").trim();
+  if (!s) return { classPart: "", sectionPart: "" };
+  const parts = s.split("-");
+  if (parts.length === 1) return { classPart: s, sectionPart: "" };
+  const sectionPart = parts.pop() || "";
+  const classPart = parts.join("-");
+  return { classPart, sectionPart };
+}
 
 function fileToResizedDataUrl(file, maxDim = 240, quality = 0.85) {
   return new Promise((resolve, reject) => {
@@ -343,6 +371,7 @@ function renderForm() {
   const subjectOptions = Array.from(new Set((store.subjects || []).map((x) => x.subjectName).filter(Boolean)));
   const departmentOptions = Array.from(new Set((store.teachers || []).map((x) => x.department).filter(Boolean)));
   const statusOptionsByModule = {
+    students: ["Active", "Inactive"],
     attendance: ["Present", "Absent", "Late", "Leave"],
     teacherAttendance: ["Present", "Absent", "Late", "Leave"],
     fees: ["Paid", "Partial", "Pending"],
@@ -411,7 +440,8 @@ function renderForm() {
     } else if (field === "status") {
       const statusOptions = statusOptionsByModule[currentModule] || ["Active", "Inactive"];
       input = selectFrom(statusOptions, (opt) => ({ value: opt, label: opt }));
-    } else if (currentModule === "students" && field === "photo") {
+      if (currentModule === "students") input.value = "Active";
+    } else if (currentModule === "students" && ["photo", "aadhar", "tc", "reportCard"].includes(field)) {
       input = document.createElement("input");
       input.type = "file";
       input.name = field;
@@ -421,6 +451,7 @@ function renderForm() {
       input = document.createElement("input");
       input.name = field;
       input.required = true;
+      if (field === "paymentMethod" || field === "paymentDate") input.required = false;
       if (field.endsWith("Time")) {
         input.required = false; // arrival is required, but departure may be empty; handled by face auto-fill.
         input.type = "time";
@@ -452,6 +483,20 @@ function renderForm() {
       if (!selected) return;
       formRefs.department.value = selected.department || formRefs.department.value;
     });
+  }
+
+  // Prefill helper (used by Student Profile actions to reduce user work).
+  if (pendingStudentPrefill && pendingStudentPrefill.module === currentModule) {
+    const s = pendingStudentPrefill.student;
+    if (formRefs.studentName && s.fullName) {
+      formRefs.studentName.value = s.fullName;
+      formRefs.studentName.dispatchEvent(new Event("change"));
+    }
+    if (formRefs.className && s.className) formRefs.className.value = s.className;
+    if (formRefs.rollNo && s.rollNo) formRefs.rollNo.value = s.rollNo;
+    if (formRefs.date && (currentModule === "attendance" || currentModule === "teacherAttendance")) formRefs.date.value = todayStr();
+    if (formRefs.status && (currentModule === "attendance" || currentModule === "teacherAttendance")) formRefs.status.value = "Present";
+    pendingStudentPrefill = null;
   }
 
   const action = document.createElement("div");
@@ -495,20 +540,431 @@ function renderTable() {
 
   list.forEach(item => {
     const tr = document.createElement("tr");
+    const split = currentModule === "students" ? splitClassName(item.className) : { classPart: "", sectionPart: "" };
+
     const cells = cfg.columns.map(key => {
-      const val = item[key] ?? "";
-      if (String(val).toLowerCase().includes("active") || String(val).toLowerCase().includes("present")) return `<td><span class="badge">${val}</span></td>`;
+      let val;
+      if (currentModule === "students" && key === "classPart") val = split.classPart;
+      else if (currentModule === "students" && key === "sectionPart") val = split.sectionPart;
+      else if (currentModule === "students" && key === "status") val = item.status || "Active";
+      else val = item[key] ?? "";
+
+      if (String(val).toLowerCase().includes("active") || String(val).toLowerCase().includes("present")) {
+        return `<td><span class="badge">${val}</span></td>`;
+      }
       return `<td>${val}</td>`;
     }).join("");
-    tr.innerHTML = `${cells}<td><button class="chip" data-id="${item.id}">Delete</button></td>`;
+
+    if (currentModule === "students") {
+      tr.innerHTML = `
+        ${cells}
+        <td>
+          <div class="student-actions">
+            <button class="action-btn action-view" data-action="view" data-id="${item.id}">View</button>
+            <button class="action-btn action-edit" data-action="edit" data-id="${item.id}">Edit</button>
+            <button class="chip" data-delete-id="${item.id}">Delete</button>
+          </div>
+        </td>
+      `;
+    } else {
+      tr.innerHTML = `${cells}<td><button class="chip" data-delete-id="${item.id}">Delete</button></td>`;
+    }
     refs.tableBody.appendChild(tr);
   });
 
-  refs.tableBody.querySelectorAll("button[data-id]").forEach(btn => {
+  refs.tableBody.querySelectorAll("button[data-delete-id]").forEach(btn => {
     btn.addEventListener("click", () => {
-      removeRecord(currentModule, Number(btn.dataset.id)).then(renderAll).catch((e) => window.alert(e.message));
+      removeRecord(currentModule, Number(btn.dataset.deleteId)).then(renderAll).catch((e) => window.alert(e.message));
     });
   });
+
+  // Student View/Edit actions
+  if (currentModule === "students") {
+    refs.tableBody.querySelectorAll("button[data-action]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const action = btn.dataset.action;
+        const id = Number(btn.dataset.id);
+        if (action === "view") openStudentProfileById(id);
+        if (action === "edit") startEditStudentById(id);
+      });
+    });
+  }
+}
+
+let activeStudentProfileTab = "profile";
+let studentProfileStudent = null;
+
+function closeStudentProfile() {
+  if (!refs.studentProfileBackdrop || !refs.studentProfileModal) return;
+  refs.studentProfileBackdrop.classList.add("hidden");
+  refs.studentProfileModal.classList.add("hidden");
+  refs.studentProfileContent.innerHTML = "";
+  studentProfileStudent = null;
+  activeStudentProfileTab = "profile";
+  document.body?.classList?.remove("no-scroll");
+}
+
+function openStudentProfileById(studentId) {
+  const store = getStore();
+  const student = (store.students || []).find((s) => Number(s.id) === Number(studentId));
+  if (!student) return window.alert("Student not found.");
+  studentProfileStudent = student;
+  activeStudentProfileTab = "profile";
+  renderStudentProfile();
+  refs.studentProfileBackdrop.classList.remove("hidden");
+  refs.studentProfileModal.classList.remove("hidden");
+  document.body?.classList?.add("no-scroll");
+}
+
+function setStudentProfileTab(tab) {
+  activeStudentProfileTab = tab;
+  renderStudentProfile();
+}
+
+function renderStudentProfile() {
+  if (!studentProfileStudent) return;
+  const student = studentProfileStudent;
+  if (refs.studentProfileName) refs.studentProfileName.textContent = student.fullName || "Student";
+  if (refs.studentProfileSub) {
+    const split = splitClassName(student.className);
+    const roll = student.rollNo ? ` • Roll ${student.rollNo}` : "";
+    const classSec = [split.classPart, split.sectionPart].filter(Boolean).join("-");
+    refs.studentProfileSub.textContent = `Class ${classSec || student.className || "-"}${roll}`;
+  }
+
+  if (refs.studentProfileTabs) {
+    refs.studentProfileTabs.forEach((b) => {
+      b.classList.toggle("active", b.dataset.tab === activeStudentProfileTab);
+    });
+  }
+
+  // Content per tab
+  if (activeStudentProfileTab === "profile") {
+    const split = splitClassName(student.className);
+    refs.studentProfileContent.innerHTML = `
+      <div class="panel" style="margin-bottom:12px;">
+        <h3 style="margin-bottom:8px;">Basic Information</h3>
+        <div class="student-actions" style="gap:12px;">
+          <div style="min-width:200px;">
+            <div><b>Name:</b> ${student.fullName || ""}</div>
+            <div><b>Roll Number:</b> ${student.rollNo || ""}</div>
+            <div><b>Class:</b> ${split.classPart || ""}</div>
+            <div><b>Section:</b> ${split.sectionPart || ""}</div>
+          </div>
+          <div style="min-width:200px;">
+            <div><b>Date of Birth:</b> ${student.dob || ""}</div>
+            <div><b>Gender:</b> ${student.gender || ""}</div>
+            <div><b>Address:</b> ${student.address || ""}</div>
+            <div><b>Mobile:</b> ${student.phone || ""}</div>
+            <div><b>Parent:</b> ${student.parentName || ""}</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="margin-bottom:12px;">
+        <h3 style="margin-bottom:8px;">Documents (Optional)</h3>
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+          <div style="border:1px solid rgba(148,163,184,0.25);border-radius:10px;padding:10px;">
+            <b>Aadhar</b>
+            <div style="color:#64748b;margin-top:6px;">${student.aadhar ? `<img src="${student.aadhar}" alt="Aadhar" style="width:100%;max-width:160px;border-radius:10px;" />` : "Not uploaded"}</div>
+          </div>
+          <div style="border:1px solid rgba(148,163,184,0.25);border-radius:10px;padding:10px;">
+            <b>TC</b>
+            <div style="color:#64748b;margin-top:6px;">${student.tc ? `<img src="${student.tc}" alt="TC" style="width:100%;max-width:160px;border-radius:10px;" />` : "Not uploaded"}</div>
+          </div>
+          <div style="border:1px solid rgba(148,163,184,0.25);border-radius:10px;padding:10px;grid-column:1 / -1;">
+            <b>Report Card</b>
+            <div style="color:#64748b;margin-top:6px;">${student.reportCard ? `<img src="${student.reportCard}" alt="Report Card" style="width:100%;max-width:320px;border-radius:10px;" />` : "Not uploaded"}</div>
+          </div>
+        </div>
+      </div>
+      <div class="panel" style="margin-bottom:12px;">
+        <h3 style="margin-bottom:8px;">Actions</h3>
+        <div class="student-actions">
+          <button type="button" class="action-btn" data-profile-action="edit">Edit Student</button>
+          <button type="button" class="action-btn" data-profile-action="fees">Add Fee</button>
+          <button type="button" class="action-btn" data-profile-action="exams">Add Marks</button>
+          <button type="button" class="action-btn" data-profile-action="attendance">Mark Attendance</button>
+          <button type="button" class="action-btn" data-profile-action="print">Print Report</button>
+        </div>
+      </div>
+    `;
+    // Wire actions (profile tab only).
+    refs.studentProfileContent.querySelectorAll("button[data-profile-action]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const action = btn.dataset.profileAction;
+        if (action === "edit") {
+          closeStudentProfile();
+          startEditStudentById(student.id);
+        } else if (action === "fees") {
+          currentModule = "fees";
+          closeStudentProfile();
+          pendingStudentPrefill = { module: "fees", student };
+          renderAll();
+        } else if (action === "exams") {
+          currentModule = "exams";
+          closeStudentProfile();
+          pendingStudentPrefill = { module: "exams", student };
+          renderAll();
+        } else if (action === "attendance") {
+          currentModule = "attendance";
+          closeStudentProfile();
+          pendingStudentPrefill = { module: "attendance", student };
+          renderAll();
+        } else if (action === "print") {
+          closeStudentProfile();
+          printStudentReport(student);
+        }
+      });
+    });
+    return;
+  }
+
+  if (activeStudentProfileTab === "exams") {
+    const store = getStore();
+    const exams = (store.exams || []).filter((e) => e.studentName === student.fullName);
+    const byExam = {};
+    exams.forEach((e) => {
+      byExam[e.examName] = byExam[e.examName] || [];
+      byExam[e.examName].push(e);
+    });
+    const totalObtained = exams.reduce((sum, e) => sum + asNum(e.marksObtained), 0);
+    const totalMax = exams.reduce((sum, e) => sum + asNum(e.maxMarks), 0);
+    const pct = totalMax > 0 ? Math.round((totalObtained / totalMax) * 1000) / 10 : 0;
+    const resultStatus = pct >= 50 ? "Pass" : "Fail";
+
+    const examCards = Object.entries(byExam)
+      .sort((a, b) => String(b[0]).localeCompare(String(a[0])))
+      .map(([examName, rows]) => {
+        const lines = rows
+          .map((r) => `<div style="margin-top:6px;"><b>${r.subject}:</b> ${r.marksObtained || ""}/${r.maxMarks || ""} (${r.grade || ""})</div>`)
+          .join("");
+        return `<div class="panel" style="margin-bottom:12px;"><h3 style="margin-bottom:8px;">${examName}</h3>${lines}</div>`;
+      })
+      .join("");
+
+    refs.studentProfileContent.innerHTML = `
+      <div class="panel" style="margin-bottom:12px;">
+        <h3 style="margin-bottom:8px;">Academic / Exams Summary</h3>
+        <div><b>Total Obtained:</b> ${totalObtained}</div>
+        <div><b>Total Max:</b> ${totalMax}</div>
+        <div><b>Percentage:</b> ${pct}%</div>
+        <div><b>Result:</b> ${resultStatus}</div>
+      </div>
+      ${examCards || `<div class="muted">No exam records found.</div>`}
+    `;
+    return;
+  }
+
+  if (activeStudentProfileTab === "fees") {
+    const store = getStore();
+    const fees = (store.fees || []).filter((f) => f.studentName === student.fullName);
+    const totalFee = fees.reduce((sum, f) => sum + asNum(f.totalFee), 0);
+    const paidAmount = fees.reduce((sum, f) => sum + asNum(f.paidAmount), 0);
+    const dueAmount = fees.reduce((sum, f) => sum + asNum(f.balance), 0);
+
+    const history = fees
+      .slice()
+      .sort((a, b) => String(b.term).localeCompare(String(a.term)))
+      .map((f) => `
+        <div style="padding:10px;border:1px solid rgba(148,163,184,0.25);border-radius:10px;margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+            <b>Term:</b> ${f.term || ""} <span class="badge" style="background:#e0e7ff;color:#3730a3;">${f.status || ""}</span>
+          </div>
+          <div style="margin-top:8px;"><b>Total Fee:</b> ${f.totalFee || ""}</div>
+          <div><b>Paid:</b> ${f.paidAmount || ""} | <b>Due:</b> ${f.balance || ""}</div>
+          <div style="color:#64748b;margin-top:4px;">
+            <b>Payment Date:</b> ${f.paymentDate || "-"} • <b>Method:</b> ${f.paymentMethod || "-"}
+          </div>
+        </div>
+      `).join("");
+
+    refs.studentProfileContent.innerHTML = `
+      <div class="panel" style="margin-bottom:12px;">
+        <h3 style="margin-bottom:8px;">Fee Details</h3>
+        <div><b>Total Fees:</b> ${totalFee}</div>
+        <div><b>Paid Amount:</b> ${paidAmount}</div>
+        <div><b>Due Amount:</b> ${dueAmount}</div>
+      </div>
+      ${history || `<div class="muted">No fee records found.</div>`}
+    `;
+    return;
+  }
+
+  if (activeStudentProfileTab === "attendance") {
+    const store = getStore();
+    const attendance = (store.attendance || []).filter((a) => a.studentName === student.fullName && a.className === student.className);
+    const uniqueDates = Array.from(new Set(attendance.map((a) => String(a.date)).filter(Boolean)));
+    const totalDays = uniqueDates.length;
+    const presentDays = attendance.filter((a) => {
+      const s = String(a.status || "").toLowerCase();
+      return s.includes("present") || s.includes("late");
+    }).map((a) => String(a.date));
+    const presentUnique = Array.from(new Set(presentDays));
+    const absentUnique = uniqueDates.filter((d) => !presentUnique.includes(d));
+    const pct = totalDays > 0 ? Math.round((presentUnique.length / totalDays) * 1000) / 10 : 0;
+
+    const monthRows = attendance
+      .slice()
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+      .slice(0, 30)
+      .map((a) => `<div style="padding:8px 10px;border:1px solid rgba(148,163,184,0.25);border-radius:10px;margin-bottom:8px;">
+        <b>${a.date || ""}</b> • ${a.status || ""}${a.arrivalTime ? ` • Arr ${a.arrivalTime}` : ""}${a.departureTime ? ` • Dep ${a.departureTime}` : ""}
+      </div>`)
+      .join("");
+
+    refs.studentProfileContent.innerHTML = `
+      <div class="panel" style="margin-bottom:12px;">
+        <h3 style="margin-bottom:8px;">Attendance</h3>
+        <div><b>Total Days:</b> ${totalDays}</div>
+        <div><b>Present:</b> ${presentUnique.length}</div>
+        <div><b>Absent:</b> ${absentUnique.length}</div>
+        <div><b>Attendance %:</b> ${pct}%</div>
+      </div>
+      ${monthRows || `<div class="muted">No attendance records found.</div>`}
+    `;
+    return;
+  }
+}
+
+function startEditStudentById(studentId) {
+  editStudentId = Number(studentId);
+  currentModule = "students";
+  refs.searchInput.value = "";
+  // Re-render form then prefill.
+  renderAll();
+  const store = getStore();
+  const student = (store.students || []).find((s) => Number(s.id) === Number(studentId));
+  if (!student) return;
+  if (refs.dynamicForm) {
+    const inputs = refs.dynamicForm.querySelectorAll("input,select,textarea");
+    inputs.forEach((el) => {
+      const name = el.name || el.getAttribute("name");
+      if (!name) return;
+      if (["photo", "aadhar", "tc", "reportCard"].includes(name)) return; // can't set file inputs
+      if (el.tagName === "SELECT") el.value = student[name] ?? el.value;
+      else el.value = student[name] ?? "";
+    });
+  }
+  // Put focus to first form input for convenience.
+  const first = refs.dynamicForm.querySelector("input,select,textarea");
+  first?.focus?.();
+}
+
+function printStudentReport(student) {
+  if (!student) return;
+  const store = getStore();
+  const split = splitClassName(student.className);
+
+  const exams = (store.exams || []).filter((e) => e.studentName === student.fullName);
+  const fees = (store.fees || []).filter((f) => f.studentName === student.fullName);
+  const attendance = (store.attendance || []).filter((a) => a.studentName === student.fullName && a.className === student.className);
+
+  const totalObtained = exams.reduce((sum, e) => sum + asNum(e.marksObtained), 0);
+  const totalMax = exams.reduce((sum, e) => sum + asNum(e.maxMarks), 0);
+  const pct = totalMax > 0 ? Math.round((totalObtained / totalMax) * 1000) / 10 : 0;
+  const result = pct >= 50 ? "Pass" : "Fail";
+
+  const totalFee = fees.reduce((sum, f) => sum + asNum(f.totalFee), 0);
+  const paidAmount = fees.reduce((sum, f) => sum + asNum(f.paidAmount), 0);
+  const dueAmount = fees.reduce((sum, f) => sum + asNum(f.balance), 0);
+
+  const uniqueDates = Array.from(new Set(attendance.map((a) => String(a.date)).filter(Boolean)));
+  const presentUnique = Array.from(new Set(attendance.filter((a) => {
+    const s = String(a.status || "").toLowerCase();
+    return s.includes("present") || s.includes("late");
+  }).map((a) => String(a.date))));
+  const totalDays = uniqueDates.length;
+  const presentDays = presentUnique.length;
+  const attendancePct = totalDays > 0 ? Math.round((presentDays / totalDays) * 1000) / 10 : 0;
+
+  const profileHtml = `
+    <div class="id-header">
+      <h1>Student Report</h1>
+      <p>${student.fullName || ""} • Roll ${student.rollNo || ""} • Class ${split.classPart || ""}${split.sectionPart ? "-" + split.sectionPart : ""}</p>
+    </div>
+    <div class="box">
+      <div class="row"><b>Date of Birth:</b> ${student.dob || "-"}</div>
+      <div class="row"><b>Gender:</b> ${student.gender || "-"}</div>
+      <div class="row"><b>Address:</b> ${student.address || "-"}</div>
+      <div class="row"><b>Mobile:</b> ${student.phone || "-"}</div>
+      <div class="row"><b>Parent:</b> ${student.parentName || "-"}</div>
+    </div>
+    <div class="id-grid">
+      <div class="box"><b>Exams %:</b> ${pct}% • <b>Result:</b> ${result}</div>
+      <div class="box"><b>Fees:</b> Paid ${paidAmount} • Due ${dueAmount}</div>
+      <div class="box"><b>Attendance %:</b> ${attendancePct}%</div>
+    </div>
+  `;
+
+  const examsHtml = (() => {
+    if (!exams.length) return `<div class="box">No exam records.</div>`;
+    const byExam = {};
+    exams.forEach((e) => {
+      byExam[e.examName] = byExam[e.examName] || [];
+      byExam[e.examName].push(e);
+    });
+    const blocks = Object.entries(byExam)
+      .map(([examName, rows]) => {
+        const lines = rows
+          .map((r) => `<div class="row"><b>${r.subject}:</b> ${r.marksObtained || ""}/${r.maxMarks || ""} (${r.grade || ""})</div>`)
+          .join("");
+        return `<div class="box"><h2>${examName}</h2>${lines}</div>`;
+      })
+      .join("");
+    return blocks;
+  })();
+
+  const feesHtml = (() => {
+    if (!fees.length) return `<div class="box">No fee records.</div>`;
+    const blocks = fees
+      .slice()
+      .sort((a, b) => String(b.term).localeCompare(String(a.term)))
+      .map((f) => `
+        <div class="box">
+          <h2>Term: ${f.term || ""}</h2>
+          <div class="row"><b>Total:</b> ${f.totalFee || ""}</div>
+          <div class="row"><b>Paid:</b> ${f.paidAmount || ""}</div>
+          <div class="row"><b>Due:</b> ${f.balance || ""}</div>
+          <div class="row" style="color:#64748b;"><b>Date:</b> ${f.paymentDate || "-"} • <b>Method:</b> ${f.paymentMethod || "-"}</div>
+        </div>
+      `)
+      .join("");
+    return blocks;
+  })();
+
+  const attendanceHtml = (() => {
+    if (!attendance.length) return `<div class="box">No attendance records.</div>`;
+    const blocks = attendance
+      .slice()
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+      .slice(0, 20)
+      .map((a) => `
+        <div class="box">
+          <div class="row"><b>Date:</b> ${a.date || ""}</div>
+          <div class="row"><b>Status:</b> ${a.status || ""}</div>
+          ${a.arrivalTime ? `<div class="row"><b>Arrival:</b> ${a.arrivalTime}</div>` : ""}
+          ${a.departureTime ? `<div class="row"><b>Departure:</b> ${a.departureTime}</div>` : ""}
+        </div>
+      `).join("");
+    return blocks;
+  })();
+
+  const contentHtml = `
+    ${profileHtml}
+    <h2 style="margin:16px 0 8px 0;">Exams</h2>
+    ${examsHtml}
+    <h2 style="margin:16px 0 8px 0;">Fees</h2>
+    ${feesHtml}
+    <h2 style="margin:16px 0 8px 0;">Attendance</h2>
+    ${attendanceHtml}
+  `;
+
+  const html = buildPrintableHtml("Student Report", contentHtml);
+  const w = window.open("", "_blank");
+  if (!w) return window.alert("Popup blocked. Allow popups to print.");
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
 }
 
 function getNextId(items) {
@@ -1318,17 +1774,30 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
   if (currentModule === "dashboard") return;
   const form = new FormData(e.target);
   const payload = {};
-  // Special handling for student photo (file -> resized base64 string).
+  const isEditingStudent = currentModule === "students" && editStudentId != null;
+
+  // Special handling for student files (file -> resized base64 string).
   for (const field of moduleConfig[currentModule].fields) {
-    if (currentModule === "students" && field === "photo") {
+    if (currentModule === "students" && ["photo", "aadhar", "tc", "reportCard"].includes(field)) {
       const file = form.get(field);
-      if (file && file.size > 0) payload[field] = await fileToResizedDataUrl(file);
-      else payload[field] = "";
+      if (file && file.size > 0) {
+        const maxDim = field === "photo" ? 240 : 360;
+        payload[field] = await fileToResizedDataUrl(file, maxDim, 0.85);
+      } else if (!isEditingStudent) {
+        // For edit mode, don't overwrite existing file data unless user selects a new file.
+        payload[field] = "";
+      }
     } else {
       payload[field] = (form.get(field) || "").toString().trim();
     }
   }
-  await addRecord(currentModule, payload);
+
+  if (isEditingStudent) {
+    await api(`/api/modules/students/${editStudentId}`, { method: "PUT", body: JSON.stringify(payload) });
+    editStudentId = null;
+  } else {
+    await addRecord(currentModule, payload);
+  }
   e.target.reset();
   renderAll();
 });
@@ -1573,6 +2042,16 @@ refs.assistantPrintIdBtn?.addEventListener("click", async () => {
 if (refs.assistantOutput) {
   refs.assistantOutput.innerHTML = `<div style="font-weight:700;margin-bottom:6px;">Assistant</div><div style="white-space:pre-wrap;color:#0f172a;">Tip:\n- Upload student photos in ` + "`Students`" + ` module.\n- Capture face embeddings with ` + "`Capture Face`" + `.\n- Enable ` + "`Auto Capture & Mark`" + ` to automatically mark attendance.</div>`;
 }
+
+refs.studentProfileCloseBtn?.addEventListener("click", closeStudentProfile);
+refs.studentProfileBackdrop?.addEventListener("click", closeStudentProfile);
+refs.studentProfileTabs?.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const tab = btn.dataset.tab;
+    if (!tab) return;
+    setStudentProfileTab(tab);
+  });
+});
 
 async function boot() {
   try {

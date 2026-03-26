@@ -601,6 +601,107 @@ tbody tr {
   color: #0f172a;
 }
 
+/* Student Profile Modal */
+.student-profile-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.55);
+  z-index: 900;
+}
+
+.student-profile-modal {
+  position: fixed;
+  inset: 10px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 20px);
+  overflow: hidden;
+}
+
+.student-profile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.student-profile-title h3 {
+  font-size: 1.05rem;
+  margin-bottom: 4px;
+}
+
+.student-profile-title p {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.student-profile-close {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #fff;
+  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+}
+
+.student-profile-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px 10px 16px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  flex-wrap: wrap;
+}
+
+.student-profile-tab {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #f8fafc;
+  color: #0f172a;
+  border-radius: 999px;
+  padding: 8px 12px;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.student-profile-tab.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.student-profile-content {
+  padding: 14px 16px;
+  overflow: auto;
+}
+
+.muted {
+  color: #64748b;
+}
+
+.action-btn {
+  border-radius: 8px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.action-btn:hover {
+  background: #eef2ff;
+}
+
+.student-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 1100px) {
   .app {
     grid-template-columns: 220px 1fr;

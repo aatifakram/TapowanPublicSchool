@@ -203,6 +203,27 @@
     </tr>
   </template>
 
+  <!-- Student Profile Modal -->
+  <div id="studentProfileBackdrop" class="student-profile-backdrop hidden"></div>
+  <div id="studentProfileModal" class="student-profile-modal hidden" role="dialog" aria-modal="true" aria-label="Student profile">
+    <div class="student-profile-header">
+      <div class="student-profile-title">
+        <h3 id="studentProfileName">Student Profile</h3>
+        <p id="studentProfileSub" class="muted"></p>
+      </div>
+      <button id="studentProfileCloseBtn" class="student-profile-close" type="button" aria-label="Close">✕</button>
+    </div>
+
+    <div class="student-profile-tabs">
+      <button class="student-profile-tab" data-tab="profile" type="button">Profile</button>
+      <button class="student-profile-tab" data-tab="exams" type="button">Exams</button>
+      <button class="student-profile-tab" data-tab="fees" type="button">Fees</button>
+      <button class="student-profile-tab" data-tab="attendance" type="button">Attendance</button>
+    </div>
+
+    <div id="studentProfileContent" class="student-profile-content"></div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>

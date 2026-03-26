@@ -1,14 +1,14 @@
 const { Pool } = require("pg");
 
 const MODULES = {
-  students: ["admissionNo", "rollNo", "fullName", "className", "gender", "dob", "parentName", "phone", "address", "photo"],
+  students: ["admissionNo", "rollNo", "fullName", "className", "gender", "dob", "parentName", "phone", "address", "photo", "status", "aadhar", "tc", "reportCard"],
   teachers: ["employeeNo", "fullName", "department", "qualification", "phone", "email", "joinDate"],
   classes: ["className", "section", "classTeacher", "roomNo", "capacity"],
   subjects: ["subjectCode", "subjectName", "className", "teacher", "credits"],
   attendance: ["date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks", "facePhoto"],
   teacherAttendance: ["date", "department", "teacherName", "status", "remarks"],
   exams: ["examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"],
-  fees: ["studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"],
+  fees: ["studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod"],
   library: ["bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"],
   transport: ["routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"],
   hostel: ["hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"],
@@ -75,8 +75,8 @@ async function seedIfEmpty() {
   const now = new Date().toISOString().slice(0, 19).replace("T", " ");
   const today = new Date().toISOString().slice(0, 10);
 
-  await insert("students", { admissionNo: "ADM001", rollNo: "10A-01", fullName: "Aarav Sharma", className: "10-A", gender: "Male", dob: "2010-03-12", parentName: "Rohit Sharma", phone: "9876501234", address: "Sector 5" });
-  await insert("students", { admissionNo: "ADM002", rollNo: "9B-07", fullName: "Ananya Singh", className: "9-B", gender: "Female", dob: "2011-07-20", parentName: "Vikas Singh", phone: "9823401234", address: "Green Park" });
+  await insert("students", { admissionNo: "ADM001", rollNo: "10A-01", fullName: "Aarav Sharma", className: "10-A", gender: "Male", dob: "2010-03-12", parentName: "Rohit Sharma", phone: "9876501234", address: "Sector 5", status: "Active", aadhar: "", tc: "", reportCard: "" });
+  await insert("students", { admissionNo: "ADM002", rollNo: "9B-07", fullName: "Ananya Singh", className: "9-B", gender: "Female", dob: "2011-07-20", parentName: "Vikas Singh", phone: "9823401234", address: "Green Park", status: "Active", aadhar: "", tc: "", reportCard: "" });
   await insert("teachers", { employeeNo: "EMP100", fullName: "Neha Verma", department: "Science", qualification: "M.Sc", phone: "9900112233", email: "neha@school.com", joinDate: "2018-06-10" });
   await insert("teachers", { employeeNo: "EMP101", fullName: "Amit Kumar", department: "Math", qualification: "M.Ed", phone: "9900112244", email: "amit@school.com", joinDate: "2019-01-05" });
   await insert("classes", { className: "10", section: "A", classTeacher: "Neha Verma", roomNo: "204", capacity: "40" });
@@ -84,7 +84,7 @@ async function seedIfEmpty() {
   await insert("attendance", { date: today, className: "10-A", studentName: "Aarav Sharma", rollNo: "10A-01", status: "Present", remarks: "On time" });
   await insert("teacherAttendance", { date: today, department: "Science", teacherName: "Neha Verma", status: "Present", remarks: "On time" });
   await insert("exams", { examName: "Mid Term", className: "10-A", subject: "Mathematics", studentName: "Aarav Sharma", rollNo: "10A-01", marksObtained: "84", maxMarks: "100", grade: "A" });
-  await insert("fees", { studentName: "Aarav Sharma", className: "10-A", rollNo: "10A-01", term: "Q1", totalFee: "18000", paidAmount: "15000", balance: "3000", status: "Partial" });
+  await insert("fees", { studentName: "Aarav Sharma", className: "10-A", rollNo: "10A-01", term: "Q1", totalFee: "18000", paidAmount: "15000", balance: "3000", status: "Partial", paymentDate: today, paymentMethod: "Cash" });
   await insert("users", { username: "im_aatif", fullName: "System Admin", role: "Administrator", email: "admin@school.com", status: "Active", lastLogin: now, password: "Aatif@123" });
   await insert("users", { username: "principal", fullName: "School Principal", role: "Principal", email: "principal@school.com", status: "Active", lastLogin: now, password: "principal123" });
   await insert("timetable", { className: "10-A", day: "Monday", period: "1", subject: "Mathematics", teacher: "Amit Kumar", roomNo: "204" });
@@ -160,6 +160,28 @@ async function insert(moduleName, payload) {
   return normalizeRowKeys(moduleName, res.rows[0]);
 }
 
+async function getById(moduleName, id) {
+  const res = await pool.query(`SELECT * FROM ${moduleName} WHERE id = $1 LIMIT 1`, [id]);
+  const row = res.rows[0];
+  return row ? normalizeRowKeys(moduleName, row) : null;
+}
+
+async function update(moduleName, id, payload) {
+  const fields = MODULES[moduleName] || [];
+  const allowedKeys = Object.keys(payload || {}).filter((k) => fields.includes(k));
+  if (!allowedKeys.length) return getById(moduleName, id);
+
+  const setParts = allowedKeys.map((k, i) => `${k}=$${i + 1}`);
+  const values = allowedKeys.map((k) => payload[k] ?? "");
+  values.push(id);
+
+  const res = await pool.query(
+    `UPDATE ${moduleName} SET ${setParts.join(", ")} WHERE id=$${allowedKeys.length + 1} RETURNING *`,
+    values
+  );
+  return res.rows[0] ? normalizeRowKeys(moduleName, res.rows[0]) : null;
+}
+
 async function remove(moduleName, id) {
   await pool.query(`DELETE FROM ${moduleName} WHERE id = $1`, [id]);
 }
@@ -196,6 +218,8 @@ module.exports = {
   initDb,
   list,
   insert,
+  getById,
+  update,
   remove,
   replaceAll,
   getStore,
