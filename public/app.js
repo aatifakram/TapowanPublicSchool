@@ -104,6 +104,10 @@ function setMobileSidebarOpen(open) {
   if (!refs.sidebar || !refs.mobileSidebarBackdrop) return;
   refs.sidebar.classList.toggle("mobile-open", !!open);
   refs.mobileSidebarBackdrop.classList.toggle("hidden", !open);
+  document.body?.classList?.toggle("no-scroll", !!open);
+  if (refs.mobileMenuBtn) {
+    refs.mobileMenuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
 }
 
 function todayStr() {

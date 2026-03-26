@@ -61,7 +61,12 @@
 
     <main class="main">
       <header class="topbar">
-        <button id="mobileMenuBtn" class="dark mobile-menu-btn" type="button" aria-label="Open menu">Menu</button>
+        <button id="mobileMenuBtn" class="dark mobile-menu-btn" type="button" aria-label="Open menu" aria-expanded="false">
+          <span class="hamburger" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </span>
+          <span class="sr-only">Menu</span>
+        </button>
         <div>
           <h2 id="moduleTitle">Dashboard</h2>
           <p id="moduleSubtitle">School overview and quick statistics</p>

@@ -103,7 +103,40 @@ body {
   position: fixed;
   inset: 0;
   background: rgba(2, 6, 23, 0.45);
-  z-index: 250;
+  z-index: 520;
+  transition: opacity 0.2s ease;
+}
+
+.no-scroll {
+  overflow: hidden;
+  touch-action: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.hamburger {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 22px;
+}
+
+.hamburger > span {
+  display: block;
+  height: 2px;
+  width: 100%;
+  background: currentColor;
+  border-radius: 999px;
 }
 
 .brand h1 {
@@ -454,6 +487,7 @@ tbody tr {
     color: #0f172a;
     box-shadow: 0 18px 50px rgba(2, 6, 23, 0.18);
     border-right: 1px solid rgba(148, 163, 184, 0.35);
+    border-radius: 0 18px 18px 0;
   }
 
   .sidebar.mobile-open {
@@ -464,6 +498,11 @@ tbody tr {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    background: transparent;
+    border: none;
+    color: #0f172a;
+    padding: 8px;
+    z-index: 650;
   }
 
   #moduleNav {
