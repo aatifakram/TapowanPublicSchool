@@ -280,10 +280,29 @@ function setAuthMode(mode) {
 
 function renderNav() {
   refs.moduleNav.innerHTML = "";
+  const navIcons = {
+    dashboard: "🏠",
+    students: "👥",
+    teachers: "🧑‍🏫",
+    attendance: "🗓️",
+    teacherAttendance: "🧾",
+    studentsAttendance: "🗓️",
+    exams: "📚",
+    fees: "💲",
+    library: "📖",
+    transport: "🚌",
+    hostel: "🏠",
+    payroll: "💼",
+    users: "🛡️",
+    timetable: "⏰",
+    notifications: "🔔"
+  };
+
   moduleOrder.forEach(name => {
     const btn = document.createElement("button");
     btn.className = `nav-btn ${name === currentModule ? "active" : ""}`;
-    btn.textContent = moduleConfig[name].title;
+    const icon = navIcons[name] || "•";
+    btn.innerHTML = `<span class="nav-icon">${icon}</span><span class="nav-text">${moduleConfig[name].title}</span>`;
     btn.addEventListener("click", () => {
       currentModule = name;
       refs.searchInput.value = "";
@@ -523,7 +542,32 @@ function renderStatsCards() {
   Object.entries(stats).forEach(([k, v]) => {
     const card = document.createElement("article");
     card.className = "card";
-    card.innerHTML = `<h4>${k}</h4><p class="value">${v}</p>`;
+    const statIcons = {
+      "Total Students": "👥",
+      "Total Teachers": "🎓",
+      "Total Classes": "🏫",
+      "Student Present Today": "✅",
+      "Teacher Present Today": "✅",
+      "Pending Fee Accounts": "💲",
+      "Books Issued": "📚",
+      "Hostel Active": "🏠",
+      "System Active Users": "🛡️"
+    };
+
+    const icon = statIcons[k] || "⭐";
+    const trend = v > 0 ? { arrow: "↑", text: "+5%" } : { arrow: "↓", text: "-2%" };
+
+    card.innerHTML = `
+      <div class="stat-top">
+        <h4>${k}</h4>
+        <div class="stat-icon-bubble">${icon}</div>
+      </div>
+      <div class="stat-value">${v}</div>
+      <div class="stat-trend ${trend.arrow === "↑" ? "pos" : "neg"}">
+        <span class="arrow">${trend.arrow}</span>
+        <span class="pct">${trend.text}</span>
+      </div>
+    `;
     refs.statsCards.appendChild(card);
   });
 }
