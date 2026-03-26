@@ -8,7 +8,7 @@ const moduleConfig = {
   teachers: { title: "Teachers", subtitle: "Manage teacher records and contacts", fields: ["employeeNo", "fullName", "department", "qualification", "phone", "email", "joinDate"], columns: ["id", "employeeNo", "fullName", "department", "qualification", "phone", "email"] },
   classes: { title: "Classes", subtitle: "Create classes and assign class teachers", fields: ["className", "section", "classTeacher", "roomNo", "capacity"], columns: ["id", "className", "section", "classTeacher", "roomNo", "capacity"] },
   subjects: { title: "Subjects", subtitle: "Define subjects and assign faculty", fields: ["subjectCode", "subjectName", "className", "teacher", "credits"], columns: ["id", "subjectCode", "subjectName", "className", "teacher", "credits"] },
-  attendance: { title: "Attendance", subtitle: "Track daily student attendance", fields: ["date", "className", "studentName", "rollNo", "status", "remarks"], columns: ["id", "date", "className", "studentName", "rollNo", "status", "remarks"] },
+  attendance: { title: "Attendance", subtitle: "Track daily student attendance", fields: ["date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks"], columns: ["id", "date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks"] },
   teacherAttendance: { title: "Teacher Attendance", subtitle: "Track daily teacher attendance", fields: ["date", "department", "teacherName", "status", "remarks"], columns: ["id", "date", "department", "teacherName", "status", "remarks"] },
   exams: { title: "Exams & Results", subtitle: "Manage exams and student marks", fields: ["examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"], columns: ["id", "examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"] },
   fees: { title: "Fees", subtitle: "Record fee structures and payments", fields: ["studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"], columns: ["id", "studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"] },
@@ -112,6 +112,11 @@ function todayStr() {
 
 function nowStr() {
   return new Date().toISOString().slice(0, 19).replace("T", " ");
+}
+
+function timeStr() {
+  // HH:mm (local time). Stored as TEXT in DB.
+  return new Date().toTimeString().slice(0, 5);
 }
 
 function getStore() { return serverStore || {}; }
@@ -412,7 +417,10 @@ function renderForm() {
       input = document.createElement("input");
       input.name = field;
       input.required = true;
-      if (field.includes("date") || field === "dob") input.type = "date";
+      if (field.endsWith("Time")) {
+        input.required = false; // arrival is required, but departure may be empty; handled by face auto-fill.
+        input.type = "time";
+      } else if (field.includes("date") || field === "dob") input.type = "date";
       else if (["email"].includes(field)) input.type = "email";
       else if (["phone"].includes(field)) input.type = "tel";
       else if (["marksObtained", "maxMarks", "totalFee", "paidAmount", "balance", "monthlyFee", "basicSalary", "allowances", "deductions", "netPay", "credits", "capacity"].includes(field)) input.type = "number";
@@ -991,16 +999,35 @@ async function markFaceAttendance() {
       refs.faceStatusText.textContent = "Attendance verification cancelled.";
       return;
     }
-    const row = {
-      id: getNextId(store.attendance || []),
-      date: todayStr(),
-      className: resolvedClassName,
-      studentName: recognizedName,
-      rollNo: student?.rollNo || "",
-      status,
-      remarks: "Face-recognized"
-    };
-    await api("/api/modules/attendance", { method: "POST", body: JSON.stringify(row) });
+    const today = todayStr();
+    const nowTime = timeStr();
+    const existing = findExistingAttendanceRecord(store, recognizedName, resolvedClassName, today);
+
+    if (existing?.id) {
+      const update = { remarks: "Face-recognized" };
+      if (!existing.arrivalTime) {
+        update.arrivalTime = nowTime;
+        update.status = status; // arrival status
+      } else if (!existing.departureTime) {
+        update.departureTime = nowTime; // keep arrival status
+      } else {
+        // Already has arrival & departure; just update remarks.
+      }
+      await api(`/api/modules/attendance/${existing.id}`, { method: "PUT", body: JSON.stringify(update) });
+    } else {
+      const row = {
+        id: getNextId(store.attendance || []),
+        date: today,
+        className: resolvedClassName,
+        studentName: recognizedName,
+        rollNo: student?.rollNo || "",
+        status,
+        arrivalTime: nowTime,
+        departureTime: "",
+        remarks: "Face-recognized"
+      };
+      await api("/api/modules/attendance", { method: "POST", body: JSON.stringify(row) });
+    }
     currentModule = "attendance";
   } else {
     const resolvedDept = classDept || best?.tag || "N/A";
@@ -1107,12 +1134,20 @@ async function autoCaptureTick() {
     autoCaptureBusy = true;
     const snap = videoFrameToResizedDataUrl(refs.faceVideo, 220, 0.68);
     const existing = findExistingAttendanceRecord(store, recognizedName, resolvedClassName, today);
+    const nowTime = timeStr();
 
     // Update existing record photo if already marked.
     if (existing?.id) {
+      const update = { facePhoto: snap, remarks: "Auto face-recognized" };
+      if (!existing.arrivalTime) {
+        update.arrivalTime = nowTime;
+        update.status = refs.faceStatus.value; // arrival status
+      } else if (!existing.departureTime) {
+        update.departureTime = nowTime; // keep arrival status
+      }
       await api(`/api/modules/attendance/${existing.id}`, {
         method: "PUT",
-        body: JSON.stringify({ facePhoto: snap })
+        body: JSON.stringify(update)
       });
       await loadStore();
       refs.faceStatusText.textContent = `Photo updated for ${recognizedName} (${resolvedClassName}).`;
@@ -1125,6 +1160,8 @@ async function autoCaptureTick() {
         studentName: recognizedName,
         rollNo: student?.rollNo || "",
         status: refs.faceStatus.value,
+        arrivalTime: nowTime,
+        departureTime: "",
         remarks: "Auto face-recognized",
         facePhoto: snap
       };
@@ -1169,6 +1206,7 @@ async function autoBatchCaptureTick() {
     const store = getStore();
     const today = todayStr();
     const now = Date.now();
+    const nowTime = timeStr();
 
     // Keep a local mutable copy to avoid repeatedly calling loadStore() inside the loop.
     const localAttendance = (store.attendance || []).slice();
@@ -1215,13 +1253,24 @@ async function autoBatchCaptureTick() {
       const snap = videoFrameToResizedDataUrl(refs.faceVideo, 220, 0.68);
 
       if (existing?.id) {
+        const update = { facePhoto: snap, remarks: "Auto face-recognized" };
+        if (!existing.arrivalTime) {
+          update.arrivalTime = nowTime;
+          update.status = status; // arrival status
+        } else if (!existing.departureTime) {
+          update.departureTime = nowTime; // keep arrival status
+        }
         await api(`/api/modules/attendance/${existing.id}`, {
           method: "PUT",
-          body: JSON.stringify({ facePhoto: snap })
+          body: JSON.stringify(update)
         });
         existing.facePhoto = snap;
-      await loadStore();
-      renderTable();
+        existing.remarks = update.remarks;
+        if (update.arrivalTime) existing.arrivalTime = update.arrivalTime;
+        if (update.departureTime) existing.departureTime = update.departureTime;
+        if (update.status) existing.status = update.status;
+        await loadStore();
+        renderTable();
       } else {
         const row = {
           id: nextId++,
@@ -1230,6 +1279,8 @@ async function autoBatchCaptureTick() {
           studentName: recognizedName,
           rollNo: student?.rollNo || "",
           status,
+          arrivalTime: nowTime,
+          departureTime: "",
           remarks: "Auto face-recognized",
           facePhoto: snap
         };

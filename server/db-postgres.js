@@ -5,7 +5,7 @@ const MODULES = {
   teachers: ["employeeNo", "fullName", "department", "qualification", "phone", "email", "joinDate"],
   classes: ["className", "section", "classTeacher", "roomNo", "capacity"],
   subjects: ["subjectCode", "subjectName", "className", "teacher", "credits"],
-  attendance: ["date", "className", "studentName", "rollNo", "status", "remarks", "facePhoto"],
+  attendance: ["date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks", "facePhoto"],
   teacherAttendance: ["date", "department", "teacherName", "status", "remarks"],
   exams: ["examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"],
   fees: ["studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"],
