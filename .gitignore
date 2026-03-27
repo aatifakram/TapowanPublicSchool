@@ -1,0 +1,9 @@
+node_modules/
+server/school.db
+.env
+.env.*
+.DS_Store
+.vscode/
+.idea/
+.cursor/
+
