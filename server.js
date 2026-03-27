@@ -42,7 +42,7 @@ app.use(cors({
 
     const defaults = [
       "https://aatifakram.github.io",
-      "https://tapowanpublicschool-production.up.railway.app"
+      "beneficial-magic-production.up.railway.app"
     ];
 
     if (!allowed.length) return cb(null, true);
