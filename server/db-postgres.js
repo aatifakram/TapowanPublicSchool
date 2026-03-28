@@ -17,9 +17,9 @@ const MODULES = {
   timetable: ["className", "day", "period", "subject", "teacher", "roomNo"],
   notifications: ["message", "type", "date"],
   faceEmbeddings: ["targetType", "name", "tag", "descriptorJson"],
-  schoolInvestments: ["title", "category", "amount", "expectedReturn", "bank", "startDate", "maturityDate", "notes", "status"],
-  schoolIncome: ["date", "source", "category", "amount", "mode", "description"],
-  schoolExpenses: ["date", "head", "category", "amount", "mode", "description"]
+  schoolInvestments: ["title", "category", "amount", "expectedReturn", "bank", "startDate", "maturityDate", "notes", "status", "isDemo"],
+  schoolIncome: ["date", "source", "category", "amount", "mode", "description", "isDemo"],
+  schoolExpenses: ["date", "head", "category", "amount", "mode", "description", "isDemo"]
 };
 
 const pool = new Pool({

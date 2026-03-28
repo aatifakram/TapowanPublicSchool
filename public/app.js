@@ -3221,21 +3221,21 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     if (!seedInvest && !seedIncome && !seedExpense) return;
 
     const investSeeds = seedInvest ? [
-      { title: "Fixed Deposit – SBI", category: "Fixed Deposit", amount: 500000, expectedReturn: 7.1, startDate: "2024-04-01", maturityDate: "2025-04-01", status: "Active", notes: "Annual FD for infrastructure reserve", bank: "State Bank of India" },
-      { title: "School Bus Purchase Fund", category: "Infrastructure", amount: 200000, expectedReturn: 0, startDate: "2024-06-01", maturityDate: "", status: "Active", notes: "Reserved for new school bus", bank: "Internal Reserve" },
-      { title: "Smart Classroom Equipment", category: "Technology", amount: 150000, expectedReturn: 0, startDate: "2024-07-15", maturityDate: "", status: "Completed", notes: "Purchased 5 smart boards", bank: "Internal Reserve" },
-      { title: "Recurring Deposit – PNB", category: "Recurring Deposit", amount: 120000, expectedReturn: 6.8, startDate: "2024-08-01", maturityDate: "2025-08-01", status: "Active", notes: "Monthly ₹10,000 RD", bank: "Punjab National Bank" },
-      { title: "Library Book Fund", category: "Education", amount: 80000, expectedReturn: 0, startDate: "2024-09-01", maturityDate: "", status: "Active", notes: "New book procurement for 2024-25", bank: "Internal Reserve" },
+      { title: "Fixed Deposit – SBI", category: "Fixed Deposit", amount: 500000, expectedReturn: 7.1, startDate: "2024-04-01", maturityDate: "2025-04-01", status: "Active", notes: "Annual FD for infrastructure reserve", bank: "State Bank of India", isDemo: true },
+      { title: "School Bus Purchase Fund", category: "Infrastructure", amount: 200000, expectedReturn: 0, startDate: "2024-06-01", maturityDate: "", status: "Active", notes: "Reserved for new school bus", bank: "Internal Reserve", isDemo: true },
+      { title: "Smart Classroom Equipment", category: "Technology", amount: 150000, expectedReturn: 0, startDate: "2024-07-15", maturityDate: "", status: "Completed", notes: "Purchased 5 smart boards", bank: "Internal Reserve", isDemo: true },
+      { title: "Recurring Deposit – PNB", category: "Recurring Deposit", amount: 120000, expectedReturn: 6.8, startDate: "2024-08-01", maturityDate: "2025-08-01", status: "Active", notes: "Monthly ₹10,000 RD", bank: "Punjab National Bank", isDemo: true },
+      { title: "Library Book Fund", category: "Education", amount: 80000, expectedReturn: 0, startDate: "2024-09-01", maturityDate: "", status: "Active", notes: "New book procurement for 2024-25", bank: "Internal Reserve", isDemo: true },
     ] : [];
 
     const months = ["2024-04","2024-05","2024-06","2024-07","2024-08","2024-09","2024-10","2024-11","2024-12","2025-01","2025-02","2025-03"];
     const incomeSeeds = seedIncome ? (() => {
       const arr = [];
       months.forEach(m => {
-        arr.push({ date: `${m}-05`, source: "Fee Collection", amount: Math.floor(180000 + Math.random() * 40000), category: "Fees", description: "Monthly fee collection", mode: "Mixed" });
-        if (Math.random() > 0.4) arr.push({ date: `${m}-10`, source: "Transport Fee", amount: Math.floor(30000 + Math.random() * 10000), category: "Transport", description: "Bus route fees", mode: "UPI" });
-        if (Math.random() > 0.6) arr.push({ date: `${m}-15`, source: "Hostel Fee", amount: Math.floor(20000 + Math.random() * 5000), category: "Hostel", description: "Hostel accommodation charges", mode: "Bank Transfer" });
-        if (Math.random() > 0.7) arr.push({ date: `${m}-20`, source: "Exam Fee", amount: Math.floor(10000 + Math.random() * 8000), category: "Exams", description: "Examination fee", mode: "Cash" });
+        arr.push({ date: `${m}-05`, source: "Fee Collection", amount: Math.floor(180000 + Math.random() * 40000), category: "Fees", description: "Monthly fee collection", mode: "Mixed", isDemo: true });
+        if (Math.random() > 0.4) arr.push({ date: `${m}-10`, source: "Transport Fee", amount: Math.floor(30000 + Math.random() * 10000), category: "Transport", description: "Bus route fees", mode: "UPI", isDemo: true });
+        if (Math.random() > 0.6) arr.push({ date: `${m}-15`, source: "Hostel Fee", amount: Math.floor(20000 + Math.random() * 5000), category: "Hostel", description: "Hostel accommodation charges", mode: "Bank Transfer", isDemo: true });
+        if (Math.random() > 0.7) arr.push({ date: `${m}-20`, source: "Exam Fee", amount: Math.floor(10000 + Math.random() * 8000), category: "Exams", description: "Examination fee", mode: "Cash", isDemo: true });
       });
       return arr;
     })() : [];
@@ -3243,10 +3243,10 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     const expenseSeeds = seedExpense ? (() => {
       const arr = [];
       months.forEach(m => {
-        arr.push({ date: `${m}-07`, head: "Staff Salary", amount: Math.floor(140000 + Math.random() * 20000), category: "Payroll", description: "Monthly salary disbursement", mode: "Bank Transfer" });
-        arr.push({ date: `${m}-12`, head: "Electricity Bill", amount: Math.floor(8000 + Math.random() * 4000), category: "Utilities", description: "Electricity charges", mode: "Online" });
-        if (Math.random() > 0.4) arr.push({ date: `${m}-18`, head: "Stationery & Supplies", amount: Math.floor(5000 + Math.random() * 3000), category: "Supplies", description: "Office and classroom supplies", mode: "Cash" });
-        if (Math.random() > 0.5) arr.push({ date: `${m}-22`, head: "Maintenance & Repair", amount: Math.floor(6000 + Math.random() * 6000), category: "Maintenance", description: "Building and equipment maintenance", mode: "Cash" });
+        arr.push({ date: `${m}-07`, head: "Staff Salary", amount: Math.floor(140000 + Math.random() * 20000), category: "Payroll", description: "Monthly salary disbursement", mode: "Bank Transfer", isDemo: true });
+        arr.push({ date: `${m}-12`, head: "Electricity Bill", amount: Math.floor(8000 + Math.random() * 4000), category: "Utilities", description: "Electricity charges", mode: "Online", isDemo: true });
+        if (Math.random() > 0.4) arr.push({ date: `${m}-18`, head: "Stationery & Supplies", amount: Math.floor(5000 + Math.random() * 3000), category: "Supplies", description: "Office and classroom supplies", mode: "Cash", isDemo: true });
+        if (Math.random() > 0.5) arr.push({ date: `${m}-22`, head: "Maintenance & Repair", amount: Math.floor(6000 + Math.random() * 6000), category: "Maintenance", description: "Building and equipment maintenance", mode: "Cash", isDemo: true });
       });
       return arr;
     })() : [];
@@ -3368,7 +3368,41 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     dateTo: finTodayStr(),
     dayFilter: "thisYear",
     investTab: "active",
+    // Caches user-typed form values so delete/re-render doesn't wipe them
+    formValues: {},
   };
+
+  // Save current form field values into financeState.formValues before any re-render
+  function saveFormValues(content) {
+    if (!content) return;
+    const fields = ["inv_title","inv_amount","inv_return","inv_bank","inv_maturity","inv_notes","inv_start","inv_category",
+                    "inc_date","inc_source","inc_category","inc_amount","inc_mode","inc_desc",
+                    "exp_date","exp_head","exp_category","exp_amount","exp_mode","exp_desc"];
+    fields.forEach(id => {
+      const el = content.querySelector(`#${id}`);
+      if (el && el.value !== undefined) financeState.formValues[id] = el.value;
+    });
+  }
+
+  // Restore saved form values after re-render, then clear the cache
+  function restoreFormValues(content) {
+    if (!content) return;
+    Object.entries(financeState.formValues).forEach(([id, val]) => {
+      const el = content.querySelector(`#${id}`);
+      if (el) el.value = val;
+    });
+  }
+
+  // Hard-clear all investment form fields in DOM (defeats browser autofill on re-render)
+  function clearInvestForm(content) {
+    if (!content) return;
+    ["#inv_title","#inv_amount","#inv_return","#inv_bank","#inv_maturity","#inv_notes"].forEach(sel => {
+      const el = content.querySelector(sel); if (el) { el.value = ""; el.removeAttribute("readonly"); }
+    });
+    const startEl = content.querySelector("#inv_start"); if (startEl) startEl.value = finTodayStr();
+    // Clear cached values for investment form so they don't get restored
+    ["inv_title","inv_amount","inv_return","inv_bank","inv_maturity","inv_notes","inv_start"].forEach(k => delete financeState.formValues[k]);
+  }
 
   function openFinanceModule() {
     if (!financeModal) createFinanceModal();
@@ -3428,6 +3462,8 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       b.style.borderBottomColor = active ? "#38bdf8" : "transparent";
     });
     const content = financeModal.querySelector("#financeContent");
+    // Save any form values the user may have typed before we wipe innerHTML
+    saveFormValues(content);
     switch (financeState.view) {
       case "overview": content.innerHTML = renderOverviewHTML(); break;
       case "daywise": content.innerHTML = renderDayWiseHTML(); break;
@@ -3437,6 +3473,8 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       default: content.innerHTML = renderOverviewHTML();
     }
     bindContentEvents(content);
+    // Restore values the user had typed (survives delete-triggered re-renders)
+    restoreFormValues(content);
   }
 
   /* ─── SHARED STYLES ──────────────────────────────────────── */
@@ -3626,8 +3664,10 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         </div>
         ${inv.startDate ? `<div style="font-size:0.72rem;color:rgba(255,255,255,0.4);margin-bottom:4px;">📅 ${inv.startDate}${inv.maturityDate ? ` → ${inv.maturityDate}` : ""}</div>` : ""}
         ${inv.notes ? `<div style="font-size:0.75rem;color:rgba(255,255,255,0.55);background:rgba(255,255,255,0.05);border-radius:7px;padding:8px 10px;margin-top:8px;">${inv.notes}</div>` : ""}
-        ${isAdmin() ? `<div style="display:flex;gap:8px;margin-top:12px;">
-          <button data-invest-delete="${inv.id}" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:7px;padding:5px 12px;font-size:0.72rem;cursor:pointer;">Delete</button>
+        ${isAdmin() ? `<div style="display:flex;gap:8px;margin-top:12px;align-items:center;">
+          ${inv.isDemo
+            ? `<span title="Demo data cannot be deleted" style="background:rgba(251,191,36,0.12);color:#fbbf24;border:1px solid rgba(251,191,36,0.25);border-radius:7px;padding:5px 12px;font-size:0.72rem;display:inline-flex;align-items:center;gap:5px;">🔒 Demo</span>`
+            : `<button data-invest-delete="${inv.id}" style="background:rgba(239,68,68,0.15);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:7px;padding:5px 12px;font-size:0.72rem;cursor:pointer;">Delete</button>`}
           <button data-invest-toggle="${inv.id}" data-invest-status="${inv.status}" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.6);border:none;border-radius:7px;padding:5px 12px;font-size:0.72rem;cursor:pointer;">${inv.status==="Active"?"Mark Complete":"Reactivate"}</button>
         </div>` : ""}
       </div>`).join("");
@@ -3677,7 +3717,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         <td style="padding:10px 12px;font-size:0.75rem;"><span style="background:rgba(56,189,248,0.15);color:#38bdf8;padding:2px 8px;border-radius:20px;">${r.category || "Other"}</span></td>
         <td style="padding:10px 12px;color:#4ade80;font-size:0.82rem;font-weight:700;">${fmt(r.amount)}</td>
         <td style="padding:10px 12px;color:rgba(255,255,255,0.4);font-size:0.75rem;">${r.mode || ""}</td>
-        ${isAdmin() ? `<td style="padding:6px 12px;"><button data-income-delete="${r.id}" style="background:rgba(239,68,68,0.1);color:#f87171;border:none;border-radius:6px;padding:4px 10px;font-size:0.7rem;cursor:pointer;">Del</button></td>` : "<td></td>"}
+        ${isAdmin() ? `<td style="padding:6px 12px;">${r.isDemo ? `<span title="Demo data" style="color:#fbbf24;font-size:0.7rem;">🔒</span>` : `<button data-income-delete="${r.id}" style="background:rgba(239,68,68,0.1);color:#f87171;border:none;border-radius:6px;padding:4px 10px;font-size:0.7rem;cursor:pointer;">Del</button>`}</td>` : "<td></td>"}
       </tr>`).join("");
     const addForm = isAdmin() ? `
       <div style="${panelStyle}margin-bottom:20px;">
@@ -3737,7 +3777,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         <td style="padding:10px 12px;font-size:0.75rem;"><span style="background:rgba(248,113,113,0.15);color:#f87171;padding:2px 8px;border-radius:20px;">${r.category || "Other"}</span></td>
         <td style="padding:10px 12px;color:#f87171;font-size:0.82rem;font-weight:700;">${fmt(r.amount)}</td>
         <td style="padding:10px 12px;color:rgba(255,255,255,0.4);font-size:0.75rem;">${r.mode || ""}</td>
-        ${isAdmin() ? `<td style="padding:6px 12px;"><button data-exp-delete="${r.id}" style="background:rgba(239,68,68,0.1);color:#f87171;border:none;border-radius:6px;padding:4px 10px;font-size:0.7rem;cursor:pointer;">Del</button></td>` : "<td></td>"}
+        ${isAdmin() ? `<td style="padding:6px 12px;">${r.isDemo ? `<span title="Demo data" style="color:#fbbf24;font-size:0.7rem;">🔒</span>` : `<button data-exp-delete="${r.id}" style="background:rgba(239,68,68,0.1);color:#f87171;border:none;border-radius:6px;padding:4px 10px;font-size:0.7rem;cursor:pointer;">Del</button>`}</td>` : "<td></td>"}
       </tr>`).join("");
     const addForm = isAdmin() ? `
       <div style="${panelStyle}margin-bottom:20px;">
@@ -3850,6 +3890,10 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     content.querySelectorAll("[data-invest-delete]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const id = Number(btn.dataset.investDelete);
+        // Guard: never delete demo/seed records
+        const store = getFinStore();
+        const rec = (store[INVEST_KEY] || []).find(i => Number(i.id) === id);
+        if (rec && rec.isDemo) return alert("Demo data cannot be deleted.");
         if (!confirm("Delete this investment?")) return;
         // Optimistic update: remove from local store immediately so UI reflects deletion at once
         if (serverStore && Array.isArray(serverStore[INVEST_KEY])) {
@@ -3906,11 +3950,8 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
           notes: content.querySelector("#inv_notes")?.value || "",
           status: "Active",
         })});
-        // Explicitly blank every field before re-render so browser autocomplete cannot re-fill them
-        ["#inv_title","#inv_amount","#inv_return","#inv_bank","#inv_maturity","#inv_notes"].forEach(sel => {
-          const el = content.querySelector(sel); if (el) el.value = "";
-        });
-        const startEl = content.querySelector("#inv_start"); if (startEl) startEl.value = finTodayStr();
+        // Clear form + cache so browser autofill cannot re-populate fields after save
+        clearInvestForm(content);
         await loadStore();
         renderFinanceContent();
         injectDashboardCard();
@@ -3921,8 +3962,12 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     // ── DELETE INCOME (API) ──
     content.querySelectorAll("[data-income-delete]").forEach(btn => {
       btn.addEventListener("click", async () => {
-        if (!confirm("Delete this income record?")) return;
         const id = Number(btn.dataset.incomeDelete);
+        // Guard: never delete demo/seed records
+        const store = getFinStore();
+        const rec = (store[INCOME_KEY] || []).find(r => Number(r.id) === id);
+        if (rec && rec.isDemo) return alert("Demo data cannot be deleted.");
+        if (!confirm("Delete this income record?")) return;
         try {
           await api(`/api/modules/${INCOME_KEY}/${id}`, { method: "DELETE" });
           await loadStore();
@@ -3963,8 +4008,12 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     // ── DELETE EXPENSE (API) ──
     content.querySelectorAll("[data-exp-delete]").forEach(btn => {
       btn.addEventListener("click", async () => {
-        if (!confirm("Delete this expense record?")) return;
         const id = Number(btn.dataset.expDelete);
+        // Guard: never delete demo/seed records
+        const store = getFinStore();
+        const rec = (store[EXPENSE_KEY] || []).find(r => Number(r.id) === id);
+        if (rec && rec.isDemo) return alert("Demo data cannot be deleted.");
+        if (!confirm("Delete this expense record?")) return;
         try {
           await api(`/api/modules/${EXPENSE_KEY}/${id}`, { method: "DELETE" });
           await loadStore();
