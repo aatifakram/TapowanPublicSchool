@@ -3296,8 +3296,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     const incomes = (store[INCOME_KEY] || []).filter(r => (!dateFrom || r.date >= dateFrom) && (!dateTo || r.date <= dateTo));
     const expenses = (store[EXPENSE_KEY] || []).filter(r => (!dateFrom || r.date >= dateFrom) && (!dateTo || r.date <= dateTo));
     // Only count fee payments from the fees module if there are NO schoolIncome entries
-    // with category "Fees" (to avoid double-counting when seeded income includes fee entries)
-    // Check for "Fees" entries only within the same date range to avoid blocking fee income from other periods
+    // with category "Fees" in the same period (avoid double-counting when income records include fee entries)
     const hasFeeIncomeEntries = incomes.some(r => r.category === "Fees");
     const feePaid = hasFeeIncomeEntries ? [] :
       (store.fees || []).filter(r => (!dateFrom || (r.paymentDate || "") >= dateFrom) && (!dateTo || (r.paymentDate || "") <= dateTo));
@@ -3320,7 +3319,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       days[date].expense += expense;
     };
     (store[INCOME_KEY] || []).forEach(r => { if ((!dateFrom || r.date >= dateFrom) && (!dateTo || r.date <= dateTo)) addDay(r.date, Number(r.amount) || 0, 0); });
-    // Only add fees module data if schoolIncome has no "Fees" category entries within this date range (avoid double-counting)
+    // Only add fees module data if schoolIncome has no "Fees" category entries in this period (avoid double-counting)
     const hasFeeIncomeEntries = (store[INCOME_KEY] || []).some(r => r.category === "Fees" && (!dateFrom || r.date >= dateFrom) && (!dateTo || r.date <= dateTo));
     if (!hasFeeIncomeEntries) {
       (store.fees || []).forEach(r => { const d = r.paymentDate; if (d && (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo)) addDay(d, Number(r.paidAmount) || 0, 0); });
@@ -3334,7 +3333,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     const grid = document.getElementById("statsCards");
     if (!grid) return;
     document.querySelectorAll(".finance-injected-card").forEach(el => el.remove());
-    const { totalIncome, totalExpense, balance, invested } = calcFinancials(null, null);
+    const { totalIncome, totalExpense, balance, invested } = calcFinancials("2020-01-01", finTodayStr());
     const card = document.createElement("div");
     card.className = "stat-card finance-injected-card";
     card.style.cssText = `background:linear-gradient(135deg,#0f4c75 0%,#1b6ca8 50%,#118ab2 100%);border:1px solid rgba(255,255,255,0.2);color:#fff;cursor:pointer;position:relative;overflow:hidden;`;
@@ -3360,11 +3359,14 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
   // Indian fiscal year starts April 1; if current month is Jan/Feb/Mar, start year is previous calendar year
   const _now = new Date();
   const _fiscalStartYear = _now.getMonth() < 3 ? _now.getFullYear() - 1 : _now.getFullYear();
+  // Compute this-month start so default dateFrom/dayFilter are consistent
+  const _initNow = new Date();
+  const _initMonthStart = `${_initNow.getFullYear()}-${String(_initNow.getMonth()+1).padStart(2,"0")}-01`;
   let financeState = {
     view: "overview",
     dateFrom: `${_fiscalStartYear}-04-01`,
     dateTo: finTodayStr(),
-    dayFilter: "thisMonth",
+    dayFilter: "thisYear",
     investTab: "active",
   };
 
@@ -3634,14 +3636,14 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         <div style="color:rgba(255,255,255,0.5);font-size:0.72rem;text-transform:uppercase;margin-bottom:16px;">➕ Add New Investment</div>
         <form autocomplete="off" onsubmit="return false;" style="display:contents;">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Title *</label><input id="inv_title" name="inv_title_${Date.now()}" placeholder="e.g. SBI Fixed Deposit" autocomplete="off" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Category *</label><select id="inv_category" name="inv_category_${Date.now()}" autocomplete="off" style="${fieldStyle}"><option>Fixed Deposit</option><option>Recurring Deposit</option><option>Infrastructure</option><option>Technology</option><option>Education</option><option>Other</option></select></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Amount (₹) *</label><input id="inv_amount" name="inv_amount_${Date.now()}" type="number" placeholder="500000" autocomplete="off" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Expected Return (%/yr)</label><input id="inv_return" name="inv_return_${Date.now()}" type="number" placeholder="7.5" autocomplete="off" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Bank / Source</label><input id="inv_bank" name="inv_bank_${Date.now()}" placeholder="State Bank of India" autocomplete="off" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Start Date</label><input id="inv_start" name="inv_start_${Date.now()}" type="date" value="${finTodayStr()}" autocomplete="off" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Maturity Date</label><input id="inv_maturity" name="inv_maturity_${Date.now()}" type="date" autocomplete="off" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Notes</label><input id="inv_notes" name="inv_notes_${Date.now()}" placeholder="Purpose / remarks" autocomplete="off" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Title *</label><input id="inv_title" name="inv_title_${Date.now()}" placeholder="e.g. SBI Fixed Deposit" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Category *</label><select id="inv_category" name="inv_category_${Date.now()}" autocomplete="new-password" style="${fieldStyle}"><option>Fixed Deposit</option><option>Recurring Deposit</option><option>Infrastructure</option><option>Technology</option><option>Education</option><option>Other</option></select></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Amount (₹) *</label><input id="inv_amount" name="inv_amount_${Date.now()}" type="number" placeholder="500000" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Expected Return (%/yr)</label><input id="inv_return" name="inv_return_${Date.now()}" type="number" placeholder="7.5" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Bank / Source</label><input id="inv_bank" name="inv_bank_${Date.now()}" placeholder="State Bank of India" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Start Date</label><input id="inv_start" name="inv_start_${Date.now()}" type="date" value="${finTodayStr()}" autocomplete="new-password" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Maturity Date</label><input id="inv_maturity" name="inv_maturity_${Date.now()}" type="date" autocomplete="new-password" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Notes</label><input id="inv_notes" name="inv_notes_${Date.now()}" placeholder="Purpose / remarks" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" style="${fieldStyle}" /></div>
         </div>
         </form>
         <div style="margin-top:14px;"><button id="inv_save" style="${btnStyle("blue")}">💾 Save Investment</button><span id="inv_saving" style="display:none;margin-left:10px;color:rgba(255,255,255,0.5);font-size:0.78rem;">Saving…</span></div>
@@ -3681,12 +3683,12 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       <div style="${panelStyle}margin-bottom:20px;">
         <div style="color:rgba(255,255,255,0.5);font-size:0.72rem;text-transform:uppercase;margin-bottom:16px;">➕ Add Income Record</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Date *</label><input id="inc_date" type="date" value="${finTodayStr()}" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Source *</label><input id="inc_source" placeholder="Fee Collection / Donation..." style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Category</label><select id="inc_category" style="${fieldStyle}"><option>Fees</option><option>Transport</option><option>Hostel</option><option>Exams</option><option>Donation</option><option>Grant</option><option>Other</option></select></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Amount (₹) *</label><input id="inc_amount" type="number" placeholder="50000" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Mode</label><select id="inc_mode" style="${fieldStyle}"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option><option>Mixed</option></select></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Description</label><input id="inc_desc" placeholder="Brief note" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Date *</label><input id="inc_date" type="date" value="${finTodayStr()}" autocomplete="new-password" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Source *</label><input id="inc_source" placeholder="Fee Collection / Donation..." autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Category</label><select id="inc_category" autocomplete="new-password" style="${fieldStyle}"><option>Fees</option><option>Transport</option><option>Hostel</option><option>Exams</option><option>Donation</option><option>Grant</option><option>Other</option></select></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Amount (₹) *</label><input id="inc_amount" type="number" placeholder="50000" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Mode</label><select id="inc_mode" autocomplete="new-password" style="${fieldStyle}"><option>Cash</option><option>UPI</option><option>Bank Transfer</option><option>Cheque</option><option>Mixed</option></select></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Description</label><input id="inc_desc" placeholder="Brief note" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" style="${fieldStyle}" /></div>
         </div>
         <div style="margin-top:14px;"><button id="inc_save" style="${btnStyle("green")}">💾 Save Income</button><span id="inc_saving" style="display:none;margin-left:10px;color:rgba(255,255,255,0.5);font-size:0.78rem;">Saving…</span></div>
       </div>` : "";
@@ -3741,12 +3743,12 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       <div style="${panelStyle}margin-bottom:20px;">
         <div style="color:rgba(255,255,255,0.5);font-size:0.72rem;text-transform:uppercase;margin-bottom:16px;">➕ Add Expense Record</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Date *</label><input id="exp_date" type="date" value="${finTodayStr()}" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Head *</label><input id="exp_head" placeholder="Salary / Maintenance..." style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Category</label><select id="exp_category" style="${fieldStyle}"><option>Payroll</option><option>Utilities</option><option>Supplies</option><option>Maintenance</option><option>Infrastructure</option><option>Transport</option><option>Other</option></select></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Amount (₹) *</label><input id="exp_amount" type="number" placeholder="25000" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Mode</label><select id="exp_mode" style="${fieldStyle}"><option>Cash</option><option>Bank Transfer</option><option>UPI</option><option>Cheque</option><option>Online</option></select></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Description</label><input id="exp_desc" placeholder="Brief note" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Date *</label><input id="exp_date" type="date" value="${finTodayStr()}" autocomplete="new-password" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Head *</label><input id="exp_head" placeholder="Salary / Maintenance..." autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Category</label><select id="exp_category" autocomplete="new-password" style="${fieldStyle}"><option>Payroll</option><option>Utilities</option><option>Supplies</option><option>Maintenance</option><option>Infrastructure</option><option>Transport</option><option>Other</option></select></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Amount (₹) *</label><input id="exp_amount" type="number" placeholder="25000" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Mode</label><select id="exp_mode" autocomplete="new-password" style="${fieldStyle}"><option>Cash</option><option>Bank Transfer</option><option>UPI</option><option>Cheque</option><option>Online</option></select></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Description</label><input id="exp_desc" placeholder="Brief note" autocomplete="new-password" readonly onfocus="this.removeAttribute('readonly')" style="${fieldStyle}" /></div>
         </div>
         <div style="margin-top:14px;"><button id="exp_save" style="${btnStyle("red")}">💾 Save Expense</button><span id="exp_saving" style="display:none;margin-left:10px;color:rgba(255,255,255,0.5);font-size:0.78rem;">Saving…</span></div>
       </div>` : "";
@@ -3785,14 +3787,13 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     else if (key === "thisMonth") { financeState.dateFrom = `${y}-${String(m+1).padStart(2,"0")}-01`; financeState.dateTo = finTodayStr(); }
     else if (key === "thisQuarter") {
       // Indian fiscal quarters: Q1=Apr-Jun, Q2=Jul-Sep, Q3=Oct-Dec, Q4=Jan-Mar
-      // Shift month by -3 so April=0, then find quarter start
       const fiscalMonth = (m + 9) % 12; // Apr→0, May→1, ..., Mar→11
       const fiscalQ = Math.floor(fiscalMonth / 3); // 0,1,2,3
       // Map fiscal quarter back to calendar start month: 0→Apr(3), 1→Jul(6), 2→Oct(9), 3→Jan(0)
       const qStartCalMonth = [3, 6, 9, 0][fiscalQ];
-      // If Q4 (Jan-Mar), the quarter may start in a different calendar year
-      const qStartYear = fiscalQ === 3 ? (m < 3 ? y : y + 0) : y;
-      // But if we're currently in Jan-Mar (m<3), Q4 started in the current year
+      // Q4 (Jan-Mar): if current month is Jan/Feb/Mar, quarter started this calendar year
+      // Q1-Q3: quarter started this calendar year
+      const qStartYear = (fiscalQ === 3 && m >= 3) ? y + 1 : y;
       financeState.dateFrom = `${qStartYear}-${String(qStartCalMonth + 1).padStart(2,"0")}-01`;
       financeState.dateTo = finTodayStr();
     }
@@ -3947,6 +3948,11 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
           mode: content.querySelector("#inc_mode")?.value,
           description: content.querySelector("#inc_desc")?.value || "",
         })});
+        // Clear fields after successful save
+        ["#inc_source", "#inc_amount", "#inc_desc"].forEach(sel => {
+          const el = content.querySelector(sel); if (el) el.value = "";
+        });
+        const incDateEl = content.querySelector("#inc_date"); if (incDateEl) incDateEl.value = finTodayStr();
         await loadStore();
         renderFinanceContent();
         injectDashboardCard();
@@ -3984,6 +3990,11 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
           mode: content.querySelector("#exp_mode")?.value,
           description: content.querySelector("#exp_desc")?.value || "",
         })});
+        // Clear fields after successful save
+        ["#exp_head", "#exp_amount", "#exp_desc"].forEach(sel => {
+          const el = content.querySelector(sel); if (el) el.value = "";
+        });
+        const expDateEl = content.querySelector("#exp_date"); if (expDateEl) expDateEl.value = finTodayStr();
         await loadStore();
         renderFinanceContent();
         injectDashboardCard();
