@@ -3632,16 +3632,18 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     const addForm = isAdmin() ? `
       <div style="${panelStyle}margin-bottom:20px;">
         <div style="color:rgba(255,255,255,0.5);font-size:0.72rem;text-transform:uppercase;margin-bottom:16px;">➕ Add New Investment</div>
+        <form autocomplete="off" onsubmit="return false;" style="display:contents;">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Title *</label><input id="inv_title" placeholder="e.g. SBI Fixed Deposit" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Category *</label><select id="inv_category" style="${fieldStyle}"><option>Fixed Deposit</option><option>Recurring Deposit</option><option>Infrastructure</option><option>Technology</option><option>Education</option><option>Other</option></select></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Amount (₹) *</label><input id="inv_amount" type="number" placeholder="500000" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Expected Return (%/yr)</label><input id="inv_return" type="number" placeholder="7.5" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Bank / Source</label><input id="inv_bank" placeholder="State Bank of India" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Start Date</label><input id="inv_start" type="date" value="${finTodayStr()}" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Maturity Date</label><input id="inv_maturity" type="date" style="${fieldStyle}" /></div>
-          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Notes</label><input id="inv_notes" placeholder="Purpose / remarks" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Title *</label><input id="inv_title" name="inv_title_${Date.now()}" placeholder="e.g. SBI Fixed Deposit" autocomplete="off" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Category *</label><select id="inv_category" name="inv_category_${Date.now()}" autocomplete="off" style="${fieldStyle}"><option>Fixed Deposit</option><option>Recurring Deposit</option><option>Infrastructure</option><option>Technology</option><option>Education</option><option>Other</option></select></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Amount (₹) *</label><input id="inv_amount" name="inv_amount_${Date.now()}" type="number" placeholder="500000" autocomplete="off" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Expected Return (%/yr)</label><input id="inv_return" name="inv_return_${Date.now()}" type="number" placeholder="7.5" autocomplete="off" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Bank / Source</label><input id="inv_bank" name="inv_bank_${Date.now()}" placeholder="State Bank of India" autocomplete="off" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Start Date</label><input id="inv_start" name="inv_start_${Date.now()}" type="date" value="${finTodayStr()}" autocomplete="off" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Maturity Date</label><input id="inv_maturity" name="inv_maturity_${Date.now()}" type="date" autocomplete="off" style="${fieldStyle}" /></div>
+          <div><label style="color:rgba(255,255,255,0.5);font-size:0.72rem;display:block;margin-bottom:4px;">Notes</label><input id="inv_notes" name="inv_notes_${Date.now()}" placeholder="Purpose / remarks" autocomplete="off" style="${fieldStyle}" /></div>
         </div>
+        </form>
         <div style="margin-top:14px;"><button id="inv_save" style="${btnStyle("blue")}">💾 Save Investment</button><span id="inv_saving" style="display:none;margin-left:10px;color:rgba(255,255,255,0.5);font-size:0.78rem;">Saving…</span></div>
       </div>` : "";
     return `
@@ -3848,12 +3850,24 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       btn.addEventListener("click", async () => {
         const id = Number(btn.dataset.investDelete);
         if (!confirm("Delete this investment?")) return;
+        // Optimistic update: remove from local store immediately so UI reflects deletion at once
+        if (serverStore && Array.isArray(serverStore[INVEST_KEY])) {
+          serverStore[INVEST_KEY] = serverStore[INVEST_KEY].filter(i => Number(i.id) !== id);
+        }
+        renderFinanceContent();
+        injectDashboardCard();
         try {
           await api(`/api/modules/${INVEST_KEY}/${id}`, { method: "DELETE" });
           await loadStore();
           renderFinanceContent();
           injectDashboardCard();
-        } catch (e) { alert("Delete failed: " + e.message); }
+        } catch (e) {
+          // Revert: reload real data and show error
+          await loadStore();
+          renderFinanceContent();
+          injectDashboardCard();
+          alert("Delete failed: " + e.message);
+        }
       });
     });
 
@@ -3891,6 +3905,11 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
           notes: content.querySelector("#inv_notes")?.value || "",
           status: "Active",
         })});
+        // Explicitly blank every field before re-render so browser autocomplete cannot re-fill them
+        ["#inv_title","#inv_amount","#inv_return","#inv_bank","#inv_maturity","#inv_notes"].forEach(sel => {
+          const el = content.querySelector(sel); if (el) el.value = "";
+        });
+        const startEl = content.querySelector("#inv_start"); if (startEl) startEl.value = finTodayStr();
         await loadStore();
         renderFinanceContent();
         injectDashboardCard();
