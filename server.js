@@ -108,12 +108,67 @@ app.get("/api/health", (req, res) => {
 
 // ------------------- AUTH -------------------
 
+// ------------------- ROLE HELPERS -------------------
+
+const ROLE_LEVEL = {
+  administrator: 4,
+  principal: 3,
+  staff: 3,
+  teacher: 2,
+  student: 1
+};
+
+function getRoleLevel(role) {
+  return ROLE_LEVEL[String(role).toLowerCase()] || 0;
+}
+
+function isAdmin(user) {
+  return String(user?.role).toLowerCase() === "administrator";
+}
+
+function isStaffOrAbove(user) {
+  return getRoleLevel(user?.role) >= 3;
+}
+
+function isTeacherOrAbove(user) {
+  return getRoleLevel(user?.role) >= 2;
+}
+
 function authRequired(req, res, next) {
   if (!req.session.user) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   next();
 }
+
+function adminRequired(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: "Unauthorized" });
+  if (!isAdmin(req.session.user)) return res.status(403).json({ error: "Admin access required" });
+  next();
+}
+
+function canWrite(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: "Unauthorized" });
+  if (getRoleLevel(req.session.user.role) < 2) {
+    return res.status(403).json({ error: "You don't have permission to modify records" });
+  }
+  next();
+}
+
+function canDelete(req, res, next) {
+  if (!req.session.user) return res.status(401).json({ error: "Unauthorized" });
+  if (!isStaffOrAbove(req.session.user) && !isAdmin(req.session.user)) {
+    return res.status(403).json({ error: "You don't have permission to delete records" });
+  }
+  next();
+}
+
+// Modules teachers can write to
+const TEACHER_WRITE_MODULES = new Set(["attendance", "teacherAttendance"]);
+// Modules only admin/staff can write to  
+const ADMIN_STAFF_ONLY_MODULES = new Set(["users", "payroll", "fees"]);
+// Modules only admin can access at all
+const ADMIN_ONLY_MODULES = new Set(["users"]);
 
 app.post("/api/auth/login", async (req, res) => {
   try {
@@ -160,7 +215,7 @@ app.post("/api/auth/signup", async (req, res) => {
     const newUser = await insert("users", {
       username,
       fullName,
-      role: "Staff",
+      role: "Student",
       email: email || "",
       status: "Active",
       lastLogin: now,
@@ -199,6 +254,10 @@ app.get("/api/store", authRequired, async (req, res) => {
 
 app.put("/api/store", authRequired, async (req, res) => {
   try {
+    const user = req.session.user;
+    if (!isStaffOrAbove(user) && !isAdmin(user)) {
+      return res.status(403).json({ error: "Insufficient permissions to update store" });
+    }
     const body = req.body || {};
     for (const moduleName of Object.keys(MODULES)) {
       if (Array.isArray(body[moduleName])) {
@@ -213,7 +272,7 @@ app.put("/api/store", authRequired, async (req, res) => {
 
 // ------------------- ADMIN -------------------
 
-app.post("/api/admin/reset", authRequired, async (req, res) => {
+app.post("/api/admin/reset", adminRequired, async (req, res) => {
   try {
     await resetAndSeed();
     res.json({ ok: true });
@@ -231,6 +290,12 @@ app.get("/api/modules/:moduleName", authRequired, async (req, res) => {
     if (!MODULES[moduleName]) {
       return res.status(404).json({ error: "Unknown module" });
     }
+    // Students can only access limited modules
+    const user = req.session.user;
+    const role = String(user.role).toLowerCase();
+    if (role === "student" && ADMIN_ONLY_MODULES.has(moduleName)) {
+      return res.status(403).json({ error: "Access denied" });
+    }
     res.json(await list(moduleName));
   } catch (err) {
     res.status(500).json({ error: "Fetch failed" });
@@ -242,6 +307,25 @@ app.post("/api/modules/:moduleName", authRequired, async (req, res) => {
     const { moduleName } = req.params;
     if (!MODULES[moduleName]) {
       return res.status(404).json({ error: "Unknown module" });
+    }
+    const user = req.session.user;
+    const role = String(user.role).toLowerCase();
+
+    // Students cannot create anything
+    if (role === "student") {
+      return res.status(403).json({ error: "Students cannot add records" });
+    }
+    // Teachers can only write attendance modules
+    if (role === "teacher" && !TEACHER_WRITE_MODULES.has(moduleName)) {
+      return res.status(403).json({ error: "Teachers can only add attendance records" });
+    }
+    // Admin-staff-only modules
+    if (ADMIN_STAFF_ONLY_MODULES.has(moduleName) && !isStaffOrAbove(user) && !isAdmin(user)) {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+    // Prevent non-admins from creating users with elevated roles
+    if (moduleName === "users" && !isAdmin(user)) {
+      return res.status(403).json({ error: "Only admins can manage users" });
     }
     const row = await insert(moduleName, req.body || {});
     res.status(201).json(row);
@@ -255,6 +339,25 @@ app.put("/api/modules/:moduleName/:id", authRequired, async (req, res) => {
     const { moduleName, id } = req.params;
     if (!MODULES[moduleName]) {
       return res.status(404).json({ error: "Unknown module" });
+    }
+    const user = req.session.user;
+    const role = String(user.role).toLowerCase();
+
+    // Students cannot edit anything
+    if (role === "student") {
+      return res.status(403).json({ error: "Students cannot edit records" });
+    }
+    // Teachers can only edit attendance
+    if (role === "teacher" && !TEACHER_WRITE_MODULES.has(moduleName)) {
+      return res.status(403).json({ error: "Teachers can only edit attendance records" });
+    }
+    // Admin-staff-only modules
+    if (ADMIN_STAFF_ONLY_MODULES.has(moduleName) && !isStaffOrAbove(user) && !isAdmin(user)) {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+    // Prevent non-admins from editing the users module
+    if (moduleName === "users" && !isAdmin(user)) {
+      return res.status(403).json({ error: "Only admins can manage users" });
     }
     const row = await update(moduleName, Number(id), req.body || {});
     if (!row) return res.status(404).json({ error: "Record not found" });
@@ -270,6 +373,15 @@ app.delete("/api/modules/:moduleName/:id", authRequired, async (req, res) => {
     const { moduleName, id } = req.params;
     if (!MODULES[moduleName]) {
       return res.status(404).json({ error: "Unknown module" });
+    }
+    const user = req.session.user;
+    // Only admin and staff (principal/accountant) can delete
+    if (!isAdmin(user) && !isStaffOrAbove(user)) {
+      return res.status(403).json({ error: "Only Admins and Staff can delete records" });
+    }
+    // Users module: only admin
+    if (moduleName === "users" && !isAdmin(user)) {
+      return res.status(403).json({ error: "Only admins can delete users" });
     }
     await remove(moduleName, Number(id));
     res.json({ ok: true });
