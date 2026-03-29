@@ -19,7 +19,8 @@ const MODULES = {
   faceEmbeddings: ["targetType", "name", "tag", "descriptorJson"],
   schoolInvestments: ["title", "category", "amount", "expectedReturn", "bank", "startDate", "maturityDate", "notes", "status"],
   schoolIncome: ["date", "source", "category", "amount", "mode", "description"],
-  schoolExpenses: ["date", "head", "category", "amount", "mode", "description"]
+  schoolExpenses: ["date", "head", "category", "amount", "mode", "description"],
+  booksAndDress: ["className", "itemType", "itemName", "price", "term"]
 };
 
 const pool = new Pool({
@@ -239,4 +240,3 @@ module.exports = {
   resetAndSeed,
   runRaw
 };
-
