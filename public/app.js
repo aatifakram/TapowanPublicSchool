@@ -1877,8 +1877,15 @@ async function autoCaptureTick() {
     const best = findBestFaceMatch(descriptor, targetType, minConf);
     const recognizedName = best?.name;
     const manualClass = (refs.faceClassName.value || "").trim();
+
+    // Declare today and matchKey early so they are available in all early-return branches below
+    const today = todayStr();
+    const _earlyMatchKey = recognizedName
+      ? `${recognizedName}|${manualClass || (best?.tag) || ""}|${today}`
+      : null;
+
     if (!recognizedName || !best) {
-      autoRecognitionStreakByKey[matchKey] = 0;
+      if (_earlyMatchKey) autoRecognitionStreakByKey[_earlyMatchKey] = 0;
       refs.faceStatusText.innerHTML = `🔍 AI: No confident match<br/>Top: ${topMatches.map((m) => `${m.name || "unknown"} (${(m.score*100).toFixed(0)}%)`).join(", ")}<br/><small style="opacity:0.6">Try enrolling more poses or improve lighting</small>`;
       return;
     }
@@ -1896,13 +1903,13 @@ async function autoCaptureTick() {
     if (manualClass) {
       const enrolledClass = best.tag || student?.className || "";
       if (String(enrolledClass) !== String(manualClass)) {
-        autoRecognitionStreakByKey[matchKey] = 0;
+        const _classMismatchKey = `${recognizedName}|${resolvedClassName}|${today}`;
+        autoRecognitionStreakByKey[_classMismatchKey] = 0;
         refs.faceStatusText.innerHTML = `⚠ AI: Face found but class mismatch<br/>Matched: ${recognizedName} (${(best.score*100).toFixed(0)}%)<br/>Expected: ${enrolledClass || "N/A"} | Entered: ${manualClass}`;
         return;
       }
     }
 
-    const today = todayStr();
     const matchKey = `${recognizedName}|${resolvedClassName}|${today}`;
 
     // Per-student streak tracking (fixes bug where streak resets when another face appears)
@@ -2165,6 +2172,7 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
   if (isEditingStudent) {
     await api(`/api/modules/students/${editStudentId}`, { method: "PUT", body: JSON.stringify(payload) });
     editStudentId = null;
+    await loadStore(); // refresh store so the table shows the updated student record
   } else {
     await addRecord(currentModule, payload);
   }
@@ -2546,14 +2554,20 @@ function renderNavEnhanced() {
   if (!nav) return;
   nav.innerHTML = '';
 
+  // Respect role-based visibility — same logic as original renderNav
+  const visible = new Set(typeof getVisibleModules === 'function' ? getVisibleModules() : Object.keys(moduleConfig));
+
   for (const [groupName, modules] of Object.entries(NAV_GROUPS)) {
+    // Only render the group label if at least one module in it is visible
+    const visibleInGroup = modules.filter(mod => moduleConfig[mod] && visible.has(mod));
+    if (!visibleInGroup.length) continue;
+
     const label = document.createElement('div');
     label.className = 'nav-group-label';
     label.textContent = groupName;
     nav.appendChild(label);
 
-    modules.forEach(mod => {
-      if (!moduleConfig[mod]) return;
+    visibleInGroup.forEach(mod => {
       const btn = document.createElement('button');
       btn.dataset.module = mod;
       btn.className = mod === currentModule ? 'active' : '';
@@ -2769,11 +2783,9 @@ function patchApp() {
 
 // Also patch startCamera to show toast
 const _rawStartCamera = typeof startCamera === 'function' ? startCamera : null;
-// run on first interaction if needed
+// patchApp() is already called via DOMContentLoaded above — only show the welcome toast here
 window.addEventListener('load', () => {
   setTimeout(() => {
-    patchApp();
-    // initial toast
     showToast('Welcome to EduCore 🏫', 'info', 2500);
   }, 600);
 });
