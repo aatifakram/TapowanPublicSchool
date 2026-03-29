@@ -3147,9 +3147,9 @@ function addAIStatusPanel() {
     </span>
   `;
 
-  // Insert before faceAutoControls
+  // Insert before faceAutoControls (only if it's a direct child of facePanel)
   const autoCtrl = document.getElementById('faceAutoControls');
-  if (autoCtrl) {
+  if (autoCtrl && autoCtrl.parentNode === facePanel) {
     facePanel.insertBefore(panel, autoCtrl);
   } else {
     facePanel.appendChild(panel);
@@ -3174,9 +3174,7 @@ if (_origAutoToggle) {
   });
 }
 
-window.addEventListener('load', () => {
-  setTimeout(patchFaceAI, 700);
-});
+// patchFaceAI is already called on DOMContentLoaded above — no need to call again on load
 
 console.log('[EduCore AI] Face Recognition Engine v2 loaded ✓');
 
