@@ -4042,3 +4042,580 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     financeInit();
   }
 })();
+
+// ============================================================
+// BOOKS & DRESS PRICE MODULE  (plugin — appended to app.js)
+// ============================================================
+(function () {
+  "use strict";
+
+  // ── Local store (in-memory, synced to /api/modules/ endpoints) ──────────
+  let bdBooks = [];       // { id, className, itemType:"Book", itemName, price, term }
+  let bdDresses = [];     // { id, className, itemType:"Dress", itemName, price, term }
+
+  const BD_ENDPOINT = "/api/modules/booksAndDress";
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  function ₹(n) { return "₹ " + Number(n || 0).toLocaleString("en-IN"); }
+  function allClasses() {
+    const st = getStore();
+    return Array.from(new Set(
+      (st.classes || []).map(c => [c.className, c.section].filter(Boolean).join("-")).filter(Boolean)
+    )).sort();
+  }
+  function termOptions() { return ["Q1","Q2","Q3","Q4","Annual"]; }
+
+  async function loadBD() {
+    try {
+      const rows = await api(BD_ENDPOINT);
+      bdBooks   = rows.filter(r => r.itemType === "Book");
+      bdDresses = rows.filter(r => r.itemType === "Dress");
+    } catch(e) { console.warn("BD load:", e); }
+  }
+
+  async function saveBDItem(payload) {
+    return api(BD_ENDPOINT, { method: "POST", body: JSON.stringify(payload) });
+  }
+
+  async function deleteBDItem(id) {
+    return api(`${BD_ENDPOINT}/${id}`, { method: "DELETE" });
+  }
+
+  async function updateBDItem(id, payload) {
+    return api(`${BD_ENDPOINT}/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+  }
+
+  // ── Compute totals for a class ────────────────────────────────────────────
+  function classTotal(className, itemType) {
+    const rows = itemType === "Book" ? bdBooks : bdDresses;
+    return rows.filter(r => r.className === className)
+               .reduce((s, r) => s + Number(r.price || 0), 0);
+  }
+
+  function classSummary(className) {
+    const books   = bdBooks.filter(r => r.className === className);
+    const dresses = bdDresses.filter(r => r.className === className);
+    const bookTotal   = books.reduce((s, r) => s + Number(r.price || 0), 0);
+    const dressTotal  = dresses.reduce((s, r) => s + Number(r.price || 0), 0);
+    return { books, dresses, bookTotal, dressTotal, total: bookTotal + dressTotal };
+  }
+
+  // ── Main module render ────────────────────────────────────────────────────
+  function renderBDModule() {
+    const classes = allClasses();
+
+    // Inject into main content area (same pattern used by finance module)
+    const main = document.querySelector(".main-content") || document.querySelector("main") || document.body;
+    let panel = document.getElementById("bd-panel");
+    if (!panel) {
+      panel = document.createElement("div");
+      panel.id = "bd-panel";
+      panel.style.cssText = "padding:24px;max-width:1200px;margin:0 auto;";
+      main.appendChild(panel);
+    }
+
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+        <div>
+          <h2 style="margin:0;font-size:1.4rem;color:var(--primary,#1e3a8a);">📦 Books & Dress Prices</h2>
+          <p style="margin:4px 0 0;color:#64748b;font-size:0.88rem;">Manage class-wise book and dress costs. Auto-linked to Fee receipts.</p>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button id="bd-add-btn" style="background:#1e3a8a;color:#fff;border:none;border-radius:8px;padding:9px 18px;cursor:pointer;font-size:0.9rem;">+ Add Item</button>
+          <button id="bd-refresh-btn" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:8px;padding:9px 14px;cursor:pointer;font-size:0.9rem;">🔄</button>
+        </div>
+      </div>
+
+      <!-- Class filter -->
+      <div style="display:flex;gap:12px;align-items:center;margin-bottom:18px;flex-wrap:wrap;">
+        <label style="font-size:0.88rem;color:#475569;font-weight:600;">Filter Class:</label>
+        <select id="bd-class-filter" style="border:1px solid #cbd5e1;border-radius:8px;padding:7px 12px;font-size:0.9rem;background:#fff;">
+          <option value="">All Classes</option>
+          ${classes.map(c => `<option value="${c}">${c}</option>`).join("")}
+        </select>
+        <select id="bd-type-filter" style="border:1px solid #cbd5e1;border-radius:8px;padding:7px 12px;font-size:0.9rem;background:#fff;">
+          <option value="">Books & Dresses</option>
+          <option value="Book">Books Only</option>
+          <option value="Dress">Dresses Only</option>
+        </select>
+      </div>
+
+      <!-- Summary cards -->
+      <div id="bd-summary-cards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:22px;"></div>
+
+      <!-- Items table -->
+      <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;">
+        <table id="bd-table" style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+          <thead style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+            <tr>
+              <th style="padding:12px 16px;text-align:left;color:#475569;">#</th>
+              <th style="padding:12px 16px;text-align:left;color:#475569;">Class</th>
+              <th style="padding:12px 16px;text-align:left;color:#475569;">Type</th>
+              <th style="padding:12px 16px;text-align:left;color:#475569;">Item Name</th>
+              <th style="padding:12px 16px;text-align:left;color:#475569;">Term</th>
+              <th style="padding:12px 16px;text-align:right;color:#475569;">Price</th>
+              <th style="padding:12px 16px;text-align:center;color:#475569;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="bd-tbody"></tbody>
+        </table>
+        <div id="bd-empty" style="display:none;text-align:center;padding:40px;color:#94a3b8;">No items found. Click "+ Add Item" to begin.</div>
+      </div>
+
+      <!-- Add/Edit Modal -->
+      <div id="bd-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:16px;width:min(480px,95vw);padding:28px;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+          <h3 id="bd-modal-title" style="margin:0 0 20px;color:#1e3a8a;">Add Item</h3>
+          <form id="bd-form" style="display:grid;gap:14px;">
+            <input type="hidden" id="bd-edit-id">
+            <div>
+              <label style="display:block;font-size:0.85rem;font-weight:600;color:#475569;margin-bottom:6px;">Class *</label>
+              <select id="bd-f-class" required style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:9px 12px;font-size:0.9rem;">
+                <option value="">Select Class</option>
+                ${classes.map(c => `<option value="${c}">${c}</option>`).join("")}
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:0.85rem;font-weight:600;color:#475569;margin-bottom:6px;">Type *</label>
+              <select id="bd-f-type" required style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:9px 12px;font-size:0.9rem;">
+                <option value="Book">📚 Book</option>
+                <option value="Dress">👕 Dress / Uniform</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:0.85rem;font-weight:600;color:#475569;margin-bottom:6px;">Item Name *</label>
+              <input id="bd-f-name" required placeholder="e.g. Mathematics Textbook, Summer Uniform" style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:9px 12px;font-size:0.9rem;box-sizing:border-box;">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="display:block;font-size:0.85rem;font-weight:600;color:#475569;margin-bottom:6px;">Price (₹) *</label>
+                <input id="bd-f-price" type="number" min="0" required placeholder="0" style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:9px 12px;font-size:0.9rem;box-sizing:border-box;">
+              </div>
+              <div>
+                <label style="display:block;font-size:0.85rem;font-weight:600;color:#475569;margin-bottom:6px;">Term</label>
+                <select id="bd-f-term" style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:9px 12px;font-size:0.9rem;">
+                  <option value="Annual">Annual</option>
+                  ${termOptions().filter(t=>t!=="Annual").map(t=>`<option value="${t}">${t}</option>`).join("")}
+                </select>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:8px;">
+              <button type="button" id="bd-modal-cancel" style="padding:9px 20px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;cursor:pointer;font-size:0.9rem;">Cancel</button>
+              <button type="submit" style="padding:9px 24px;border:none;border-radius:8px;background:#1e3a8a;color:#fff;cursor:pointer;font-size:0.9rem;">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    `;
+
+    attachBDListeners();
+    renderBDTable();
+    renderBDSummaryCards();
+  }
+
+  function renderBDSummaryCards() {
+    const container = document.getElementById("bd-summary-cards");
+    if (!container) return;
+    const classes = allClasses();
+    if (!classes.length) { container.innerHTML = ""; return; }
+
+    const filterClass = document.getElementById("bd-class-filter")?.value || "";
+    const displayClasses = filterClass ? [filterClass] : classes;
+
+    container.innerHTML = displayClasses.map(cls => {
+      const { bookTotal, dressTotal, total } = classSummary(cls);
+      return `
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;border-top:3px solid #1e3a8a;">
+          <div style="font-weight:700;color:#1e3a8a;font-size:1rem;margin-bottom:10px;">Class ${cls}</div>
+          <div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#475569;margin-bottom:4px;">
+            <span>📚 Books</span><span style="font-weight:600;">${₹(bookTotal)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#475569;margin-bottom:8px;">
+            <span>👕 Dress</span><span style="font-weight:600;">${₹(dressTotal)}</span>
+          </div>
+          <div style="border-top:1px solid #e2e8f0;padding-top:8px;display:flex;justify-content:space-between;font-size:0.9rem;">
+            <span style="font-weight:700;color:#0f172a;">Total</span>
+            <span style="font-weight:800;color:#1e3a8a;font-size:1rem;">${₹(total)}</span>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  function renderBDTable() {
+    const tbody = document.getElementById("bd-tbody");
+    const empty = document.getElementById("bd-empty");
+    if (!tbody) return;
+
+    const filterClass = document.getElementById("bd-class-filter")?.value || "";
+    const filterType  = document.getElementById("bd-type-filter")?.value || "";
+
+    let rows = [...bdBooks, ...bdDresses];
+    if (filterClass) rows = rows.filter(r => r.className === filterClass);
+    if (filterType)  rows = rows.filter(r => r.itemType === filterType);
+
+    // Sort: class → type → name
+    rows.sort((a,b) => (a.className||"").localeCompare(b.className||"") ||
+                       (a.itemType||"").localeCompare(b.itemType||"") ||
+                       (a.itemName||"").localeCompare(b.itemName||""));
+
+    if (!rows.length) {
+      tbody.innerHTML = "";
+      if(empty) empty.style.display = "block";
+      return;
+    }
+    if(empty) empty.style.display = "none";
+
+    tbody.innerHTML = rows.map((r,i) => `
+      <tr style="border-bottom:1px solid #f1f5f9;${i%2===0?"":"background:#fafbff"}">
+        <td style="padding:11px 16px;color:#94a3b8;">${i+1}</td>
+        <td style="padding:11px 16px;font-weight:600;color:#1e3a8a;">${r.className||"-"}</td>
+        <td style="padding:11px 16px;">
+          <span style="background:${r.itemType==="Book"?"#dbeafe":"#fce7f3"};color:${r.itemType==="Book"?"#1e40af":"#9d174d"};padding:3px 10px;border-radius:12px;font-size:0.8rem;font-weight:600;">
+            ${r.itemType==="Book"?"📚 Book":"👕 Dress"}
+          </span>
+        </td>
+        <td style="padding:11px 16px;">${r.itemName||"-"}</td>
+        <td style="padding:11px 16px;color:#64748b;">${r.term||"-"}</td>
+        <td style="padding:11px 16px;text-align:right;font-weight:700;color:#0f172a;">${₹(r.price)}</td>
+        <td style="padding:11px 16px;text-align:center;">
+          <button data-bd-edit="${r.id}" style="background:#f1f5f9;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;margin-right:4px;font-size:0.82rem;">✏️</button>
+          <button data-bd-del="${r.id}" style="background:#fee2e2;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:0.82rem;">🗑️</button>
+        </td>
+      </tr>`).join("");
+
+    // Edit/delete event listeners
+    tbody.querySelectorAll("[data-bd-edit]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = Number(btn.dataset.bdEdit);
+        const row = [...bdBooks, ...bdDresses].find(r => r.id === id);
+        if (!row) return;
+        openBDModal(row);
+      });
+    });
+    tbody.querySelectorAll("[data-bd-del]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("Delete this item?")) return;
+        await deleteBDItem(Number(btn.dataset.bdDel));
+        await loadBD();
+        renderBDTable();
+        renderBDSummaryCards();
+      });
+    });
+  }
+
+  function openBDModal(existingRow) {
+    const modal = document.getElementById("bd-modal");
+    if (!modal) return;
+    document.getElementById("bd-modal-title").textContent = existingRow ? "Edit Item" : "Add Item";
+    document.getElementById("bd-edit-id").value  = existingRow?.id || "";
+    document.getElementById("bd-f-class").value  = existingRow?.className || "";
+    document.getElementById("bd-f-type").value   = existingRow?.itemType || "Book";
+    document.getElementById("bd-f-name").value   = existingRow?.itemName || "";
+    document.getElementById("bd-f-price").value  = existingRow?.price || "";
+    document.getElementById("bd-f-term").value   = existingRow?.term || "Annual";
+    modal.style.display = "flex";
+  }
+
+  function closeBDModal() {
+    const modal = document.getElementById("bd-modal");
+    if (modal) modal.style.display = "none";
+  }
+
+  function attachBDListeners() {
+    document.getElementById("bd-add-btn")?.addEventListener("click", () => openBDModal(null));
+    document.getElementById("bd-modal-cancel")?.addEventListener("click", closeBDModal);
+    document.getElementById("bd-refresh-btn")?.addEventListener("click", async () => {
+      await loadBD();
+      renderBDTable();
+      renderBDSummaryCards();
+    });
+
+    document.getElementById("bd-class-filter")?.addEventListener("change", () => {
+      renderBDTable();
+      renderBDSummaryCards();
+    });
+    document.getElementById("bd-type-filter")?.addEventListener("change", renderBDTable);
+
+    document.getElementById("bd-form")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const editId = document.getElementById("bd-edit-id").value;
+      const payload = {
+        className: document.getElementById("bd-f-class").value,
+        itemType:  document.getElementById("bd-f-type").value,
+        itemName:  document.getElementById("bd-f-name").value,
+        price:     document.getElementById("bd-f-price").value,
+        term:      document.getElementById("bd-f-term").value,
+      };
+      if (editId) {
+        await updateBDItem(Number(editId), payload);
+      } else {
+        await saveBDItem(payload);
+      }
+      closeBDModal();
+      await loadBD();
+      renderBDTable();
+      renderBDSummaryCards();
+    });
+  }
+
+  // ── NAV injection ────────────────────────────────────────────────────────
+  function injectBDNavItem() {
+    const nav = document.getElementById("moduleNav");
+    if (!nav || nav.querySelector("[data-module='booksAndDress']")) return;
+
+    // Find or create "Resources" group label and inject after it
+    const allBtns = Array.from(nav.querySelectorAll("button[data-module]"));
+    const resourcesBtn = allBtns.find(b => b.dataset.module === "library");
+
+    const btn = document.createElement("button");
+    btn.dataset.module = "booksAndDress";
+    btn.className = currentModule === "booksAndDress" ? "active" : "";
+    btn.innerHTML = `<span class="nav-icon">📦</span><span>Books & Dress</span>`;
+    btn.addEventListener("click", async () => {
+      currentModule = "booksAndDress";
+      // Hide standard content panels
+      const contentEl = document.getElementById("moduleContent") || document.querySelector(".module-content");
+      if (contentEl) contentEl.style.display = "none";
+
+      showBDPanel();
+
+      // Update active states
+      nav.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      if (window.isMobileLayout && isMobileLayout()) setMobileSidebarOpen(false);
+    });
+
+    if (resourcesBtn) {
+      resourcesBtn.after(btn);
+    } else {
+      nav.appendChild(btn);
+    }
+  }
+
+  async function showBDPanel() {
+    // Hide other panels
+    document.querySelectorAll(".module-panel, #bd-panel").forEach(el => el.remove());
+    const contentEl = document.getElementById("moduleContent") || document.querySelector(".module-content");
+    if (contentEl) contentEl.style.display = "none";
+
+    await loadBD();
+    renderBDModule();
+  }
+
+  // ── Fee Module integration: enrich receipts & fee form ───────────────────────
+
+  // Build books+dress section HTML for a given className
+  function buildBDReceiptSection(className) {
+    const summary = classSummary(className);
+    if (!summary.books.length && !summary.dresses.length) return "";
+
+    const bookRows = summary.books.map(b =>
+      `<tr>
+        <td style="padding:7px 10px;border:1px solid #e2e8f0;color:#475569;">&#128218; ${b.itemName}</td>
+        <td style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">${₹(b.price)}</td>
+      </tr>`
+    ).join("");
+    const dressRows = summary.dresses.map(d =>
+      `<tr>
+        <td style="padding:7px 10px;border:1px solid #e2e8f0;color:#475569;">&#128085; ${d.itemName}</td>
+        <td style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">${₹(d.price)}</td>
+      </tr>`
+    ).join("");
+
+    return `
+      <div style="padding:16px 24px;border-bottom:1px solid #e2e8f0;">
+        <div style="font-weight:700;color:#1e3a8a;margin-bottom:10px;font-size:15px;">&#128230; Books & Dress Charges — Class ${className}</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="background:#f0f4ff;">
+              <th style="padding:7px 10px;border:1px solid #c7d2fe;text-align:left;color:#1e3a8a;">Item</th>
+              <th style="padding:7px 10px;border:1px solid #c7d2fe;text-align:right;color:#1e3a8a;">Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${bookRows}${dressRows}
+          </tbody>
+          <tfoot>
+            <tr style="background:#1e3a8a;">
+              <td style="padding:9px 10px;border:1px solid #1e3a8a;font-weight:700;color:#fff;">&#128230; Books & Dress Total</td>
+              <td style="padding:9px 10px;border:1px solid #1e3a8a;text-align:right;font-weight:800;color:#fff;">${₹(summary.total)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>`;
+  }
+
+  // Directly override printFeeReceipt with full rebuilt version including BD section
+  window.printFeeReceipt = function(f) {
+    const schoolName = "Tapowan Public School";
+    const receiptNo = "RCP-" + (f.id || Date.now());
+    const printDate = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
+    const totalFee = parseFloat(f.totalFee) || 0;
+    const paidAmount = parseFloat(f.paidAmount) || 0;
+    const balance = parseFloat(f.balance) || (totalFee - paidAmount);
+    const statusColor = String(f.status).toLowerCase() === "paid" ? "#16a34a"
+      : String(f.status).toLowerCase() === "partial" ? "#d97706" : "#dc2626";
+
+    const bdSection = buildBDReceiptSection(f.className || "");
+
+    const html = `
+      <div style="max-width:620px;margin:0 auto;font-family:Arial,sans-serif;border:2px solid #1e3a8a;border-radius:10px;overflow:hidden;">
+        <!-- Header -->
+        <div style="background:#1e3a8a;color:#fff;padding:18px 24px;text-align:center;">
+          <div style="font-size:26px;font-weight:900;letter-spacing:1px;">${schoolName}</div>
+          <div style="font-size:13px;margin-top:4px;opacity:0.85;">Fee Payment Receipt</div>
+        </div>
+        <!-- Receipt meta -->
+        <div style="display:flex;justify-content:space-between;padding:12px 24px;background:#f0f4ff;border-bottom:1px solid #c7d2fe;font-size:13px;color:#1e3a8a;">
+          <div><strong>Receipt No:</strong> ${receiptNo}</div>
+          <div><strong>Date:</strong> ${printDate}</div>
+        </div>
+        <!-- Student Info -->
+        <div style="padding:16px 24px;border-bottom:1px solid #e2e8f0;">
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <tr><td style="padding:5px 0;color:#64748b;width:40%;">Student Name</td><td style="padding:5px 0;font-weight:700;color:#0f172a;">${f.studentName || "-"}</td></tr>
+            <tr><td style="padding:5px 0;color:#64748b;">Class</td><td style="padding:5px 0;font-weight:600;">${f.className || "-"}</td></tr>
+            <tr><td style="padding:5px 0;color:#64748b;">Roll No</td><td style="padding:5px 0;">${f.rollNo || "-"}</td></tr>
+            <tr><td style="padding:5px 0;color:#64748b;">Term</td><td style="padding:5px 0;">${f.term || "-"}</td></tr>
+            <tr><td style="padding:5px 0;color:#64748b;">Payment Date</td><td style="padding:5px 0;">${f.paymentDate || "-"}</td></tr>
+            <tr><td style="padding:5px 0;color:#64748b;">Payment Method</td><td style="padding:5px 0;">${f.paymentMethod || "-"}</td></tr>
+          </table>
+        </div>
+        <!-- Fee Summary -->
+        <div style="padding:16px 24px;border-bottom:1px solid #e2e8f0;">
+          <div style="font-weight:700;color:#1e3a8a;margin-bottom:10px;font-size:15px;">Fee Summary</div>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <tr style="background:#f8fafc;">
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">Total Fee</td>
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">₹ ${totalFee.toLocaleString("en-IN")}</td>
+            </tr>
+            <tr>
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">Amount Paid</td>
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;color:#16a34a;">₹ ${paidAmount.toLocaleString("en-IN")}</td>
+            </tr>
+            <tr style="background:#fef2f2;">
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">Balance Due</td>
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:700;color:#dc2626;">₹ ${balance.toLocaleString("en-IN")}</td>
+            </tr>
+          </table>
+        </div>
+        <!-- Books & Dress Section -->
+        ${bdSection}
+        <!-- Status -->
+        <div style="padding:14px 24px;display:flex;justify-content:space-between;align-items:center;">
+          <div style="font-size:13px;color:#64748b;">Payment Status</div>
+          <div style="background:${statusColor};color:#fff;padding:4px 18px;border-radius:20px;font-size:13px;font-weight:700;">${f.status || "Pending"}</div>
+        </div>
+        <!-- Footer -->
+        <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 24px;text-align:center;font-size:12px;color:#94a3b8;">
+          This is a computer-generated receipt. No signature required. — ${schoolName}
+        </div>
+      </div>`;
+
+    const receiptHtml = buildPrintableHtml("Fee Receipt - " + schoolName, html);
+    const w = window.open("", "_blank");
+    if (!w) return window.alert("Popup blocked. Please allow popups for this site and try again.");
+    w.document.write(receiptHtml);
+    w.document.close();
+    w.focus();
+  };
+
+  // ── Patch the fee form to show class books+dress breakdown as info ─────────────
+  function showBDInfoForClass(cls) {
+    let info = document.getElementById("bd-fee-info");
+    if (!info) return;
+    const s = classSummary(cls);
+    if (!cls || (!s.books.length && !s.dresses.length)) {
+      info.style.display = "none";
+      return;
+    }
+    const bookList = s.books.map(b =>
+      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #dbeafe;">
+        <span>&#128218; ${b.itemName}</span><span style="font-weight:600;">${₹(b.price)}</span>
+      </div>`
+    ).join("");
+    const dressList = s.dresses.map(d =>
+      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #dbeafe;">
+        <span>&#128085; ${d.itemName}</span><span style="font-weight:600;">${₹(d.price)}</span>
+      </div>`
+    ).join("");
+    info.style.display = "block";
+    info.innerHTML = `
+      <div style="font-weight:700;color:#1e3a8a;margin-bottom:8px;font-size:0.95rem;">&#128230; Books & Dress for Class ${cls}</div>
+      <div style="margin-bottom:6px;">${bookList}${dressList}</div>
+      <div style="background:#1e3a8a;color:#fff;border-radius:6px;padding:7px 12px;display:flex;justify-content:space-between;margin-top:6px;">
+        <span style="font-weight:700;">Grand Total (Books + Dress)</span>
+        <span style="font-weight:800;font-size:1rem;">${₹(s.total)}</span>
+      </div>
+      <div style="font-size:0.78rem;color:#3b82f6;margin-top:6px;">&#9989; Each item will appear individually on the fee receipt.</div>`;
+  }
+
+  function patchFeeFormForBD() {
+    const observer = new MutationObserver(() => {
+      if (currentModule !== "fees") return;
+
+      const form = document.getElementById("dynamicForm");
+      if (!form || form.dataset.bdInfoInjected) return;
+      form.dataset.bdInfoInjected = "1";
+
+      // Insert info banner right after the form
+      let info = document.getElementById("bd-fee-info");
+      if (!info) {
+        info = document.createElement("div");
+        info.id = "bd-fee-info";
+        info.style.cssText = "background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;font-size:0.86rem;color:#1e40af;margin-top:10px;display:none;";
+        form.parentNode.insertBefore(info, form.nextSibling);
+      }
+
+      const classField = form.querySelector("[name='className']");
+      const studentField = form.querySelector("[name='studentName']");
+
+      if (classField && !classField.dataset.bdPatched) {
+        classField.dataset.bdPatched = "1";
+        classField.addEventListener("change", () => showBDInfoForClass(classField.value));
+      }
+
+      // Student selection auto-fills className; fire BD info after that happens
+      if (studentField && !studentField.dataset.bdPatched) {
+        studentField.dataset.bdPatched = "1";
+        studentField.addEventListener("change", () => {
+          setTimeout(() => {
+            const cls = classField ? classField.value : "";
+            showBDInfoForClass(cls);
+          }, 60);
+        });
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────────────
+  async function bdInit() {
+    const waitForStore = () => new Promise(resolve => {
+      const check = () => {
+        if (typeof serverStore !== "undefined" && serverStore !== null && Object.keys(serverStore).length > 0) resolve();
+        else setTimeout(check, 300);
+      };
+      check();
+    });
+
+    await waitForStore();
+    await loadBD();
+
+    // Inject nav item (retry until nav is rendered)
+    const tryNav = () => {
+      injectBDNavItem();
+      if (!document.querySelector("[data-module='booksAndDress']")) setTimeout(tryNav, 500);
+    };
+    tryNav();
+
+    patchFeeFormForBD();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bdInit);
+  } else {
+    bdInit();
+  }
+})();
