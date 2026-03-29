@@ -144,6 +144,8 @@ CREATE TABLE fee_payments (
   payment_id INT PRIMARY KEY AUTO_INCREMENT,
   student_id INT NOT NULL,
   term VARCHAR(20) NOT NULL,
+  monthly_fee DECIMAL(12,2) NOT NULL DEFAULT 0,
+  selected_book_ids TEXT DEFAULT NULL,
   total_fee DECIMAL(12,2) NOT NULL,
   paid_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
   balance DECIMAL(12,2) NOT NULL DEFAULT 0,

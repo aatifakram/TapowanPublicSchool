@@ -16,7 +16,7 @@ const moduleConfig = {
   attendance: { title: "Attendance", subtitle: "Track daily student attendance", fields: ["date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks"], columns: ["id", "date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks"] },
   teacherAttendance: { title: "Teacher Attendance", subtitle: "Track daily teacher attendance", fields: ["date", "department", "teacherName", "status", "remarks"], columns: ["id", "date", "department", "teacherName", "status", "remarks"] },
   exams: { title: "Exams & Results", subtitle: "Manage exams and student marks", fields: ["examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"], columns: ["id", "examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"] },
-  fees: { title: "Fees", subtitle: "Record fee structures and payments", fields: ["studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod"], columns: ["id", "studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"] },
+  fees: { title: "Fees", subtitle: "Record fee structures and payments", fields: ["studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "status", "paymentDate", "paymentMethod"], columns: ["id", "studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"] },
   library: { title: "Library", subtitle: "Manage books, issues and returns", fields: ["bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"], columns: ["id", "bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"] },
   transport: { title: "Transport", subtitle: "Track routes, buses and student allocation", fields: ["routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"], columns: ["id", "routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"] },
   hostel: { title: "Hostel", subtitle: "Manage hostel rooms and allocations", fields: ["hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"], columns: ["id", "hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"] },
@@ -1125,8 +1125,13 @@ async function addRecord(moduleName, formData) {
     const total = asNum(record.totalFee);
     const paid = asNum(record.paidAmount);
     const balance = total - paid;
-    record.balance = String(balance);
-    record.status = balance <= 0 ? "Paid" : paid > 0 ? "Partial" : "Pending";
+    // Only set balance/status if not already correctly set by form submit handler
+    if (!record.balance || record.balance === "0") {
+      record.balance = String(Math.max(0, balance));
+    }
+    if (!record.status) {
+      record.status = balance <= 0 ? "Paid" : paid > 0 ? "Partial" : "Pending";
+    }
   }
   if (moduleName === "users") {
     if (!record.password) record.password = "welcome123";
@@ -2123,6 +2128,34 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
     }
   }
 
+  // ── Fee module: capture monthly fee + selected book/dress items ──
+  if (currentModule === "fees") {
+    const formEl = e.target;
+    const monthlyFeeInput = formEl.querySelector("#bd-monthly-fee-input");
+    const monthlyFee = parseFloat(monthlyFeeInput?.value || 0) || 0;
+    payload.monthlyFee = String(monthlyFee);
+
+    // Collect selected book/dress items from checkboxes
+    const selectedItems = [];
+    formEl.querySelectorAll(".bd-item-checkbox:checked").forEach(cb => {
+      selectedItems.push({ id: cb.dataset.id, price: parseFloat(cb.dataset.price || 0) || 0 });
+    });
+    payload.selectedBookIds = JSON.stringify(selectedItems.map(i => i.id));
+
+    // Ensure totalFee and balance are correctly set from auto-calc
+    const totalFeeInput = formEl.querySelector("[name='totalFee']");
+    const balanceInput  = formEl.querySelector("[name='balance']");
+    if (totalFeeInput) payload.totalFee = totalFeeInput.value || "0";
+    if (balanceInput)  payload.balance  = balanceInput.value  || "0";
+
+    // Fix status based on recalculated values
+    const total = parseFloat(payload.totalFee) || 0;
+    const paid  = parseFloat(payload.paidAmount) || 0;
+    const bal   = total - paid;
+    payload.balance = String(Math.max(0, bal));
+    payload.status  = bal <= 0 ? "Paid" : paid > 0 ? "Partial" : "Pending";
+  }
+
   if (isEditingStudent) {
     await api(`/api/modules/students/${editStudentId}`, { method: "PUT", body: JSON.stringify(payload) });
     editStudentId = null;
@@ -2130,6 +2163,11 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
     await addRecord(currentModule, payload);
   }
   e.target.reset();
+  // Clear monthly fee input and bd info panel after submit
+  const bdMonthly = document.getElementById("bd-monthly-fee-input");
+  if (bdMonthly) bdMonthly.value = "";
+  const bdInfo = document.getElementById("bd-fee-info");
+  if (bdInfo) bdInfo.innerHTML = "";
   renderAll();
 });
 
@@ -4449,13 +4487,49 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     const schoolName = "Tapowan Public School";
     const receiptNo = "RCP-" + (f.id || Date.now());
     const printDate = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
-    const totalFee = parseFloat(f.totalFee) || 0;
+    const totalFee   = parseFloat(f.totalFee) || 0;
     const paidAmount = parseFloat(f.paidAmount) || 0;
-    const balance = parseFloat(f.balance) || (totalFee - paidAmount);
+    const balance    = parseFloat(f.balance) || Math.max(0, totalFee - paidAmount);
+    const monthlyFee = parseFloat(f.monthlyFee) || 0;
     const statusColor = String(f.status).toLowerCase() === "paid" ? "#16a34a"
       : String(f.status).toLowerCase() === "partial" ? "#d97706" : "#dc2626";
 
-    const bdSection = buildBDReceiptSection(f.className || "");
+    // Build selected items section from stored selectedBookIds
+    let selectedItemsHtml = "";
+    let itemsTotal = 0;
+    try {
+      const ids = JSON.parse(f.selectedBookIds || "[]");
+      if (ids.length) {
+        const allBDItems = [...bdBooks, ...bdDresses];
+        const selectedItems = ids.map(id => allBDItems.find(r => String(r.id) === String(id))).filter(Boolean);
+        if (selectedItems.length) {
+          const rows = selectedItems.map(item => {
+            const price = parseFloat(item.price) || 0;
+            itemsTotal += price;
+            const icon = item.itemType === "Book" ? "📚" : "👕";
+            return `<tr>
+              <td style="padding:7px 10px;border:1px solid #e2e8f0;color:#475569;">${icon} ${item.itemName}</td>
+              <td style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">₹ ${price.toLocaleString("en-IN")}</td>
+            </tr>`;
+          }).join("");
+          selectedItemsHtml = `
+            <div style="padding:16px 24px;border-bottom:1px solid #e2e8f0;">
+              <div style="font-weight:700;color:#1e3a8a;margin-bottom:10px;font-size:15px;">📦 Books & Dress Charges</div>
+              <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                <thead><tr style="background:#f0f4ff;">
+                  <th style="padding:7px 10px;border:1px solid #c7d2fe;text-align:left;color:#1e3a8a;">Item</th>
+                  <th style="padding:7px 10px;border:1px solid #c7d2fe;text-align:right;color:#1e3a8a;">Price</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+                <tfoot><tr style="background:#1e3a8a;">
+                  <td style="padding:9px 10px;border:1px solid #1e3a8a;font-weight:700;color:#fff;">Books & Dress Total</td>
+                  <td style="padding:9px 10px;border:1px solid #1e3a8a;text-align:right;font-weight:800;color:#fff;">₹ ${itemsTotal.toLocaleString("en-IN")}</td>
+                </tr></tfoot>
+              </table>
+            </div>`;
+        }
+      }
+    } catch(e) { /* ignore parse errors */ }
 
     const html = `
       <div style="max-width:620px;margin:0 auto;font-family:Arial,sans-serif;border:2px solid #1e3a8a;border-radius:10px;overflow:hidden;">
@@ -4480,13 +4554,21 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
             <tr><td style="padding:5px 0;color:#64748b;">Payment Method</td><td style="padding:5px 0;">${f.paymentMethod || "-"}</td></tr>
           </table>
         </div>
-        <!-- Fee Summary -->
+        <!-- Fee Breakdown -->
         <div style="padding:16px 24px;border-bottom:1px solid #e2e8f0;">
           <div style="font-weight:700;color:#1e3a8a;margin-bottom:10px;font-size:15px;">Fee Summary</div>
           <table style="width:100%;border-collapse:collapse;font-size:14px;">
-            <tr style="background:#f8fafc;">
-              <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">Total Fee</td>
-              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">₹ ${totalFee.toLocaleString("en-IN")}</td>
+            ${monthlyFee > 0 ? `<tr style="background:#f8fafc;">
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">Monthly School Fee</td>
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">₹ ${monthlyFee.toLocaleString("en-IN")}</td>
+            </tr>` : ""}
+            ${itemsTotal > 0 ? `<tr>
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">Books & Dress Charges</td>
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">₹ ${itemsTotal.toLocaleString("en-IN")}</td>
+            </tr>` : ""}
+            <tr style="background:#eef2ff;">
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#1e3a8a;font-weight:700;">Total Fee</td>
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:700;color:#1e3a8a;">₹ ${totalFee.toLocaleString("en-IN")}</td>
             </tr>
             <tr>
               <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">Amount Paid</td>
@@ -4498,8 +4580,8 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
             </tr>
           </table>
         </div>
-        <!-- Books & Dress Section -->
-        ${bdSection}
+        <!-- Books & Dress Detail -->
+        ${selectedItemsHtml}
         <!-- Status -->
         <div style="padding:14px 24px;display:flex;justify-content:space-between;align-items:center;">
           <div style="font-size:13px;color:#64748b;">Payment Status</div>
@@ -4519,34 +4601,90 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     w.focus();
   };
 
-  // ── Patch the fee form to show class books+dress breakdown as info ─────────────
+  // ── Fee form: Monthly fee + selectable books/dresses ─────────────────────────
+
+  // Recalculate totalFee = monthlyFee + selected book/dress items; update balance
+  function recalcFeeTotals() {
+    const form = document.getElementById("dynamicForm");
+    if (!form) return;
+
+    const monthlyFeeInput = form.querySelector("#bd-monthly-fee-input");
+    const totalFeeInput   = form.querySelector("[name='totalFee']");
+    const paidInput       = form.querySelector("[name='paidAmount']");
+    const balanceInput    = form.querySelector("[name='balance']");
+
+    const monthlyFee = parseFloat(monthlyFeeInput?.value || 0) || 0;
+
+    // Sum only checked book/dress items
+    let selectedExtra = 0;
+    form.querySelectorAll(".bd-item-checkbox:checked").forEach(cb => {
+      selectedExtra += parseFloat(cb.dataset.price || 0) || 0;
+    });
+
+    const total = monthlyFee + selectedExtra;
+
+    if (totalFeeInput) {
+      totalFeeInput.value = total;
+      totalFeeInput.readOnly = true;
+      totalFeeInput.style.background = "#f1f5f9";
+      totalFeeInput.style.cursor = "not-allowed";
+    }
+
+    if (balanceInput) {
+      const paid = parseFloat(paidInput?.value || 0) || 0;
+      balanceInput.value = Math.max(0, total - paid);
+      balanceInput.readOnly = true;
+      balanceInput.style.background = "#f1f5f9";
+      balanceInput.style.cursor = "not-allowed";
+    }
+
+    // Update running total shown in the panel
+    const totalDisplay = document.getElementById("bd-running-total");
+    if (totalDisplay) {
+      totalDisplay.textContent = formatINR(total);
+    }
+  }
+
   function showBDInfoForClass(cls) {
     let info = document.getElementById("bd-fee-info");
     if (!info) return;
     const s = classSummary(cls);
-    if (!cls || (!s.books.length && !s.dresses.length)) {
-      info.style.display = "none";
-      return;
-    }
-    const bookList = s.books.map(b =>
-      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #dbeafe;">
-        <span>&#128218; ${b.itemName}</span><span style="font-weight:600;">${formatINR(b.price)}</span>
-      </div>`
-    ).join("");
-    const dressList = s.dresses.map(d =>
-      `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #dbeafe;">
-        <span>&#128085; ${d.itemName}</span><span style="font-weight:600;">${formatINR(d.price)}</span>
-      </div>`
-    ).join("");
+
+    // Always show the monthly fee input
+    const allItems = [...s.books, ...s.dresses];
+
     info.style.display = "block";
+
+    const itemRows = allItems.map(item => {
+      const icon = item.itemType === "Book" ? "📚" : "👕";
+      return `
+        <label style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #dbeafe;cursor:pointer;">
+          <input type="checkbox" class="bd-item-checkbox" data-id="${item.id}" data-price="${item.price}"
+            style="width:16px;height:16px;accent-color:#1e3a8a;cursor:pointer;"
+            ${item.itemType === "Dress" ? "" : ""}>
+          <span style="flex:1;">${icon} ${item.itemName}</span>
+          <span style="font-weight:600;color:#0f172a;">${formatINR(item.price)}</span>
+        </label>`;
+    }).join("");
+
     info.innerHTML = `
-      <div style="font-weight:700;color:#1e3a8a;margin-bottom:8px;font-size:0.95rem;">&#128230; Books & Dress for Class ${cls}</div>
-      <div style="margin-bottom:6px;">${bookList}${dressList}</div>
-      <div style="background:#1e3a8a;color:#fff;border-radius:6px;padding:7px 12px;display:flex;justify-content:space-between;margin-top:6px;">
-        <span style="font-weight:700;">Grand Total (Books + Dress)</span>
-        <span style="font-weight:800;font-size:1rem;">${formatINR(s.total)}</span>
+      <div style="font-weight:700;color:#1e3a8a;margin-bottom:10px;font-size:0.95rem;">📦 Books & Dress — Class ${cls || "(select class)"}</div>
+      ${allItems.length ? `
+        <div style="font-size:0.8rem;color:#64748b;margin-bottom:8px;">✅ Check items to include in fee. Unchecked items will NOT be added.</div>
+        <div style="margin-bottom:10px;">${itemRows}</div>
+      ` : `<div style="color:#94a3b8;font-size:0.85rem;margin-bottom:10px;">No books/dress items configured for this class.</div>`}
+      <div style="background:#1e3a8a;color:#fff;border-radius:6px;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-weight:700;">Total Fee (Monthly + Selected)</span>
+        <span id="bd-running-total" style="font-weight:800;font-size:1.05rem;">${formatINR(0)}</span>
       </div>
-      <div style="font-size:0.78rem;color:#3b82f6;margin-top:6px;">&#9989; Each item will appear individually on the fee receipt.</div>`;
+      <div style="font-size:0.75rem;color:#3b82f6;margin-top:6px;">ℹ️ Total Fee field is auto-calculated. Balance = Total Fee − Amount Paid.</div>`;
+
+    // Attach checkbox change listeners
+    info.querySelectorAll(".bd-item-checkbox").forEach(cb => {
+      cb.addEventListener("change", recalcFeeTotals);
+    });
+
+    recalcFeeTotals();
   }
 
   function patchFeeFormForBD() {
@@ -4557,33 +4695,85 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       if (!form || form.dataset.bdInfoInjected) return;
       form.dataset.bdInfoInjected = "1";
 
-      // Insert info banner right after the form
+      // ── 1. Make totalFee and balance read-only immediately ──
+      const totalFeeInput = form.querySelector("[name='totalFee']");
+      const balanceInput  = form.querySelector("[name='balance']");
+      if (totalFeeInput) {
+        totalFeeInput.readOnly = true;
+        totalFeeInput.style.background = "#f1f5f9";
+        totalFeeInput.style.cursor = "not-allowed";
+        totalFeeInput.title = "Auto-calculated from Monthly Fee + selected items";
+      }
+      if (balanceInput) {
+        balanceInput.readOnly = true;
+        balanceInput.style.background = "#f1f5f9";
+        balanceInput.style.cursor = "not-allowed";
+        balanceInput.title = "Auto-calculated: Total Fee − Amount Paid";
+      }
+
+      // ── 2. Inject Monthly Fee input before totalFee ──
+      if (!form.querySelector("#bd-monthly-fee-wrapper")) {
+        const wrapper = document.createElement("div");
+        wrapper.id = "bd-monthly-fee-wrapper";
+        wrapper.className = "form-group";
+        wrapper.innerHTML = `
+          <label style="font-weight:600;font-size:0.88rem;color:#374151;display:block;margin-bottom:4px;">Monthly Fee (₹) <span style="color:#e53e3e;">*</span></label>
+          <input id="bd-monthly-fee-input" type="number" min="0" placeholder="Enter monthly school fee"
+            style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:9px 12px;font-size:0.9rem;box-sizing:border-box;">
+          <div style="font-size:0.75rem;color:#64748b;margin-top:3px;">Base school monthly fee. Books/dress charges added separately below.</div>`;
+
+        const totalFeeWrapper = totalFeeInput?.closest(".form-group") || totalFeeInput?.parentElement;
+        if (totalFeeWrapper) {
+          totalFeeWrapper.parentNode.insertBefore(wrapper, totalFeeWrapper);
+        } else {
+          form.insertBefore(wrapper, form.querySelector(".actions"));
+        }
+
+        const monthlyFeeInput = wrapper.querySelector("#bd-monthly-fee-input");
+        monthlyFeeInput.addEventListener("input", recalcFeeTotals);
+
+        // Also recalc when paidAmount changes (to update balance)
+        const paidInput = form.querySelector("[name='paidAmount']");
+        if (paidInput && !paidInput.dataset.balancePatched) {
+          paidInput.dataset.balancePatched = "1";
+          paidInput.addEventListener("input", recalcFeeTotals);
+        }
+      }
+
+      // ── 3. Inject BD info panel after the form ──
       let info = document.getElementById("bd-fee-info");
       if (!info) {
         info = document.createElement("div");
         info.id = "bd-fee-info";
-        info.style.cssText = "background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;font-size:0.86rem;color:#1e40af;margin-top:10px;display:none;";
+        info.style.cssText = "background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;font-size:0.86rem;color:#1e40af;margin-top:10px;";
         form.parentNode.insertBefore(info, form.nextSibling);
       }
 
-      const classField = form.querySelector("[name='className']");
+      const classField   = form.querySelector("[name='className']");
       const studentField = form.querySelector("[name='studentName']");
 
       if (classField && !classField.dataset.bdPatched) {
         classField.dataset.bdPatched = "1";
         classField.addEventListener("change", () => showBDInfoForClass(classField.value));
+        if (classField.value) showBDInfoForClass(classField.value);
       }
 
-      // Student selection auto-fills className; fire BD info after that happens
       if (studentField && !studentField.dataset.bdPatched) {
         studentField.dataset.bdPatched = "1";
         studentField.addEventListener("change", () => {
           setTimeout(() => {
             const cls = classField ? classField.value : "";
             showBDInfoForClass(cls);
-          }, 60);
+          }, 80);
         });
       }
+
+      // Show panel for current class (e.g. after prefill)
+      setTimeout(() => {
+        const cls = classField ? classField.value : "";
+        showBDInfoForClass(cls || "");
+        recalcFeeTotals();
+      }, 120);
     });
     observer.observe(document.body, { childList: true, subtree: true });
   }
