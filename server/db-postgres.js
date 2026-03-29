@@ -17,9 +17,9 @@ const MODULES = {
   timetable: ["className", "day", "period", "subject", "teacher", "roomNo"],
   notifications: ["message", "type", "date"],
   faceEmbeddings: ["targetType", "name", "tag", "descriptorJson"],
-  schoolInvestments: ["title", "category", "amount", "expectedReturn", "bank", "startDate", "maturityDate", "notes", "status", "isDemo"],
-  schoolIncome: ["date", "source", "category", "amount", "mode", "description", "isDemo"],
-  schoolExpenses: ["date", "head", "category", "amount", "mode", "description", "isDemo"]
+  schoolInvestments: ["title", "category", "amount", "expectedReturn", "bank", "startDate", "maturityDate", "notes", "status"],
+  schoolIncome: ["date", "source", "category", "amount", "mode", "description"],
+  schoolExpenses: ["date", "head", "category", "amount", "mode", "description"]
 };
 
 const pool = new Pool({
@@ -137,12 +137,21 @@ async function resetAndSeed() {
   }
 }
 
+async function purgeDemoData() {
+  for (const tbl of ["schoolInvestments", "schoolIncome", "schoolExpenses"]) {
+    try {
+      await pool.query("DELETE FROM " + tbl + " WHERE \"isDemo\" IN ('1','true') OR (\"isDemo\" IS NOT NULL AND \"isDemo\" NOT IN ('','0','false'))");
+    } catch (e) { /* column may not exist - safe to ignore */ }
+  }
+}
+
 async function initDb() {
   for (const [tableName, fields] of Object.entries(MODULES)) {
     await createTable(tableName, fields);
     await ensureColumns(tableName, fields);
   }
   await seedIfEmpty();
+  await purgeDemoData();
   await ensureDefaultAdmin();
 }
 

@@ -387,11 +387,6 @@ app.delete("/api/modules/:moduleName/:id", authRequired, async (req, res) => {
     if (moduleName === "users" && !isAdmin(user)) {
       return res.status(403).json({ error: "Only admins can delete users" });
     }
-    // Block deletion of demo/seed records
-    const record = await getById(moduleName, Number(id));
-    if (record && (record.isDemo === 1 || record.isDemo === "1" || record.isDemo === true || record.isDemo === "true")) {
-      return res.status(403).json({ error: "Demo data cannot be deleted." });
-    }
     await remove(moduleName, Number(id));
     res.json({ ok: true });
   } catch (err) {

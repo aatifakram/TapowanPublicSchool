@@ -21,9 +21,9 @@ const MODULES = {
   timetable: ["className", "day", "period", "subject", "teacher", "roomNo"],
   notifications: ["message", "type", "date"],
   faceEmbeddings: ["targetType", "name", "tag", "descriptorJson"],
-  schoolInvestments: ["title", "category", "amount", "expectedReturn", "bank", "startDate", "maturityDate", "notes", "status", "isDemo"],
-  schoolIncome: ["date", "source", "category", "amount", "mode", "description", "isDemo"],
-  schoolExpenses: ["date", "head", "category", "amount", "mode", "description", "isDemo"]
+  schoolInvestments: ["title", "category", "amount", "expectedReturn", "bank", "startDate", "maturityDate", "notes", "status"],
+  schoolIncome: ["date", "source", "category", "amount", "mode", "description"],
+  schoolExpenses: ["date", "head", "category", "amount", "mode", "description"]
 };
 
 function runRaw(sql, params = []) {
@@ -99,12 +99,21 @@ function resetAndSeed() {
   tx();
 }
 
+function purgeDemoData() {
+  ["schoolInvestments", "schoolIncome", "schoolExpenses"].forEach((tbl) => {
+    try {
+      db.prepare(`DELETE FROM ${tbl} WHERE isDemo = 1 OR isDemo = 'true' OR isDemo = '1'`).run();
+    } catch (e) { /* table may not have isDemo column — safe to ignore */ }
+  });
+}
+
 function initDb() {
   Object.entries(MODULES).forEach(([tableName, fields]) => {
     createTable(tableName, fields);
     ensureColumns(tableName, fields);
   });
   seedIfEmpty();
+  purgeDemoData();
   ensureDefaultAdmin();
   return Promise.resolve();
 }
