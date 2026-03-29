@@ -4056,7 +4056,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
   const BD_ENDPOINT = "/api/modules/booksAndDress";
 
   // ── Helpers ──────────────────────────────────────────────────────────────
-  function ₹(n) { return "₹ " + Number(n || 0).toLocaleString("en-IN"); }
+  function formatINR(n) { return "₹ " + Number(n || 0).toLocaleString("en-IN"); }
   function allClasses() {
     const st = getStore();
     return Array.from(new Set(
@@ -4228,14 +4228,14 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;border-top:3px solid #1e3a8a;">
           <div style="font-weight:700;color:#1e3a8a;font-size:1rem;margin-bottom:10px;">Class ${cls}</div>
           <div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#475569;margin-bottom:4px;">
-            <span>📚 Books</span><span style="font-weight:600;">${₹(bookTotal)}</span>
+            <span>📚 Books</span><span style="font-weight:600;">${formatINR(bookTotal)}</span>
           </div>
           <div style="display:flex;justify-content:space-between;font-size:0.83rem;color:#475569;margin-bottom:8px;">
-            <span>👕 Dress</span><span style="font-weight:600;">${₹(dressTotal)}</span>
+            <span>👕 Dress</span><span style="font-weight:600;">${formatINR(dressTotal)}</span>
           </div>
           <div style="border-top:1px solid #e2e8f0;padding-top:8px;display:flex;justify-content:space-between;font-size:0.9rem;">
             <span style="font-weight:700;color:#0f172a;">Total</span>
-            <span style="font-weight:800;color:#1e3a8a;font-size:1rem;">${₹(total)}</span>
+            <span style="font-weight:800;color:#1e3a8a;font-size:1rem;">${formatINR(total)}</span>
           </div>
         </div>`;
     }).join("");
@@ -4276,7 +4276,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         </td>
         <td style="padding:11px 16px;">${r.itemName||"-"}</td>
         <td style="padding:11px 16px;color:#64748b;">${r.term||"-"}</td>
-        <td style="padding:11px 16px;text-align:right;font-weight:700;color:#0f172a;">${₹(r.price)}</td>
+        <td style="padding:11px 16px;text-align:right;font-weight:700;color:#0f172a;">${formatINR(r.price)}</td>
         <td style="padding:11px 16px;text-align:center;">
           <button data-bd-edit="${r.id}" style="background:#f1f5f9;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;margin-right:4px;font-size:0.82rem;">✏️</button>
           <button data-bd-del="${r.id}" style="background:#fee2e2;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:0.82rem;">🗑️</button>
@@ -4413,13 +4413,13 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     const bookRows = summary.books.map(b =>
       `<tr>
         <td style="padding:7px 10px;border:1px solid #e2e8f0;color:#475569;">&#128218; ${b.itemName}</td>
-        <td style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">${₹(b.price)}</td>
+        <td style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">${formatINR(b.price)}</td>
       </tr>`
     ).join("");
     const dressRows = summary.dresses.map(d =>
       `<tr>
         <td style="padding:7px 10px;border:1px solid #e2e8f0;color:#475569;">&#128085; ${d.itemName}</td>
-        <td style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">${₹(d.price)}</td>
+        <td style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">${formatINR(d.price)}</td>
       </tr>`
     ).join("");
 
@@ -4439,7 +4439,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
           <tfoot>
             <tr style="background:#1e3a8a;">
               <td style="padding:9px 10px;border:1px solid #1e3a8a;font-weight:700;color:#fff;">&#128230; Books & Dress Total</td>
-              <td style="padding:9px 10px;border:1px solid #1e3a8a;text-align:right;font-weight:800;color:#fff;">${₹(summary.total)}</td>
+              <td style="padding:9px 10px;border:1px solid #1e3a8a;text-align:right;font-weight:800;color:#fff;">${formatINR(summary.total)}</td>
             </tr>
           </tfoot>
         </table>
@@ -4532,12 +4532,12 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     }
     const bookList = s.books.map(b =>
       `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #dbeafe;">
-        <span>&#128218; ${b.itemName}</span><span style="font-weight:600;">${₹(b.price)}</span>
+        <span>&#128218; ${b.itemName}</span><span style="font-weight:600;">${formatINR(b.price)}</span>
       </div>`
     ).join("");
     const dressList = s.dresses.map(d =>
       `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #dbeafe;">
-        <span>&#128085; ${d.itemName}</span><span style="font-weight:600;">${₹(d.price)}</span>
+        <span>&#128085; ${d.itemName}</span><span style="font-weight:600;">${formatINR(d.price)}</span>
       </div>`
     ).join("");
     info.style.display = "block";
@@ -4546,7 +4546,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       <div style="margin-bottom:6px;">${bookList}${dressList}</div>
       <div style="background:#1e3a8a;color:#fff;border-radius:6px;padding:7px 12px;display:flex;justify-content:space-between;margin-top:6px;">
         <span style="font-weight:700;">Grand Total (Books + Dress)</span>
-        <span style="font-weight:800;font-size:1rem;">${₹(s.total)}</span>
+        <span style="font-weight:800;font-size:1rem;">${formatINR(s.total)}</span>
       </div>
       <div style="font-size:0.78rem;color:#3b82f6;margin-top:6px;">&#9989; Each item will appear individually on the fee receipt.</div>`;
   }
