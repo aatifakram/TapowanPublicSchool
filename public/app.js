@@ -2131,9 +2131,15 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
   // ── Fee module: capture monthly fee + selected book/dress items ──
   if (currentModule === "fees") {
     const formEl = e.target;
-    const monthlyFeeInput = formEl.querySelector("#bd-monthly-fee-input");
-    const monthlyFee = parseFloat(monthlyFeeInput?.value || 0) || 0;
+    const monthlyFeeSelect = formEl.querySelector("#bd-monthly-fee-input");
+    const monthlyFee = parseFloat(monthlyFeeSelect?.value || 0) || 0;
     payload.monthlyFee = String(monthlyFee);
+
+    // Save the fee type label from the selected option text
+    const selectedOpt = monthlyFeeSelect?.options?.[monthlyFeeSelect.selectedIndex];
+    payload.monthlyFeeLabel = selectedOpt && monthlyFee > 0
+      ? selectedOpt.textContent.split("—")[0].trim()
+      : "";
 
     // Collect selected book/dress items from checkboxes
     const selectedItems = [];
@@ -2163,7 +2169,7 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
     await addRecord(currentModule, payload);
   }
   e.target.reset();
-  // Clear monthly fee input and bd info panel after submit
+  // Clear monthly fee select and bd info panel after submit
   const bdMonthly = document.getElementById("bd-monthly-fee-input");
   if (bdMonthly) bdMonthly.value = "";
   const bdInfo = document.getElementById("bd-fee-info");
@@ -4088,8 +4094,10 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
   // ── Local store (in-memory, synced to /api/modules/ endpoints) ──────────
   let bdBooks = [];       // { id, className, itemType:"Book", itemName, price, term }
   let bdDresses = [];     // { id, className, itemType:"Dress", itemName, price, term }
+  let feeStructures = []; // { id, className, feeType, amount, term, description }
 
   const BD_ENDPOINT = "/api/modules/booksAndDress";
+  const FS_ENDPOINT = "/api/modules/feeStructures";
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function formatINR(n) { return "₹ " + Number(n || 0).toLocaleString("en-IN"); }
@@ -4109,6 +4117,12 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     } catch(e) { console.warn("BD load:", e); }
   }
 
+  async function loadFS() {
+    try {
+      feeStructures = await api(FS_ENDPOINT);
+    } catch(e) { console.warn("FS load:", e); feeStructures = []; }
+  }
+
   async function saveBDItem(payload) {
     return api(BD_ENDPOINT, { method: "POST", body: JSON.stringify(payload) });
   }
@@ -4119,6 +4133,18 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 
   async function updateBDItem(id, payload) {
     return api(`${BD_ENDPOINT}/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+  }
+
+  async function saveFSItem(payload) {
+    return api(FS_ENDPOINT, { method: "POST", body: JSON.stringify(payload) });
+  }
+
+  async function deleteFSItem(id) {
+    return api(`${FS_ENDPOINT}/${id}`, { method: "DELETE" });
+  }
+
+  async function updateFSItem(id, payload) {
+    return api(`${FS_ENDPOINT}/${id}`, { method: "PUT", body: JSON.stringify(payload) });
   }
 
   // ── Compute totals for a class ────────────────────────────────────────────
@@ -4247,6 +4273,98 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     attachBDListeners();
     renderBDTable();
     renderBDSummaryCards();
+
+    // ── Fee Structures section ────────────────────────────────────────────
+    let fsSection = document.getElementById("fs-section");
+    if (!fsSection) {
+      fsSection = document.createElement("div");
+      fsSection.id = "fs-section";
+      panel.appendChild(fsSection);
+    }
+    fsSection.innerHTML = `
+      <div style="margin-top:32px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px;">
+          <div>
+            <h3 style="margin:0;font-size:1.1rem;color:#1e3a8a;">💰 Monthly Fee Structures</h3>
+            <p style="margin:3px 0 0;color:#64748b;font-size:0.82rem;">Set class-wise monthly fee amounts. These appear as a dropdown when adding a fee record.</p>
+          </div>
+          <button id="fs-add-btn" style="background:#1e3a8a;color:#fff;border:none;border-radius:8px;padding:8px 16px;cursor:pointer;font-size:0.88rem;">+ Add Fee Structure</button>
+        </div>
+        <div style="background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;">
+          <table id="fs-table" style="width:100%;border-collapse:collapse;font-size:0.86rem;">
+            <thead style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+              <tr>
+                <th style="padding:10px 14px;text-align:left;color:#475569;">#</th>
+                <th style="padding:10px 14px;text-align:left;color:#475569;">Class</th>
+                <th style="padding:10px 14px;text-align:left;color:#475569;">Fee Type</th>
+                <th style="padding:10px 14px;text-align:left;color:#475569;">Term</th>
+                <th style="padding:10px 14px;text-align:left;color:#475569;">Description</th>
+                <th style="padding:10px 14px;text-align:right;color:#475569;">Amount (₹)</th>
+                <th style="padding:10px 14px;text-align:center;color:#475569;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="fs-tbody"></tbody>
+          </table>
+          <div id="fs-empty" style="display:none;text-align:center;padding:32px;color:#94a3b8;font-size:0.88rem;">No fee structures yet. Click "+ Add Fee Structure" to begin.</div>
+        </div>
+      </div>
+
+      <!-- Fee Structure Modal -->
+      <div id="fs-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+        <div style="background:#fff;border-radius:16px;width:min(460px,95vw);padding:26px;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+          <h3 id="fs-modal-title" style="margin:0 0 18px;color:#1e3a8a;">Add Fee Structure</h3>
+          <form id="fs-form" style="display:grid;gap:13px;">
+            <input type="hidden" id="fs-edit-id">
+            <div>
+              <label style="display:block;font-size:0.84rem;font-weight:600;color:#475569;margin-bottom:5px;">Class *</label>
+              <select id="fs-f-class" required style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px 12px;font-size:0.88rem;">
+                <option value="">Select Class</option>
+                ${allClasses().map(c => `<option value="${c}">${c}</option>`).join("")}
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:0.84rem;font-weight:600;color:#475569;margin-bottom:5px;">Fee Type *</label>
+              <select id="fs-f-type" required style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px 12px;font-size:0.88rem;">
+                <option value="Tuition Fee">Tuition Fee</option>
+                <option value="Development Fee">Development Fee</option>
+                <option value="Sports Fee">Sports Fee</option>
+                <option value="Lab Fee">Lab Fee</option>
+                <option value="Computer Fee">Computer Fee</option>
+                <option value="Activity Fee">Activity Fee</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:0.84rem;font-weight:600;color:#475569;margin-bottom:5px;">Amount (₹) *</label>
+              <input id="fs-f-amount" type="number" min="0" required placeholder="e.g. 1500" style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px 12px;font-size:0.88rem;box-sizing:border-box;">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <label style="display:block;font-size:0.84rem;font-weight:600;color:#475569;margin-bottom:5px;">Term</label>
+                <select id="fs-f-term" style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px 12px;font-size:0.88rem;">
+                  <option value="Monthly">Monthly</option>
+                  <option value="Annual">Annual</option>
+                  <option value="Q1">Q1</option>
+                  <option value="Q2">Q2</option>
+                  <option value="Q3">Q3</option>
+                  <option value="Q4">Q4</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block;font-size:0.84rem;font-weight:600;color:#475569;margin-bottom:5px;">Description</label>
+                <input id="fs-f-desc" type="text" placeholder="Optional note" style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px 12px;font-size:0.88rem;box-sizing:border-box;">
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px;">
+              <button type="button" id="fs-modal-cancel" style="padding:8px 18px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;cursor:pointer;font-size:0.88rem;">Cancel</button>
+              <button type="submit" style="padding:8px 22px;border:none;border-radius:8px;background:#1e3a8a;color:#fff;cursor:pointer;font-size:0.88rem;">Save</button>
+            </div>
+          </form>
+        </div>
+      </div>`;
+
+    attachFSListeners();
+    renderFSTable();
   }
 
   function renderBDSummaryCards() {
@@ -4394,6 +4512,103 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     });
   }
 
+  // ── Fee Structures table, modal, listeners ────────────────────────────────
+
+  function renderFSTable() {
+    const tbody = document.getElementById("fs-tbody");
+    const empty = document.getElementById("fs-empty");
+    if (!tbody) return;
+
+    const rows = [...feeStructures].sort((a, b) =>
+      (a.className || "").localeCompare(b.className || "") ||
+      (a.feeType || "").localeCompare(b.feeType || "")
+    );
+
+    if (!rows.length) {
+      tbody.innerHTML = "";
+      if (empty) empty.style.display = "block";
+      return;
+    }
+    if (empty) empty.style.display = "none";
+
+    tbody.innerHTML = rows.map((r, i) => `
+      <tr style="border-bottom:1px solid #f1f5f9;${i % 2 === 0 ? "" : "background:#fafbff"}">
+        <td style="padding:10px 14px;color:#94a3b8;">${i + 1}</td>
+        <td style="padding:10px 14px;font-weight:600;color:#1e3a8a;">${r.className || "-"}</td>
+        <td style="padding:10px 14px;">
+          <span style="background:#dbeafe;color:#1e40af;padding:2px 10px;border-radius:10px;font-size:0.78rem;font-weight:600;">${r.feeType || "-"}</span>
+        </td>
+        <td style="padding:10px 14px;color:#64748b;">${r.term || "-"}</td>
+        <td style="padding:10px 14px;color:#64748b;font-size:0.83rem;">${r.description || "-"}</td>
+        <td style="padding:10px 14px;text-align:right;font-weight:700;color:#0f172a;">${formatINR(r.amount)}</td>
+        <td style="padding:10px 14px;text-align:center;">
+          <button data-fs-edit="${r.id}" style="background:#f1f5f9;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;margin-right:4px;font-size:0.8rem;">✏️</button>
+          <button data-fs-del="${r.id}" style="background:#fee2e2;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-size:0.8rem;">🗑️</button>
+        </td>
+      </tr>`).join("");
+
+    tbody.querySelectorAll("[data-fs-edit]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const row = feeStructures.find(r => String(r.id) === String(btn.dataset.fsEdit));
+        if (row) openFSModal(row);
+      });
+    });
+    tbody.querySelectorAll("[data-fs-del]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        if (!confirm("Delete this fee structure?")) return;
+        await deleteFSItem(Number(btn.dataset.fsDel));
+        await loadFS();
+        renderFSTable();
+      });
+    });
+  }
+
+  function openFSModal(existing) {
+    const modal = document.getElementById("fs-modal");
+    if (!modal) return;
+    document.getElementById("fs-modal-title").textContent = existing ? "Edit Fee Structure" : "Add Fee Structure";
+    document.getElementById("fs-edit-id").value  = existing?.id || "";
+    document.getElementById("fs-f-class").value  = existing?.className || "";
+    document.getElementById("fs-f-type").value   = existing?.feeType || "Tuition Fee";
+    document.getElementById("fs-f-amount").value = existing?.amount || "";
+    document.getElementById("fs-f-term").value   = existing?.term || "Monthly";
+    document.getElementById("fs-f-desc").value   = existing?.description || "";
+    modal.style.display = "flex";
+  }
+
+  function closeFSModal() {
+    const modal = document.getElementById("fs-modal");
+    if (modal) modal.style.display = "none";
+  }
+
+  function attachFSListeners() {
+    document.getElementById("fs-add-btn")?.addEventListener("click", () => openFSModal(null));
+    document.getElementById("fs-modal-cancel")?.addEventListener("click", closeFSModal);
+    document.getElementById("fs-modal")?.addEventListener("click", e => {
+      if (e.target === document.getElementById("fs-modal")) closeFSModal();
+    });
+
+    document.getElementById("fs-form")?.addEventListener("submit", async e => {
+      e.preventDefault();
+      const editId = document.getElementById("fs-edit-id").value;
+      const payload = {
+        className:   document.getElementById("fs-f-class").value,
+        feeType:     document.getElementById("fs-f-type").value,
+        amount:      document.getElementById("fs-f-amount").value,
+        term:        document.getElementById("fs-f-term").value,
+        description: document.getElementById("fs-f-desc").value,
+      };
+      if (editId) {
+        await updateFSItem(Number(editId), payload);
+      } else {
+        await saveFSItem(payload);
+      }
+      closeFSModal();
+      await loadFS();
+      renderFSTable();
+    });
+  }
+
   // ── NAV injection ────────────────────────────────────────────────────────
   function injectBDNavItem() {
     const nav = document.getElementById("moduleNav");
@@ -4435,7 +4650,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     const contentEl = document.getElementById("moduleContent") || document.querySelector(".module-content");
     if (contentEl) contentEl.style.display = "none";
 
-    await loadBD();
+    await Promise.all([loadBD(), loadFS()]);
     renderBDModule();
   }
 
@@ -4491,6 +4706,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     const paidAmount = parseFloat(f.paidAmount) || 0;
     const balance    = parseFloat(f.balance) || Math.max(0, totalFee - paidAmount);
     const monthlyFee = parseFloat(f.monthlyFee) || 0;
+    const monthlyFeeLabel = f.monthlyFeeLabel || "Monthly School Fee";
     const statusColor = String(f.status).toLowerCase() === "paid" ? "#16a34a"
       : String(f.status).toLowerCase() === "partial" ? "#d97706" : "#dc2626";
 
@@ -4559,7 +4775,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
           <div style="font-weight:700;color:#1e3a8a;margin-bottom:10px;font-size:15px;">Fee Summary</div>
           <table style="width:100%;border-collapse:collapse;font-size:14px;">
             ${monthlyFee > 0 ? `<tr style="background:#f8fafc;">
-              <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">Monthly School Fee</td>
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">${monthlyFeeLabel}</td>
               <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">₹ ${monthlyFee.toLocaleString("en-IN")}</td>
             </tr>` : ""}
             ${itemsTotal > 0 ? `<tr>
@@ -4603,17 +4819,47 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 
   // ── Fee form: Monthly fee + selectable books/dresses ─────────────────────────
 
+  // Populate the monthly fee select for a given class
+  function populateMonthlyFeeSelect(cls) {
+    const sel = document.getElementById("bd-monthly-fee-input");
+    if (!sel || sel.tagName !== "SELECT") return;
+    const prev = sel.value;
+    sel.innerHTML = `<option value="">— Select fee structure —</option>`;
+    const options = cls
+      ? feeStructures.filter(f => f.className === cls)
+      : feeStructures;
+    if (options.length) {
+      options.forEach(f => {
+        const opt = document.createElement("option");
+        opt.value = String(f.amount);
+        opt.dataset.amount = String(f.amount);
+        opt.textContent = `${f.feeType} — ${formatINR(f.amount)}${f.term ? " (" + f.term + ")" : ""}${f.description ? " · " + f.description : ""}`;
+        sel.appendChild(opt);
+      });
+      // Restore previous selection if still available
+      if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+    } else if (cls) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.disabled = true;
+      opt.textContent = `No fee structures for Class ${cls} — add them in Books & Dress`;
+      sel.appendChild(opt);
+    }
+    recalcFeeTotals();
+  }
+
   // Recalculate totalFee = monthlyFee + selected book/dress items; update balance
   function recalcFeeTotals() {
     const form = document.getElementById("dynamicForm");
     if (!form) return;
 
-    const monthlyFeeInput = form.querySelector("#bd-monthly-fee-input");
-    const totalFeeInput   = form.querySelector("[name='totalFee']");
-    const paidInput       = form.querySelector("[name='paidAmount']");
-    const balanceInput    = form.querySelector("[name='balance']");
+    const monthlyFeeEl  = form.querySelector("#bd-monthly-fee-input");
+    const totalFeeInput = form.querySelector("[name='totalFee']");
+    const paidInput     = form.querySelector("[name='paidAmount']");
+    const balanceInput  = form.querySelector("[name='balance']");
 
-    const monthlyFee = parseFloat(monthlyFeeInput?.value || 0) || 0;
+    // Works for both <select> and legacy <input type=number>
+    const monthlyFee = parseFloat(monthlyFeeEl?.value || 0) || 0;
 
     // Sum only checked book/dress items
     let selectedExtra = 0;
@@ -4646,6 +4892,9 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
   }
 
   function showBDInfoForClass(cls) {
+    // Update the monthly fee select for the selected class
+    populateMonthlyFeeSelect(cls);
+
     let info = document.getElementById("bd-fee-info");
     if (!info) return;
     const s = classSummary(cls);
@@ -4711,16 +4960,25 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         balanceInput.title = "Auto-calculated: Total Fee − Amount Paid";
       }
 
-      // ── 2. Inject Monthly Fee input before totalFee ──
+      // ── 2. Inject Monthly Fee SELECT before totalFee ──
       if (!form.querySelector("#bd-monthly-fee-wrapper")) {
         const wrapper = document.createElement("div");
         wrapper.id = "bd-monthly-fee-wrapper";
         wrapper.className = "form-group";
         wrapper.innerHTML = `
-          <label style="font-weight:600;font-size:0.88rem;color:#374151;display:block;margin-bottom:4px;">Monthly Fee (₹) <span style="color:#e53e3e;">*</span></label>
-          <input id="bd-monthly-fee-input" type="number" min="0" placeholder="Enter monthly school fee"
-            style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:9px 12px;font-size:0.9rem;box-sizing:border-box;">
-          <div style="font-size:0.75rem;color:#64748b;margin-top:3px;">Base school monthly fee. Books/dress charges added separately below.</div>`;
+          <label style="font-weight:600;font-size:0.88rem;color:#374151;display:block;margin-bottom:4px;">
+            Monthly Fee <span style="color:#e53e3e;">*</span>
+          </label>
+          <select id="bd-monthly-fee-input"
+            style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:9px 12px;font-size:0.9rem;background:#fff;box-sizing:border-box;">
+            <option value="">— Select fee structure —</option>
+          </select>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:5px;">
+            <span id="bd-monthly-fee-note" style="font-size:0.75rem;color:#64748b;flex:1;">
+              Select a fee type from the class fee structures. 
+              <a href="#" id="bd-fs-manage-link" style="color:#1e3a8a;text-decoration:underline;font-weight:600;">Manage fee structures →</a>
+            </span>
+          </div>`;
 
         const totalFeeWrapper = totalFeeInput?.closest(".form-group") || totalFeeInput?.parentElement;
         if (totalFeeWrapper) {
@@ -4729,8 +4987,19 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
           form.insertBefore(wrapper, form.querySelector(".actions"));
         }
 
-        const monthlyFeeInput = wrapper.querySelector("#bd-monthly-fee-input");
-        monthlyFeeInput.addEventListener("input", recalcFeeTotals);
+        const monthlyFeeSelect = wrapper.querySelector("#bd-monthly-fee-input");
+        monthlyFeeSelect.addEventListener("change", recalcFeeTotals);
+
+        // Link to manage fee structures in Books & Dress panel
+        wrapper.querySelector("#bd-fs-manage-link")?.addEventListener("click", e => {
+          e.preventDefault();
+          currentModule = "booksAndDress";
+          document.querySelectorAll("#moduleNav button").forEach(b => b.classList.remove("active"));
+          document.querySelector("[data-module='booksAndDress']")?.classList.add("active");
+          showBDPanel().then(() => {
+            setTimeout(() => document.getElementById("fs-section")?.scrollIntoView({ behavior: "smooth" }), 300);
+          });
+        });
 
         // Also recalc when paidAmount changes (to update balance)
         const paidInput = form.querySelector("[name='paidAmount']");
@@ -4789,7 +5058,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     });
 
     await waitForStore();
-    await loadBD();
+    await Promise.all([loadBD(), loadFS()]);
 
     // Inject nav item (retry until nav is rendered)
     const tryNav = () => {

@@ -12,7 +12,7 @@ const MODULES = {
   attendance: ["date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks", "facePhoto"],
   teacherAttendance: ["date", "department", "teacherName", "status", "remarks"],
   exams: ["examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"],
-  fees: ["studentName", "className", "rollNo", "term", "monthlyFee", "selectedBookIds", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod"],
+  fees: ["studentName", "className", "rollNo", "term", "monthlyFee", "monthlyFeeLabel", "selectedBookIds", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod"],
   library: ["bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"],
   transport: ["routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"],
   hostel: ["hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"],
@@ -24,7 +24,8 @@ const MODULES = {
   schoolInvestments: ["title", "category", "amount", "expectedReturn", "bank", "startDate", "maturityDate", "notes", "status"],
   schoolIncome: ["date", "source", "category", "amount", "mode", "description"],
   schoolExpenses: ["date", "head", "category", "amount", "mode", "description"],
-  booksAndDress: ["className", "itemType", "itemName", "price", "term"]
+  booksAndDress: ["className", "itemType", "itemName", "price", "term"],
+  feeStructures: ["className", "feeType", "amount", "term", "description"]
 };
 
 function runRaw(sql, params = []) {
