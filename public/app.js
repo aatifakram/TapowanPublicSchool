@@ -4950,7 +4950,12 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 
   function patchFeeFormForBD() {
     const observer = new MutationObserver(() => {
-      if (currentModule !== "fees") return;
+      if (currentModule !== "fees") {
+        // Clean up any leftover BD elements from a previous fees visit
+        document.getElementById("bd-fee-info")?.remove();
+        document.getElementById("bd-monthly-fee-wrapper")?.remove();
+        return;
+      }
 
       const form = document.getElementById("dynamicForm");
       if (!form || form.dataset.bdInfoInjected) return;
