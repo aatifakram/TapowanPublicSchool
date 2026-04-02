@@ -2138,14 +2138,14 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
   // ── Fee module: capture monthly fee + selected book/dress items ──
   if (currentModule === "fees") {
     const formEl = e.target;
-    const monthlyFeeSelect = formEl.querySelector("#bd-monthly-fee-input");
-    const monthlyFee = parseFloat(monthlyFeeSelect?.value || 0) || 0;
+    const monthlyFeeContainer = formEl.querySelector("#bd-monthly-fee-input");
+    const checkedRadio = monthlyFeeContainer?.querySelector("input[name=\"bd-monthly-fee-radio\"]:checked");
+    const monthlyFee = parseFloat(checkedRadio?.value || 0) || 0;
     payload.monthlyFee = String(monthlyFee);
 
-    // Save the fee type label from the selected option text
-    const selectedOpt = monthlyFeeSelect?.options?.[monthlyFeeSelect.selectedIndex];
-    payload.monthlyFeeLabel = selectedOpt && monthlyFee > 0
-      ? selectedOpt.textContent.split("—")[0].trim()
+    // Save the fee type label from the selected radio's data-label
+    payload.monthlyFeeLabel = checkedRadio && monthlyFee > 0
+      ? (checkedRadio.dataset.label || "Monthly School Fee")
       : "";
 
     // Collect selected book/dress items from checkboxes
@@ -2177,9 +2177,13 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
     await addRecord(currentModule, payload);
   }
   e.target.reset();
-  // Clear monthly fee select and bd info panel after submit
+  // Clear monthly fee radio checkboxes and bd info panel after submit
   const bdMonthly = document.getElementById("bd-monthly-fee-input");
-  if (bdMonthly) bdMonthly.value = "";
+  if (bdMonthly) {
+    bdMonthly.querySelectorAll("input[type=radio]").forEach(r => r.checked = false);
+    bdMonthly.querySelectorAll("label").forEach(l => l.style.background = "#fff");
+    delete bdMonthly.dataset.selectedValue;
+  }
   const bdInfo = document.getElementById("bd-fee-info");
   if (bdInfo) bdInfo.innerHTML = "";
   renderAll();
@@ -4831,31 +4835,43 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 
   // ── Fee form: Monthly fee + selectable books/dresses ─────────────────────────
 
-  // Populate the monthly fee select for a given class
+  // Populate the monthly fee radio checkboxes for a given class
   function populateMonthlyFeeSelect(cls) {
-    const sel = document.getElementById("bd-monthly-fee-input");
-    if (!sel || sel.tagName !== "SELECT") return;
-    const prev = sel.value;
-    sel.innerHTML = `<option value="">— Select fee structure —</option>`;
+    const container = document.getElementById("bd-monthly-fee-input");
+    if (!container) return;
+    const prevValue = container.dataset.selectedValue || "";
+    container.innerHTML = "";
     const options = cls
       ? feeStructures.filter(f => f.className === cls)
       : feeStructures;
     if (options.length) {
       options.forEach(f => {
-        const opt = document.createElement("option");
-        opt.value = String(f.amount);
-        opt.dataset.amount = String(f.amount);
-        opt.textContent = `${f.feeType} — ${formatINR(f.amount)}${f.term ? " (" + f.term + ")" : ""}${f.description ? " · " + f.description : ""}`;
-        sel.appendChild(opt);
+        const val = String(f.amount);
+        const label = document.createElement("label");
+        label.style.cssText = "display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:8px;cursor:pointer;border:1px solid #e2e8f0;margin-bottom:6px;background:#fff;transition:background 0.15s;";
+        const termStr = f.term ? ` <span style='color:#64748b;font-size:0.8rem;'>(${f.term})</span>` : "";
+        const descStr = f.description ? ` <span style='color:#64748b;font-size:0.8rem;'>· ${f.description}</span>` : "";
+        label.innerHTML = `
+          <input type="radio" name="bd-monthly-fee-radio" value="${val}"
+            data-label="${f.feeType}"
+            style="width:16px;height:16px;accent-color:#1e3a8a;cursor:pointer;flex-shrink:0;"
+            ${prevValue === val ? "checked" : ""}>
+          <span style="flex:1;font-size:0.88rem;color:#1e293b;">${f.feeType}${termStr}${descStr}</span>
+          <span style="font-weight:700;color:#1e3a8a;white-space:nowrap;">${formatINR(f.amount)}</span>`;
+        const radio = label.querySelector("input");
+        radio.addEventListener("change", () => {
+          container.dataset.selectedValue = val;
+          container.querySelectorAll("label").forEach(l => l.style.background = "#fff");
+          label.style.background = "#eff6ff";
+          recalcFeeTotals();
+        });
+        if (prevValue === val) label.style.background = "#eff6ff";
+        container.appendChild(label);
       });
-      // Restore previous selection if still available
-      if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
     } else if (cls) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.disabled = true;
-      opt.textContent = `No fee structures for Class ${cls} — add them in Books & Dress`;
-      sel.appendChild(opt);
+      container.innerHTML = `<div style="color:#94a3b8;font-size:0.85rem;padding:8px 0;">No fee structures for Class ${cls} — add them in Books &amp; Dress.</div>`;
+    } else {
+      container.innerHTML = `<div style="color:#94a3b8;font-size:0.85rem;padding:8px 0;">Select a class to see fee structures.</div>`;
     }
     recalcFeeTotals();
   }
@@ -4870,8 +4886,9 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     const paidInput     = form.querySelector("[name='paidAmount']");
     const balanceInput  = form.querySelector("[name='balance']");
 
-    // Works for both <select> and legacy <input type=number>
-    const monthlyFee = parseFloat(monthlyFeeEl?.value || 0) || 0;
+    // Read from radio button group (checkbox style)
+    const checkedRadio = monthlyFeeEl?.querySelector("input[name=\"bd-monthly-fee-radio\"]:checked");
+    const monthlyFee = parseFloat(checkedRadio?.value || 0) || 0;
 
     // Sum only checked book/dress items
     let selectedExtra = 0;
@@ -4904,15 +4921,27 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
   }
 
   function showBDInfoForClass(cls) {
-    // Update the monthly fee select for the selected class
+    // Update the monthly fee checkboxes for the selected class
     populateMonthlyFeeSelect(cls);
 
     let info = document.getElementById("bd-fee-info");
     if (!info) return;
-    const s = classSummary(cls);
 
-    // Always show the monthly fee input
+    // Auto-hide: if no class selected, hide the panel entirely
+    if (!cls) {
+      info.style.display = "none";
+      return;
+    }
+
+    const s = classSummary(cls);
     const allItems = [...s.books, ...s.dresses];
+
+    // Auto-hide: show only when there are items OR fee structures for this class
+    const hasFeeStructures = feeStructures.some(f => f.className === cls);
+    if (!allItems.length && !hasFeeStructures) {
+      info.style.display = "none";
+      return;
+    }
 
     info.style.display = "block";
 
@@ -4977,22 +5006,22 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         balanceInput.title = "Auto-calculated: Total Fee − Amount Paid";
       }
 
-      // ── 2. Inject Monthly Fee SELECT before totalFee ──
+      // ── 2. Inject Monthly Fee CHECKBOXES before totalFee ──
       if (!form.querySelector("#bd-monthly-fee-wrapper")) {
         const wrapper = document.createElement("div");
         wrapper.id = "bd-monthly-fee-wrapper";
         wrapper.className = "form-group";
         wrapper.innerHTML = `
-          <label style="font-weight:600;font-size:0.88rem;color:#374151;display:block;margin-bottom:4px;">
+          <label style="font-weight:600;font-size:0.88rem;color:#374151;display:block;margin-bottom:8px;">
             Monthly Fee <span style="color:#e53e3e;">*</span>
           </label>
-          <select id="bd-monthly-fee-input"
-            style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:9px 12px;font-size:0.9rem;background:#fff;box-sizing:border-box;">
-            <option value="">— Select fee structure —</option>
-          </select>
+          <div id="bd-monthly-fee-input"
+            style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;background:#f8fafc;max-height:180px;overflow-y:auto;">
+            <div style="color:#94a3b8;font-size:0.85rem;padding:4px 0;">Select a class to see fee structures.</div>
+          </div>
           <div style="display:flex;align-items:center;gap:8px;margin-top:5px;">
             <span id="bd-monthly-fee-note" style="font-size:0.75rem;color:#64748b;flex:1;">
-              Select a fee type from the class fee structures. 
+              Select one fee type from the class fee structures.
               <a href="#" id="bd-fs-manage-link" style="color:#1e3a8a;text-decoration:underline;font-weight:600;">Manage fee structures →</a>
             </span>
           </div>`;
@@ -5004,8 +5033,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
           form.insertBefore(wrapper, form.querySelector(".actions"));
         }
 
-        const monthlyFeeSelect = wrapper.querySelector("#bd-monthly-fee-input");
-        monthlyFeeSelect.addEventListener("change", recalcFeeTotals);
+        // No separate event listener needed — radio buttons handle their own events inside populateMonthlyFeeSelect
 
         // Link to manage fee structures in Books & Dress panel
         wrapper.querySelector("#bd-fs-manage-link")?.addEventListener("click", e => {
@@ -5031,7 +5059,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       if (!info) {
         info = document.createElement("div");
         info.id = "bd-fee-info";
-        info.style.cssText = "background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;font-size:0.86rem;color:#1e40af;margin-top:10px;";
+        info.style.cssText = "background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;font-size:0.86rem;color:#1e40af;margin-top:10px;display:none;";
         form.parentNode.insertBefore(info, form.nextSibling);
       }
 
