@@ -413,3 +413,156 @@ tbody tr {
   font-size: 0.92rem;
   color: #0f172a;
 }
+
+/* ─── Fee Module UI ──────────────────────────────────────────────────────────── */
+
+.fee-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.fee-types-section {
+  background: linear-gradient(135deg, #f0f7ff 0%, #e8f4fd 100%);
+  border: 1.5px solid #bfdbfe;
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+
+.fee-types-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fee-types-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.fee-types-hint {
+  font-size: 0.78rem;
+  color: #6b7280;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 20px;
+  padding: 3px 10px;
+}
+
+.fee-checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.fee-checkbox-item {
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.fee-checkbox-item:has(.fee-checkbox:checked) {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+  background: #eff6ff;
+}
+
+.fee-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.fee-checkbox {
+  width: 18px !important;
+  height: 18px !important;
+  accent-color: #1d4ed8;
+  cursor: pointer;
+  border-radius: 4px !important;
+  margin: 0 !important;
+  flex-shrink: 0;
+}
+
+.fee-checkbox-label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  user-select: none;
+}
+
+.fee-amount-row {
+  margin-top: 8px;
+}
+
+.fee-amount-row.hidden {
+  display: none !important;
+}
+
+.fee-amount-input {
+  width: 100% !important;
+  border: 1.5px solid #93c5fd !important;
+  border-radius: 8px !important;
+  padding: 8px 10px !important;
+  font-size: 0.9rem !important;
+  background: #fff !important;
+  color: #1d4ed8 !important;
+  font-weight: 600 !important;
+}
+
+.fee-amount-input:focus {
+  outline: none;
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
+}
+
+.fee-summary-section {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border: 1.5px solid #86efac;
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+}
+
+.fee-summary-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #16a34a;
+  margin-bottom: 12px;
+}
+
+.fee-total-display {
+  background: #f0fdf4 !important;
+  border: 1.5px solid #86efac !important;
+  color: #15803d !important;
+  font-weight: 700 !important;
+  font-size: 1rem !important;
+  cursor: not-allowed;
+}
+
+.fee-submit-btn {
+  background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%) !important;
+  color: #fff !important;
+  border: none !important;
+  padding: 11px 28px !important;
+  border-radius: 10px !important;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  box-shadow: 0 2px 8px rgba(29,78,216,0.25) !important;
+}
+
+.fee-submit-btn:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 14px rgba(29,78,216,0.35) !important;
+}

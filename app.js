@@ -11,7 +11,7 @@ const moduleConfig = {
   attendance: { title: "Attendance", subtitle: "Track daily student attendance", fields: ["date", "className", "studentName", "rollNo", "status", "remarks"], columns: ["id", "date", "className", "studentName", "rollNo", "status", "remarks"] },
   teacherAttendance: { title: "Teacher Attendance", subtitle: "Track daily teacher attendance", fields: ["date", "department", "teacherName", "status", "remarks"], columns: ["id", "date", "department", "teacherName", "status", "remarks"] },
   exams: { title: "Exams & Results", subtitle: "Manage exams and student marks", fields: ["examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"], columns: ["id", "examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"] },
-  fees: { title: "Fees", subtitle: "Record fee structures and payments", fields: ["studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"], columns: ["id", "studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"] },
+  fees: { title: "Fees", subtitle: "Record fee structures and payments", fields: ["studentName", "className", "rollNo", "term", "feeTypes", "tuitionFee", "computerFee", "developmentFee", "sportsFee", "libraryFee", "otherFee", "totalFee", "paidAmount", "balance", "status"], columns: ["id", "studentName", "className", "rollNo", "term", "feeTypes", "totalFee", "paidAmount", "balance", "status"] },
   library: { title: "Library", subtitle: "Manage books, issues and returns", fields: ["bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"], columns: ["id", "bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"] },
   transport: { title: "Transport", subtitle: "Track routes, buses and student allocation", fields: ["routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"], columns: ["id", "routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"] },
   hostel: { title: "Hostel", subtitle: "Manage hostel rooms and allocations", fields: ["hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"], columns: ["id", "hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"] },
@@ -278,6 +278,17 @@ function renderNav() {
   });
 }
 
+// Fee type definitions for Monthly Fee Structure
+const FEE_TYPES = [
+  { key: "tuitionFee",     label: "Tuition Fee" },
+  { key: "computerFee",    label: "Computer Fee" },
+  { key: "developmentFee", label: "Development Fee" },
+  { key: "sportsFee",      label: "Sports Fee" },
+  { key: "libraryFee",     label: "Library Fee" },
+  { key: "otherFee",       label: "Other Fee" }
+];
+const FEE_TYPE_KEYS = new Set(FEE_TYPES.map(f => f.key));
+
 function renderForm() {
   const cfg = moduleConfig[currentModule];
   refs.dynamicForm.innerHTML = "";
@@ -308,6 +319,13 @@ function renderForm() {
   };
 
   const formRefs = {};
+
+  // ── FEES MODULE: inject checkbox fee structure block ──────────────────────
+  if (currentModule === "fees") {
+    renderFeesForm(cfg, studentOptions, classOptions, statusOptionsByModule, formRefs);
+    return;
+  }
+  // ─────────────────────────────────────────────────────────────────────────
 
   cfg.fields.forEach(field => {
     const wrapper = document.createElement("div");
@@ -413,6 +431,250 @@ function renderForm() {
   refs.dynamicForm.appendChild(action);
 }
 
+// ─── Dedicated Fees Form Renderer ─────────────────────────────────────────────
+function renderFeesForm(cfg, studentOptions, classOptions, statusOptionsByModule, formRefs) {
+  const form = refs.dynamicForm;
+
+  // Helper: make a labelled text/number/select field
+  function makeField(name, labelText, type = "text", options = null) {
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+    const lbl = document.createElement("label");
+    lbl.textContent = labelText;
+    let inp;
+    if (options) {
+      inp = document.createElement("select");
+      inp.name = name;
+      inp.required = true;
+      const def = document.createElement("option");
+      def.value = "";
+      def.textContent = `Select ${labelText}`;
+      inp.appendChild(def);
+      options.forEach(o => {
+        const opt = document.createElement("option");
+        opt.value = o.value !== undefined ? o.value : o;
+        opt.textContent = o.label !== undefined ? o.label : o;
+        inp.appendChild(opt);
+      });
+    } else {
+      inp = document.createElement("input");
+      inp.name = name;
+      inp.type = type;
+      inp.required = true;
+      if (type === "number") { inp.min = "0"; inp.step = "1"; }
+    }
+    formRefs[name] = inp;
+    wrap.append(lbl, inp);
+    return wrap;
+  }
+
+  // ── Row 1: Student info ──────────────────────────────────────────────────
+  const row1 = document.createElement("div");
+  row1.className = "fee-form-row";
+
+  const studentField = makeField("studentName", "Student Name", "text",
+    studentOptions.map(s => ({ value: s.value, label: s.label })));
+  const classField   = makeField("className", "Class", "text",
+    classOptions.length ? classOptions.map(c => ({ value: c, label: c })) : null);
+  if (!classOptions.length) {
+    const sel = formRefs.className;
+    if (sel.tagName === "SELECT") { sel.disabled = true; sel.required = false; sel.innerHTML = `<option value="">No classes</option>`; }
+  }
+  const rollField  = makeField("rollNo", "Roll No", "text");
+  const termField  = makeField("term", "Term / Month", "text");
+  rollField.querySelector("input").required = false;
+
+  row1.append(studentField, classField, rollField, termField);
+  form.appendChild(row1);
+
+  // Auto-fill class & roll from student select
+  formRefs.studentName.addEventListener("change", () => {
+    const s = studentOptions.find(x => x.value === formRefs.studentName.value);
+    if (!s) return;
+    if (formRefs.className && formRefs.className.tagName === "SELECT") formRefs.className.value = s.className || "";
+    if (formRefs.rollNo) formRefs.rollNo.value = s.rollNo || "";
+  });
+
+  // ── Fee Types Section ────────────────────────────────────────────────────
+  const feeSection = document.createElement("div");
+  feeSection.className = "fee-types-section";
+  feeSection.innerHTML = `<div class="fee-types-header">
+    <span class="fee-types-title">📋 Monthly Fee Structure</span>
+    <span class="fee-types-hint">Select fee types to include</span>
+  </div>`;
+
+  const checkboxGrid = document.createElement("div");
+  checkboxGrid.className = "fee-checkbox-grid";
+
+  // Hidden input to store comma-separated selected fee type labels
+  const feeTypesHidden = document.createElement("input");
+  feeTypesHidden.type = "hidden";
+  feeTypesHidden.name = "feeTypes";
+  formRefs.feeTypes = feeTypesHidden;
+  form.appendChild(feeTypesHidden);
+
+  // Hidden inputs for each fee type amount (always submitted, 0 if unchecked)
+  FEE_TYPE_KEYS.forEach(key => {
+    const h = document.createElement("input");
+    h.type = "hidden";
+    h.name = key;
+    h.value = "0";
+    formRefs[key] = h;
+    form.appendChild(h);
+  });
+
+  // Build checkbox + amount rows
+  const feeAmountInputs = {};
+
+  FEE_TYPES.forEach(({ key, label }) => {
+    const item = document.createElement("div");
+    item.className = "fee-checkbox-item";
+
+    const checkRow = document.createElement("div");
+    checkRow.className = "fee-check-row";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.id = `cb_${key}`;
+    cb.className = "fee-checkbox";
+
+    const lbl = document.createElement("label");
+    lbl.htmlFor = `cb_${key}`;
+    lbl.className = "fee-checkbox-label";
+    lbl.textContent = label;
+
+    checkRow.append(cb, lbl);
+
+    const amtRow = document.createElement("div");
+    amtRow.className = "fee-amount-row hidden";
+
+    const amtInput = document.createElement("input");
+    amtInput.type = "number";
+    amtInput.min = "0";
+    amtInput.step = "1";
+    amtInput.placeholder = "Enter amount (₹)";
+    amtInput.className = "fee-amount-input";
+    amtInput.disabled = true;
+
+    feeAmountInputs[key] = amtInput;
+
+    amtRow.appendChild(amtInput);
+    item.append(checkRow, amtRow);
+    checkboxGrid.appendChild(item);
+
+    // Toggle amount field on checkbox change
+    cb.addEventListener("change", () => {
+      if (cb.checked) {
+        amtRow.classList.remove("hidden");
+        amtInput.disabled = false;
+        amtInput.focus();
+      } else {
+        amtRow.classList.add("hidden");
+        amtInput.disabled = true;
+        amtInput.value = "";
+        formRefs[key].value = "0";
+      }
+      recalcFeeTotal();
+      updateFeeTypesHidden();
+    });
+
+    amtInput.addEventListener("input", () => {
+      formRefs[key].value = amtInput.value || "0";
+      recalcFeeTotal();
+    });
+  });
+
+  feeSection.appendChild(checkboxGrid);
+  form.appendChild(feeSection);
+
+  // ── Fee Summary Row ──────────────────────────────────────────────────────
+  const summarySection = document.createElement("div");
+  summarySection.className = "fee-summary-section";
+  summarySection.innerHTML = `<div class="fee-summary-title">💰 Fee Summary</div>`;
+
+  const summaryGrid = document.createElement("div");
+  summaryGrid.className = "fee-form-row";
+
+  // Total Fee (read-only, auto-calculated)
+  const totalWrap = document.createElement("div");
+  totalWrap.className = "field";
+  const totalLbl = document.createElement("label");
+  totalLbl.textContent = "Total Fee (Auto)";
+  const totalInp = document.createElement("input");
+  totalInp.type = "number";
+  totalInp.name = "totalFee";
+  totalInp.readOnly = true;
+  totalInp.className = "fee-total-display";
+  totalInp.placeholder = "₹ 0";
+  totalInp.value = "0";
+  formRefs.totalFee = totalInp;
+  totalWrap.append(totalLbl, totalInp);
+
+  // Paid Amount
+  const paidWrap  = makeField("paidAmount", "Paid Amount (₹)", "number");
+  // Balance (read-only, auto-calculated)
+  const balWrap   = document.createElement("div");
+  balWrap.className = "field";
+  const balLbl    = document.createElement("label");
+  balLbl.textContent = "Balance (Auto)";
+  const balInp    = document.createElement("input");
+  balInp.type     = "number";
+  balInp.name     = "balance";
+  balInp.readOnly = true;
+  balInp.className = "fee-total-display";
+  balInp.placeholder = "₹ 0";
+  balInp.value    = "0";
+  formRefs.balance = balInp;
+  balWrap.append(balLbl, balInp);
+
+  // Status
+  const statusWrap = makeField("status", "Payment Status", "text",
+    ["Paid", "Partial", "Pending"].map(s => ({ value: s, label: s })));
+
+  summaryGrid.append(totalWrap, paidWrap, balWrap, statusWrap);
+  summarySection.appendChild(summaryGrid);
+  form.appendChild(summarySection);
+
+  // Auto-calculate balance when paid amount changes
+  formRefs.paidAmount.addEventListener("input", recalcFeeBalance);
+
+  function recalcFeeTotal() {
+    let total = 0;
+    FEE_TYPES.forEach(({ key }) => {
+      total += parseFloat(feeAmountInputs[key].value || 0);
+    });
+    formRefs.totalFee.value = total;
+    recalcFeeBalance();
+  }
+
+  function recalcFeeBalance() {
+    const total = parseFloat(formRefs.totalFee.value || 0);
+    const paid  = parseFloat(formRefs.paidAmount.value || 0);
+    const bal   = total - paid;
+    formRefs.balance.value = bal;
+    // Auto-set status
+    if (formRefs.status) {
+      formRefs.status.value = bal <= 0 ? "Paid" : paid > 0 ? "Partial" : "Pending";
+    }
+  }
+
+  function updateFeeTypesHidden() {
+    const selected = FEE_TYPES
+      .filter(({ key }) => {
+        const cb = document.getElementById(`cb_${key}`);
+        return cb && cb.checked;
+      })
+      .map(({ label }) => label);
+    formRefs.feeTypes.value = selected.join(", ");
+  }
+
+  // ── Submit button ────────────────────────────────────────────────────────
+  const action = document.createElement("div");
+  action.className = "actions";
+  action.innerHTML = `<button type="submit" class="fee-submit-btn">💾 Save Fee Record</button>`;
+  form.appendChild(action);
+}
+
 function getCurrentList() {
   if (currentModule === "dashboard") {
     return Object.entries(getDashboardStats(getStore())).map(([metric, value], idx) => ({ id: idx + 1, Metric: metric, Value: value }));
@@ -473,9 +735,14 @@ async function addRecord(moduleName, formData) {
   const record = { ...formData };
   if (moduleName === "fees") {
     const total = asNum(record.totalFee);
-    const paid = asNum(record.paidAmount);
-    record.balance = total - paid;
-    record.status = record.balance <= 0 ? "Paid" : paid > 0 ? "Partial" : "Pending";
+    const paid  = asNum(record.paidAmount);
+    record.balance  = total - paid;
+    record.status   = record.balance <= 0 ? "Paid" : paid > 0 ? "Partial" : "Pending";
+    // Build feeTypes label from individual fee amounts if not already set
+    if (!record.feeTypes) {
+      const selected = FEE_TYPES.filter(({ key }) => asNum(record[key]) > 0).map(({ label }) => label);
+      record.feeTypes = selected.join(", ");
+    }
   }
   if (moduleName === "users" && !record.password) record.password = "welcome123";
   await api(`/api/modules/${moduleName}`, { method: "POST", body: JSON.stringify(record) });
@@ -808,13 +1075,21 @@ function printDocumentByModule() {
       <div class="row"><strong>Subject:</strong> ${r.subject}</div>
       <div class="row"><strong>Marks:</strong> ${r.marksObtained}/${r.maxMarks} (${r.grade})</div></div>`).join("");
   } else if (currentModule === "fees") {
-    html += (store.fees || []).slice(0, 5).map(f => `<div class="box"><h2>Fee Invoice</h2>
+    html += (store.fees || []).slice(0, 5).map(f => {
+      const breakdown = FEE_TYPES
+        .filter(({ key }) => asNum(f[key]) > 0)
+        .map(({ label, key }) => `<div class="row"><strong>${label}:</strong> ₹${f[key]}</div>`)
+        .join("");
+      return `<div class="box"><h2>Fee Invoice</h2>
       <div class="row"><strong>Student:</strong> ${f.studentName}</div>
       <div class="row"><strong>Class:</strong> ${f.className}</div>
       <div class="row"><strong>Term:</strong> ${f.term}</div>
-      <div class="row"><strong>Total:</strong> ${f.totalFee}</div>
-      <div class="row"><strong>Paid:</strong> ${f.paidAmount}</div>
-      <div class="row"><strong>Balance:</strong> ${f.balance}</div></div>`).join("");
+      ${breakdown ? `<hr style="margin:6px 0"><div class="row"><strong>Fee Breakdown:</strong></div>${breakdown}<hr style="margin:6px 0">` : ""}
+      <div class="row"><strong>Total Fee:</strong> ₹${f.totalFee}</div>
+      <div class="row"><strong>Paid:</strong> ₹${f.paidAmount}</div>
+      <div class="row"><strong>Balance:</strong> ₹${f.balance}</div>
+      <div class="row"><strong>Status:</strong> ${f.status}</div></div>`;
+    }).join("");
   }
 
   const w = window.open("", "_blank");
@@ -1203,14 +1478,23 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
   if (currentModule === "dashboard") return;
   const form = new FormData(e.target);
   const payload = {};
-  // Special handling for student photo (file -> resized base64 string).
-  for (const field of moduleConfig[currentModule].fields) {
-    if (currentModule === "students" && field === "photo") {
-      const file = form.get(field);
-      if (file && file.size > 0) payload[field] = await fileToResizedDataUrl(file);
-      else payload[field] = "";
-    } else {
-      payload[field] = (form.get(field) || "").toString().trim();
+
+  if (currentModule === "fees") {
+    // Collect all fee fields from the hidden inputs + visible fields
+    const feeFields = ["studentName","className","rollNo","term","feeTypes",
+      "tuitionFee","computerFee","developmentFee","sportsFee","libraryFee","otherFee",
+      "totalFee","paidAmount","balance","status"];
+    feeFields.forEach(f => { payload[f] = (form.get(f) || "").toString().trim(); });
+  } else {
+    // Special handling for student photo (file -> resized base64 string).
+    for (const field of moduleConfig[currentModule].fields) {
+      if (currentModule === "students" && field === "photo") {
+        const file = form.get(field);
+        if (file && file.size > 0) payload[field] = await fileToResizedDataUrl(file);
+        else payload[field] = "";
+      } else {
+        payload[field] = (form.get(field) || "").toString().trim();
+      }
     }
   }
   await addRecord(currentModule, payload);
