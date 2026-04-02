@@ -667,6 +667,7 @@ function renderTable() {
     } else if (currentModule === "fees") {
       tr.innerHTML = `${cells}<td style="white-space:nowrap;">
         <button class="action-btn action-view" data-action="print-receipt" data-id="${item.id}" style="margin-right:4px;">🖨 Receipt</button>
+        <button class="action-btn" data-action="print-feeslip" data-id="${item.id}" style="margin-right:4px;background:#1e3a8a;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:0.8rem;cursor:pointer;">📄 Fee Slip</button>
         ${canDel ? `<button class="chip" data-delete-id="${item.id}">Delete</button>` : ""}
       </td>`;
     } else if (currentModule === "users" && userIsAdmin()) {
@@ -733,6 +734,14 @@ function renderTable() {
         const store = getStore();
         const f = (store.fees || []).find(x => x.id === id);
         if (f) printFeeReceipt(f);
+      });
+    });
+    refs.tableBody.querySelectorAll("button[data-action='print-feeslip']").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const id = Number(btn.dataset.id);
+        const store = getStore();
+        const f = (store.fees || []).find(x => x.id === id);
+        if (f) printFormalFeeSlip(f);
       });
     });
   }
@@ -4726,6 +4735,29 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     const statusColor = String(f.status).toLowerCase() === "paid" ? "#16a34a"
       : String(f.status).toLowerCase() === "partial" ? "#d97706" : "#dc2626";
 
+    // Build individual fee type rows (split comma-separated labels against feeStructures)
+    let feeTypeRows = "";
+    if (monthlyFee > 0) {
+      const labels = monthlyFeeLabel.split(",").map(s => s.trim()).filter(Boolean);
+      if (labels.length > 1) {
+        // Multiple fee types — match each label to feeStructures to get per-type amount
+        labels.forEach((lbl, idx) => {
+          const struct = feeStructures.find(fs => fs.feeType === lbl && (f.className ? fs.className === f.className : true));
+          const amt = struct ? parseFloat(struct.amount) || 0 : 0;
+          const bg = idx % 2 === 0 ? "background:#f8fafc;" : "";
+          feeTypeRows += `<tr style="${bg}">
+            <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">✔ ${lbl}</td>
+            <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">${amt > 0 ? "₹ " + amt.toLocaleString("en-IN") : "-"}</td>
+          </tr>`;
+        });
+      } else {
+        feeTypeRows = `<tr style="background:#f8fafc;">
+          <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">✔ ${monthlyFeeLabel}</td>
+          <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">₹ ${monthlyFee.toLocaleString("en-IN")}</td>
+        </tr>`;
+      }
+    }
+
     // Build selected items section from stored selectedBookIds
     let selectedItemsHtml = "";
     let itemsTotal = 0;
@@ -4790,10 +4822,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         <div style="padding:16px 24px;border-bottom:1px solid #e2e8f0;">
           <div style="font-weight:700;color:#1e3a8a;margin-bottom:10px;font-size:15px;">Fee Summary</div>
           <table style="width:100%;border-collapse:collapse;font-size:14px;">
-            ${monthlyFee > 0 ? `<tr style="background:#f8fafc;">
-              <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">${monthlyFeeLabel}</td>
-              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">₹ ${monthlyFee.toLocaleString("en-IN")}</td>
-            </tr>` : ""}
+            ${feeTypeRows}
             ${itemsTotal > 0 ? `<tr>
               <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">Books & Dress Charges</td>
               <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">₹ ${itemsTotal.toLocaleString("en-IN")}</td>
@@ -4833,7 +4862,160 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     w.focus();
   };
 
-  // ── Fee form: Monthly fee + selectable books/dresses ─────────────────────────
+  // ── Formal Fee Slip ────────────────────────────────────────────────────────
+  window.printFormalFeeSlip = function(f) {
+    const schoolName = "Tapowan Public School";
+    const slipNo = "FS-" + (f.id || Date.now());
+    const printDate = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" });
+    const totalFee   = parseFloat(f.totalFee) || 0;
+    const paidAmount = parseFloat(f.paidAmount) || 0;
+    const balance    = parseFloat(f.balance) || Math.max(0, totalFee - paidAmount);
+    const monthlyFee = parseFloat(f.monthlyFee) || 0;
+    const monthlyFeeLabel = f.monthlyFeeLabel || "Monthly School Fee";
+    const statusColor = String(f.status).toLowerCase() === "paid" ? "#16a34a"
+      : String(f.status).toLowerCase() === "partial" ? "#d97706" : "#dc2626";
+    const statusBg = String(f.status).toLowerCase() === "paid" ? "#dcfce7"
+      : String(f.status).toLowerCase() === "partial" ? "#fef3c7" : "#fee2e2";
+
+    // Individual fee type rows
+    let feeLineItems = [];
+    if (monthlyFee > 0) {
+      const labels = monthlyFeeLabel.split(",").map(s => s.trim()).filter(Boolean);
+      if (labels.length > 1) {
+        labels.forEach(lbl => {
+          const struct = feeStructures.find(fs => fs.feeType === lbl && (f.className ? fs.className === f.className : true));
+          const amt = struct ? parseFloat(struct.amount) || 0 : 0;
+          feeLineItems.push({ label: lbl, amount: amt });
+        });
+      } else {
+        feeLineItems.push({ label: monthlyFeeLabel, amount: monthlyFee });
+      }
+    }
+
+    // Books & Dress items
+    let itemsTotal = 0;
+    let bdLineItems = [];
+    try {
+      const ids = JSON.parse(f.selectedBookIds || "[]");
+      if (ids.length) {
+        const allBDItems = [...bdBooks, ...bdDresses];
+        ids.map(id => allBDItems.find(r => String(r.id) === String(id))).filter(Boolean).forEach(item => {
+          const price = parseFloat(item.price) || 0;
+          itemsTotal += price;
+          bdLineItems.push({ label: (item.itemType === "Book" ? "📚 " : "👕 ") + item.itemName, amount: price });
+        });
+      }
+    } catch(e) {}
+
+    const allLineItems = [...feeLineItems, ...bdLineItems];
+    const feeRows = allLineItems.map((item, i) => `
+      <tr style="background:${i % 2 === 0 ? "#f9fafb" : "#fff"};">
+        <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-size:13.5px;color:#374151;">${item.label}</td>
+        <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13.5px;font-weight:600;color:#111827;">₹ ${item.amount.toLocaleString("en-IN")}</td>
+      </tr>`).join("");
+
+    const html = `
+      <div style="max-width:680px;margin:0 auto;font-family:'Times New Roman',serif;background:#fff;border:1px solid #d1d5db;">
+
+        <!-- School Header -->
+        <div style="padding:24px 30px 16px;border-bottom:3px double #1e3a8a;text-align:center;">
+          <div style="font-size:28px;font-weight:900;color:#1e3a8a;letter-spacing:1.5px;text-transform:uppercase;">${schoolName}</div>
+          <div style="font-size:12px;color:#6b7280;margin-top:3px;letter-spacing:0.5px;">Affiliated to CBSE &nbsp;|&nbsp; Excellence in Education</div>
+          <div style="margin-top:10px;display:inline-block;background:#1e3a8a;color:#fff;padding:4px 24px;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">FEE SLIP</div>
+        </div>
+
+        <!-- Slip Meta -->
+        <div style="display:flex;justify-content:space-between;padding:10px 30px;background:#f0f4ff;border-bottom:1px solid #c7d2fe;font-size:12.5px;font-family:Arial,sans-serif;">
+          <div><strong>Slip No:</strong> ${slipNo}</div>
+          <div><strong>Academic Year:</strong> ${f.term || new Date().getFullYear() + "-" + (new Date().getFullYear()+1)}</div>
+          <div><strong>Issue Date:</strong> ${printDate}</div>
+        </div>
+
+        <!-- Student Details -->
+        <div style="padding:16px 30px;border-bottom:1px solid #e5e7eb;">
+          <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;font-family:Arial,sans-serif;">Student Information</div>
+          <table style="width:100%;border-collapse:collapse;font-size:13.5px;">
+            <tr>
+              <td style="width:25%;color:#6b7280;padding:4px 0;">Student Name</td>
+              <td style="width:35%;font-weight:700;color:#111827;padding:4px 0;border-bottom:1px dotted #d1d5db;">${f.studentName || "-"}</td>
+              <td style="width:15%;color:#6b7280;padding:4px 0 4px 16px;">Class</td>
+              <td style="font-weight:700;color:#111827;padding:4px 0;border-bottom:1px dotted #d1d5db;">${f.className || "-"}</td>
+            </tr>
+            <tr>
+              <td style="color:#6b7280;padding:4px 0;">Roll No.</td>
+              <td style="font-weight:600;padding:4px 0;border-bottom:1px dotted #d1d5db;">${f.rollNo || "-"}</td>
+              <td style="color:#6b7280;padding:4px 0 4px 16px;">Payment Date</td>
+              <td style="font-weight:600;padding:4px 0;border-bottom:1px dotted #d1d5db;">${f.paymentDate || "-"}</td>
+            </tr>
+            <tr>
+              <td style="color:#6b7280;padding:4px 0;">Payment Method</td>
+              <td style="font-weight:600;padding:4px 0;border-bottom:1px dotted #d1d5db;">${f.paymentMethod || "-"}</td>
+              <td style="color:#6b7280;padding:4px 0 4px 16px;">Status</td>
+              <td style="padding:4px 0;">
+                <span style="background:${statusBg};color:${statusColor};font-weight:700;padding:2px 12px;border-radius:3px;font-size:12px;border:1px solid ${statusColor};">${f.status || "Pending"}</span>
+              </td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Fee Table -->
+        <div style="padding:16px 30px;border-bottom:1px solid #e5e7eb;">
+          <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;font-family:Arial,sans-serif;">Fee Details</div>
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="background:#1e3a8a;color:#fff;">
+                <th style="padding:10px 14px;text-align:left;font-size:12.5px;font-family:Arial,sans-serif;font-weight:600;">Description</th>
+                <th style="padding:10px 14px;text-align:right;font-size:12.5px;font-family:Arial,sans-serif;font-weight:600;">Amount (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${feeRows || `<tr><td colspan="2" style="padding:10px 14px;color:#9ca3af;font-style:italic;text-align:center;">No fee details recorded</td></tr>`}
+            </tbody>
+            <tfoot>
+              <tr style="background:#eef2ff;border-top:2px solid #1e3a8a;">
+                <td style="padding:10px 14px;font-weight:700;font-size:14px;color:#1e3a8a;">Total Fee</td>
+                <td style="padding:10px 14px;text-align:right;font-weight:700;font-size:14px;color:#1e3a8a;">₹ ${totalFee.toLocaleString("en-IN")}</td>
+              </tr>
+              <tr style="background:#f0fdf4;">
+                <td style="padding:8px 14px;font-size:13px;color:#374151;">Amount Paid</td>
+                <td style="padding:8px 14px;text-align:right;font-weight:700;color:#16a34a;">₹ ${paidAmount.toLocaleString("en-IN")}</td>
+              </tr>
+              <tr style="background:#fef2f2;">
+                <td style="padding:8px 14px;font-size:13px;color:#374151;">Balance Due</td>
+                <td style="padding:8px 14px;text-align:right;font-weight:700;color:#dc2626;">₹ ${balance.toLocaleString("en-IN")}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <!-- Signatures -->
+        <div style="padding:24px 30px 16px;display:flex;justify-content:space-between;font-size:12.5px;font-family:Arial,sans-serif;">
+          <div style="text-align:center;width:30%;">
+            <div style="border-top:1px solid #374151;margin-top:32px;padding-top:6px;color:#374151;">Parent / Guardian Signature</div>
+          </div>
+          <div style="text-align:center;width:30%;">
+            <div style="border-top:1px solid #374151;margin-top:32px;padding-top:6px;color:#374151;">Cashier / Accountant</div>
+          </div>
+          <div style="text-align:center;width:30%;">
+            <div style="border-top:1px solid #374151;margin-top:32px;padding-top:6px;color:#374151;">Principal Signature & Stamp</div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:10px 30px;display:flex;justify-content:space-between;font-size:11px;color:#9ca3af;font-family:Arial,sans-serif;">
+          <div>Slip No: ${slipNo}</div>
+          <div>This is an official school fee slip.</div>
+          <div>${schoolName}</div>
+        </div>
+      </div>`;
+
+    const slipHtml = buildPrintableHtml("Fee Slip - " + schoolName, html);
+    const w = window.open("", "_blank");
+    if (!w) return window.alert("Popup blocked. Please allow popups for this site and try again.");
+    w.document.write(slipHtml);
+    w.document.close();
+    w.focus();
+  };
 
   // Populate the monthly fee checkboxes for a given class (supports multi-select)
   function populateMonthlyFeeSelect(cls) {
