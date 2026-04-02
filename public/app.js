@@ -16,7 +16,7 @@ const moduleConfig = {
   attendance: { title: "Attendance", subtitle: "Track daily student attendance", fields: ["date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks"], columns: ["id", "date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks"] },
   teacherAttendance: { title: "Teacher Attendance", subtitle: "Track daily teacher attendance", fields: ["date", "department", "teacherName", "status", "remarks"], columns: ["id", "date", "department", "teacherName", "status", "remarks"] },
   exams: { title: "Exams & Results", subtitle: "Manage exams and student marks", fields: ["examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"], columns: ["id", "examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"] },
-  fees: { title: "Fees", subtitle: "Record fee structures and payments", fields: ["studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "status", "paymentDate", "paymentMethod"], columns: ["id", "studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"] },
+  fees: { title: "Fees", subtitle: "Record fee structures and payments", fields: ["studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod"], columns: ["id", "studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"] },
   library: { title: "Library", subtitle: "Manage books, issues and returns", fields: ["bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"], columns: ["id", "bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"] },
   transport: { title: "Transport", subtitle: "Track routes, buses and student allocation", fields: ["routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"], columns: ["id", "routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"] },
   hostel: { title: "Hostel", subtitle: "Manage hostel rooms and allocations", fields: ["hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"], columns: ["id", "hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"] },
@@ -545,7 +545,7 @@ function renderForm() {
       input = document.createElement("input");
       input.name = field;
       input.required = true;
-      if (field === "paymentMethod" || field === "paymentDate") input.required = false;
+      if (field === "paymentMethod" || field === "paymentDate" || field === "balance" || field === "totalFee") input.required = false;
       if (field.endsWith("Time")) {
         input.required = false; // arrival is required, but departure may be empty; handled by face auto-fill.
         input.type = "time";
@@ -5010,7 +5010,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       if (!form.querySelector("#bd-monthly-fee-wrapper")) {
         const wrapper = document.createElement("div");
         wrapper.id = "bd-monthly-fee-wrapper";
-        wrapper.className = "form-group";
+        wrapper.className = "field";
         wrapper.innerHTML = `
           <label style="font-weight:600;font-size:0.88rem;color:#374151;display:block;margin-bottom:8px;">
             Monthly Fee <span style="color:#e53e3e;">*</span>
@@ -5026,7 +5026,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
             </span>
           </div>`;
 
-        const totalFeeWrapper = totalFeeInput?.closest(".form-group") || totalFeeInput?.parentElement;
+        const totalFeeWrapper = totalFeeInput?.closest(".field") || totalFeeInput?.parentElement;
         if (totalFeeWrapper) {
           totalFeeWrapper.parentNode.insertBefore(wrapper, totalFeeWrapper);
         } else {

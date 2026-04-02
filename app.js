@@ -819,7 +819,7 @@ async function addRecord(moduleName, formData) {
   if (moduleName === "fees") {
     const total = asNum(record.totalFee);
     const paid  = asNum(record.paidAmount);
-    record.balance  = total - paid;
+    record.balance  = Math.max(0, total - paid);
     record.status   = record.balance <= 0 ? "Paid" : paid > 0 ? "Partial" : "Pending";
     // Build feeTypes label from individual fee amounts if not already set
     if (!record.feeTypes) {
