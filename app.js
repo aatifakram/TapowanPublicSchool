@@ -11,7 +11,7 @@ const moduleConfig = {
   attendance: { title: "Attendance", subtitle: "Track daily student attendance", fields: ["date", "className", "studentName", "rollNo", "status", "remarks"], columns: ["id", "date", "className", "studentName", "rollNo", "status", "remarks"] },
   teacherAttendance: { title: "Teacher Attendance", subtitle: "Track daily teacher attendance", fields: ["date", "department", "teacherName", "status", "remarks"], columns: ["id", "date", "department", "teacherName", "status", "remarks"] },
   exams: { title: "Exams & Results", subtitle: "Manage exams and student marks", fields: ["examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"], columns: ["id", "examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"] },
-  fees: { title: "Fees", subtitle: "Record fee structures and payments", fields: ["studentName", "className", "rollNo", "term", "feeTypes", "tuitionFee", "computerFee", "developmentFee", "sportsFee", "libraryFee", "otherFee", "totalFee", "paidAmount", "balance", "status"], columns: ["id", "studentName", "className", "rollNo", "term", "feeTypes", "totalFee", "paidAmount", "balance", "status"] },
+  fees: { title: "Fees", subtitle: "Record fee structures and payments", fields: ["studentName", "className", "rollNo", "term", "feeTypes", "tuitionFee", "computerFee", "developmentFee", "labFee", "sportsFee", "libraryFee", "examFee", "otherFee", "totalFee", "paidAmount", "balance", "status"], columns: ["id", "studentName", "className", "rollNo", "term", "feeTypes", "totalFee", "paidAmount", "balance", "status"] },
   library: { title: "Library", subtitle: "Manage books, issues and returns", fields: ["bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"], columns: ["id", "bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"] },
   transport: { title: "Transport", subtitle: "Track routes, buses and student allocation", fields: ["routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"], columns: ["id", "routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"] },
   hostel: { title: "Hostel", subtitle: "Manage hostel rooms and allocations", fields: ["hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"], columns: ["id", "hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"] },
@@ -280,12 +280,14 @@ function renderNav() {
 
 // Fee type definitions for Monthly Fee Structure
 const FEE_TYPES = [
-  { key: "tuitionFee",     label: "Tuition Fee" },
-  { key: "computerFee",    label: "Computer Fee" },
-  { key: "developmentFee", label: "Development Fee" },
-  { key: "sportsFee",      label: "Sports Fee" },
-  { key: "libraryFee",     label: "Library Fee" },
-  { key: "otherFee",       label: "Other Fee" }
+  { key: "tuitionFee",     label: "Tuition Fee",     icon: "📚" },
+  { key: "computerFee",    label: "Computer Fee",    icon: "💻" },
+  { key: "developmentFee", label: "Development Fee", icon: "🏗️" },
+  { key: "labFee",         label: "Lab Fee",         icon: "🔬" },
+  { key: "sportsFee",      label: "Sports Fee",      icon: "⚽" },
+  { key: "libraryFee",     label: "Library Fee",     icon: "📖" },
+  { key: "examFee",        label: "Exam Fee",        icon: "📝" },
+  { key: "otherFee",       label: "Other Fee",       icon: "➕" }
 ];
 const FEE_TYPE_KEYS = new Set(FEE_TYPES.map(f => f.key));
 
@@ -435,7 +437,7 @@ function renderForm() {
 function renderFeesForm(cfg, studentOptions, classOptions, statusOptionsByModule, formRefs) {
   const form = refs.dynamicForm;
 
-  // Helper: make a labelled text/number/select field
+  // Helper: make a labelled select/input field
   function makeField(name, labelText, type = "text", options = null) {
     const wrap = document.createElement("div");
     wrap.className = "field";
@@ -447,8 +449,7 @@ function renderFeesForm(cfg, studentOptions, classOptions, statusOptionsByModule
       inp.name = name;
       inp.required = true;
       const def = document.createElement("option");
-      def.value = "";
-      def.textContent = `Select ${labelText}`;
+      def.value = ""; def.textContent = `Select ${labelText}`;
       inp.appendChild(def);
       options.forEach(o => {
         const opt = document.createElement("option");
@@ -458,9 +459,7 @@ function renderFeesForm(cfg, studentOptions, classOptions, statusOptionsByModule
       });
     } else {
       inp = document.createElement("input");
-      inp.name = name;
-      inp.type = type;
-      inp.required = true;
+      inp.name = name; inp.type = type; inp.required = true;
       if (type === "number") { inp.min = "0"; inp.step = "1"; }
     }
     formRefs[name] = inp;
@@ -468,24 +467,78 @@ function renderFeesForm(cfg, studentOptions, classOptions, statusOptionsByModule
     return wrap;
   }
 
-  // ── Row 1: Student info ──────────────────────────────────────────────────
-  const row1 = document.createElement("div");
-  row1.className = "fee-form-row";
+  // ── Outer two-column layout: left=form, right=live receipt ──────────────
+  const layout = document.createElement("div");
+  layout.className = "fee-layout";
+  form.appendChild(layout);
+
+  const leftCol = document.createElement("div");
+  leftCol.className = "fee-left";
+  layout.appendChild(leftCol);
+
+  const rightCol = document.createElement("div");
+  rightCol.className = "fee-right";
+  rightCol.innerHTML = `
+    <div class="fee-receipt-preview" id="feeReceiptPreview">
+      <div class="receipt-header">
+        <div class="receipt-school">🏫 Tapovan Public School</div>
+        <div class="receipt-title">FEE RECEIPT</div>
+        <div class="receipt-subtitle">Monthly Fee Structure</div>
+      </div>
+      <div class="receipt-student-info" id="receiptStudentInfo">
+        <div class="receipt-info-row"><span>Student:</span><span id="rStudentName">—</span></div>
+        <div class="receipt-info-row"><span>Class:</span><span id="rClassName">—</span></div>
+        <div class="receipt-info-row"><span>Roll No:</span><span id="rRollNo">—</span></div>
+        <div class="receipt-info-row"><span>Term:</span><span id="rTerm">—</span></div>
+      </div>
+      <div class="receipt-divider"></div>
+      <div class="receipt-fee-list" id="receiptFeeList">
+        <div class="receipt-empty-msg">☝️ Select fee types to see bill</div>
+      </div>
+      <div class="receipt-divider"></div>
+      <div class="receipt-totals" id="receiptTotals">
+        <div class="receipt-total-row"><span>Total Fee</span><span id="rTotal">₹ 0</span></div>
+        <div class="receipt-total-row"><span>Paid Amount</span><span id="rPaid">₹ 0</span></div>
+        <div class="receipt-total-row receipt-balance-row"><span>Balance Due</span><span id="rBalance">₹ 0</span></div>
+        <div class="receipt-status-badge" id="rStatus">PENDING</div>
+      </div>
+    </div>`;
+  layout.appendChild(rightCol);
+
+  // ── Student info section ─────────────────────────────────────────────────
+  const infoCard = document.createElement("div");
+  infoCard.className = "fee-card";
+  infoCard.innerHTML = `<div class="fee-card-title">👤 Student Information</div>`;
+  const infoGrid = document.createElement("div");
+  infoGrid.className = "fee-info-grid";
 
   const studentField = makeField("studentName", "Student Name", "text",
     studentOptions.map(s => ({ value: s.value, label: s.label })));
-  const classField   = makeField("className", "Class", "text",
+  const classField = makeField("className", "Class", "text",
     classOptions.length ? classOptions.map(c => ({ value: c, label: c })) : null);
-  if (!classOptions.length) {
-    const sel = formRefs.className;
-    if (sel.tagName === "SELECT") { sel.disabled = true; sel.required = false; sel.innerHTML = `<option value="">No classes</option>`; }
+  if (!classOptions.length && formRefs.className && formRefs.className.tagName === "SELECT") {
+    formRefs.className.disabled = true; formRefs.className.required = false;
+    formRefs.className.innerHTML = `<option value="">No classes</option>`;
   }
-  const rollField  = makeField("rollNo", "Roll No", "text");
-  const termField  = makeField("term", "Term / Month", "text");
+  const rollField = makeField("rollNo", "Roll No", "text");
   rollField.querySelector("input").required = false;
+  const termField = makeField("term", "Term / Month", "text");
+  termField.querySelector("input").placeholder = "e.g. April 2025";
 
-  row1.append(studentField, classField, rollField, termField);
-  form.appendChild(row1);
+  infoGrid.append(studentField, classField, rollField, termField);
+  infoCard.appendChild(infoGrid);
+  leftCol.appendChild(infoCard);
+
+  // Live receipt update on student info change
+  function updateReceiptInfo() {
+    document.getElementById("rStudentName").textContent = formRefs.studentName.value || "—";
+    document.getElementById("rClassName").textContent   = formRefs.className.value   || "—";
+    document.getElementById("rRollNo").textContent      = formRefs.rollNo.value      || "—";
+    document.getElementById("rTerm").textContent        = formRefs.term.value        || "—";
+  }
+  [formRefs.studentName, formRefs.className, formRefs.rollNo, formRefs.term]
+    .forEach(el => el && el.addEventListener("change", updateReceiptInfo));
+  formRefs.term && formRefs.term.addEventListener("input", updateReceiptInfo);
 
   // Auto-fill class & roll from student select
   formRefs.studentName.addEventListener("change", () => {
@@ -493,186 +546,216 @@ function renderFeesForm(cfg, studentOptions, classOptions, statusOptionsByModule
     if (!s) return;
     if (formRefs.className && formRefs.className.tagName === "SELECT") formRefs.className.value = s.className || "";
     if (formRefs.rollNo) formRefs.rollNo.value = s.rollNo || "";
+    updateReceiptInfo();
   });
 
-  // ── Fee Types Section ────────────────────────────────────────────────────
-  const feeSection = document.createElement("div");
-  feeSection.className = "fee-types-section";
-  feeSection.innerHTML = `<div class="fee-types-header">
-    <span class="fee-types-title">📋 Monthly Fee Structure</span>
-    <span class="fee-types-hint">Select fee types to include</span>
-  </div>`;
-
-  const checkboxGrid = document.createElement("div");
-  checkboxGrid.className = "fee-checkbox-grid";
-
-  // Hidden input to store comma-separated selected fee type labels
+  // ── Hidden inputs for fee data ───────────────────────────────────────────
   const feeTypesHidden = document.createElement("input");
-  feeTypesHidden.type = "hidden";
-  feeTypesHidden.name = "feeTypes";
+  feeTypesHidden.type = "hidden"; feeTypesHidden.name = "feeTypes";
   formRefs.feeTypes = feeTypesHidden;
   form.appendChild(feeTypesHidden);
 
-  // Hidden inputs for each fee type amount (always submitted, 0 if unchecked)
   FEE_TYPE_KEYS.forEach(key => {
     const h = document.createElement("input");
-    h.type = "hidden";
-    h.name = key;
-    h.value = "0";
+    h.type = "hidden"; h.name = key; h.value = "0";
     formRefs[key] = h;
     form.appendChild(h);
   });
 
-  // Build checkbox + amount rows
+  // ── Fee Types Checkbox Section ───────────────────────────────────────────
+  const feeCard = document.createElement("div");
+  feeCard.className = "fee-card fee-card-blue";
+  feeCard.innerHTML = `<div class="fee-card-title">📋 Select Fee Types <span class="fee-hint-badge">Check to add to bill</span></div>`;
+
+  const checkboxGrid = document.createElement("div");
+  checkboxGrid.className = "fee-checkbox-grid";
+
   const feeAmountInputs = {};
 
-  FEE_TYPES.forEach(({ key, label }) => {
+  FEE_TYPES.forEach(({ key, label, icon }) => {
     const item = document.createElement("div");
     item.className = "fee-checkbox-item";
+    item.id = `fci_${key}`;
 
-    const checkRow = document.createElement("div");
+    const checkRow = document.createElement("label");
     checkRow.className = "fee-check-row";
+    checkRow.htmlFor = `cb_${key}`;
 
     const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.id = `cb_${key}`;
-    cb.className = "fee-checkbox";
+    cb.type = "checkbox"; cb.id = `cb_${key}`; cb.className = "fee-checkbox";
 
-    const lbl = document.createElement("label");
-    lbl.htmlFor = `cb_${key}`;
-    lbl.className = "fee-checkbox-label";
-    lbl.textContent = label;
+    const iconSpan = document.createElement("span");
+    iconSpan.className = "fee-type-icon"; iconSpan.textContent = icon;
 
-    checkRow.append(cb, lbl);
+    const lblSpan = document.createElement("span");
+    lblSpan.className = "fee-checkbox-label"; lblSpan.textContent = label;
 
-    const amtRow = document.createElement("div");
-    amtRow.className = "fee-amount-row hidden";
+    checkRow.append(cb, iconSpan, lblSpan);
+
+    const amtWrap = document.createElement("div");
+    amtWrap.className = "fee-amount-wrap hidden";
+
+    const amtLabel = document.createElement("label");
+    amtLabel.textContent = "Amount (₹)";
+    amtLabel.className = "fee-amount-label";
+    amtLabel.htmlFor = `amt_${key}`;
 
     const amtInput = document.createElement("input");
-    amtInput.type = "number";
-    amtInput.min = "0";
-    amtInput.step = "1";
-    amtInput.placeholder = "Enter amount (₹)";
+    amtInput.type = "number"; amtInput.id = `amt_${key}`;
+    amtInput.min = "0"; amtInput.step = "1";
+    amtInput.placeholder = "0";
     amtInput.className = "fee-amount-input";
     amtInput.disabled = true;
 
     feeAmountInputs[key] = amtInput;
-
-    amtRow.appendChild(amtInput);
-    item.append(checkRow, amtRow);
+    amtWrap.append(amtLabel, amtInput);
+    item.append(checkRow, amtWrap);
     checkboxGrid.appendChild(item);
 
-    // Toggle amount field on checkbox change
     cb.addEventListener("change", () => {
       if (cb.checked) {
-        amtRow.classList.remove("hidden");
+        amtWrap.classList.remove("hidden");
         amtInput.disabled = false;
+        item.classList.add("checked");
         amtInput.focus();
       } else {
-        amtRow.classList.add("hidden");
+        amtWrap.classList.add("hidden");
         amtInput.disabled = true;
         amtInput.value = "";
         formRefs[key].value = "0";
+        item.classList.remove("checked");
       }
       recalcFeeTotal();
       updateFeeTypesHidden();
+      updateReceiptFeeList();
     });
 
     amtInput.addEventListener("input", () => {
       formRefs[key].value = amtInput.value || "0";
       recalcFeeTotal();
+      updateReceiptFeeList();
     });
   });
 
-  feeSection.appendChild(checkboxGrid);
-  form.appendChild(feeSection);
+  feeCard.appendChild(checkboxGrid);
+  leftCol.appendChild(feeCard);
 
-  // ── Fee Summary Row ──────────────────────────────────────────────────────
-  const summarySection = document.createElement("div");
-  summarySection.className = "fee-summary-section";
-  summarySection.innerHTML = `<div class="fee-summary-title">💰 Fee Summary</div>`;
-
+  // ── Payment Summary Section ──────────────────────────────────────────────
+  const summaryCard = document.createElement("div");
+  summaryCard.className = "fee-card fee-card-green";
+  summaryCard.innerHTML = `<div class="fee-card-title">💰 Payment Details</div>`;
   const summaryGrid = document.createElement("div");
-  summaryGrid.className = "fee-form-row";
+  summaryGrid.className = "fee-info-grid";
 
-  // Total Fee (read-only, auto-calculated)
+  // Total (read-only)
   const totalWrap = document.createElement("div");
   totalWrap.className = "field";
-  const totalLbl = document.createElement("label");
-  totalLbl.textContent = "Total Fee (Auto)";
+  totalWrap.innerHTML = `<label>Total Fee (Auto-calculated)</label>`;
   const totalInp = document.createElement("input");
-  totalInp.type = "number";
-  totalInp.name = "totalFee";
-  totalInp.readOnly = true;
-  totalInp.className = "fee-total-display";
-  totalInp.placeholder = "₹ 0";
-  totalInp.value = "0";
+  totalInp.type = "number"; totalInp.name = "totalFee";
+  totalInp.readOnly = true; totalInp.className = "fee-total-display";
+  totalInp.value = "0"; totalInp.placeholder = "₹ 0";
   formRefs.totalFee = totalInp;
-  totalWrap.append(totalLbl, totalInp);
+  totalWrap.appendChild(totalInp);
 
-  // Paid Amount
-  const paidWrap  = makeField("paidAmount", "Paid Amount (₹)", "number");
-  // Balance (read-only, auto-calculated)
-  const balWrap   = document.createElement("div");
+  // Paid amount
+  const paidWrap = makeField("paidAmount", "Paid Amount (₹)", "number");
+  paidWrap.querySelector("input").placeholder = "Enter paid amount";
+  paidWrap.querySelector("input").min = "0";
+
+  // Balance (read-only)
+  const balWrap = document.createElement("div");
   balWrap.className = "field";
-  const balLbl    = document.createElement("label");
-  balLbl.textContent = "Balance (Auto)";
-  const balInp    = document.createElement("input");
-  balInp.type     = "number";
-  balInp.name     = "balance";
-  balInp.readOnly = true;
-  balInp.className = "fee-total-display";
-  balInp.placeholder = "₹ 0";
-  balInp.value    = "0";
+  balWrap.innerHTML = `<label>Balance Due (Auto)</label>`;
+  const balInp = document.createElement("input");
+  balInp.type = "number"; balInp.name = "balance";
+  balInp.readOnly = true; balInp.className = "fee-total-display";
+  balInp.value = "0"; balInp.placeholder = "₹ 0";
   formRefs.balance = balInp;
-  balWrap.append(balLbl, balInp);
+  balWrap.appendChild(balInp);
 
   // Status
   const statusWrap = makeField("status", "Payment Status", "text",
     ["Paid", "Partial", "Pending"].map(s => ({ value: s, label: s })));
 
   summaryGrid.append(totalWrap, paidWrap, balWrap, statusWrap);
-  summarySection.appendChild(summaryGrid);
-  form.appendChild(summarySection);
+  summaryCard.appendChild(summaryGrid);
+  leftCol.appendChild(summaryCard);
 
-  // Auto-calculate balance when paid amount changes
-  formRefs.paidAmount.addEventListener("input", recalcFeeBalance);
+  formRefs.paidAmount.addEventListener("input", () => {
+    recalcFeeBalance();
+    updateReceiptTotals();
+  });
 
+  // ── Submit button ────────────────────────────────────────────────────────
+  const action = document.createElement("div");
+  action.className = "actions fee-actions";
+  action.innerHTML = `<button type="submit" class="fee-submit-btn">💾 Save Fee Record</button>`;
+  leftCol.appendChild(action);
+
+  // ── Calculation helpers ──────────────────────────────────────────────────
   function recalcFeeTotal() {
     let total = 0;
-    FEE_TYPES.forEach(({ key }) => {
-      total += parseFloat(feeAmountInputs[key].value || 0);
-    });
+    FEE_TYPES.forEach(({ key }) => { total += parseFloat(feeAmountInputs[key].value || 0); });
     formRefs.totalFee.value = total;
     recalcFeeBalance();
+    updateReceiptTotals();
   }
 
   function recalcFeeBalance() {
     const total = parseFloat(formRefs.totalFee.value || 0);
     const paid  = parseFloat(formRefs.paidAmount.value || 0);
-    const bal   = total - paid;
-    formRefs.balance.value = bal;
-    // Auto-set status
+    formRefs.balance.value = Math.max(0, total - paid);
     if (formRefs.status) {
+      const bal = total - paid;
       formRefs.status.value = bal <= 0 ? "Paid" : paid > 0 ? "Partial" : "Pending";
     }
   }
 
   function updateFeeTypesHidden() {
     const selected = FEE_TYPES
-      .filter(({ key }) => {
-        const cb = document.getElementById(`cb_${key}`);
-        return cb && cb.checked;
-      })
+      .filter(({ key }) => { const cb = document.getElementById(`cb_${key}`); return cb && cb.checked; })
       .map(({ label }) => label);
     formRefs.feeTypes.value = selected.join(", ");
   }
 
-  // ── Submit button ────────────────────────────────────────────────────────
-  const action = document.createElement("div");
-  action.className = "actions";
-  action.innerHTML = `<button type="submit" class="fee-submit-btn">💾 Save Fee Record</button>`;
-  form.appendChild(action);
+  // ── Live receipt helpers ─────────────────────────────────────────────────
+  function updateReceiptFeeList() {
+    const list = document.getElementById("receiptFeeList");
+    if (!list) return;
+    const items = FEE_TYPES.filter(({ key }) => {
+      const cb = document.getElementById(`cb_${key}`);
+      return cb && cb.checked;
+    });
+    if (!items.length) {
+      list.innerHTML = `<div class="receipt-empty-msg">☝️ Select fee types to see bill</div>`;
+      return;
+    }
+    list.innerHTML = items.map(({ key, label, icon }) => {
+      const amt = parseFloat(feeAmountInputs[key].value || 0);
+      return `<div class="receipt-fee-row">
+        <span>${icon} ${label}</span>
+        <span class="receipt-fee-amt">₹ ${amt.toLocaleString("en-IN")}</span>
+      </div>`;
+    }).join("");
+  }
+
+  function updateReceiptTotals() {
+    const total   = parseFloat(formRefs.totalFee.value || 0);
+    const paid    = parseFloat(formRefs.paidAmount.value || 0);
+    const balance = Math.max(0, total - paid);
+    const status  = balance <= 0 ? "PAID" : paid > 0 ? "PARTIAL" : "PENDING";
+    const statusClass = balance <= 0 ? "status-paid" : paid > 0 ? "status-partial" : "status-pending";
+
+    const rTotal   = document.getElementById("rTotal");
+    const rPaid    = document.getElementById("rPaid");
+    const rBalance = document.getElementById("rBalance");
+    const rStatus  = document.getElementById("rStatus");
+    if (rTotal)   rTotal.textContent   = `₹ ${total.toLocaleString("en-IN")}`;
+    if (rPaid)    rPaid.textContent    = `₹ ${paid.toLocaleString("en-IN")}`;
+    if (rBalance) rBalance.textContent = `₹ ${balance.toLocaleString("en-IN")}`;
+    if (rStatus)  { rStatus.textContent = status; rStatus.className = `receipt-status-badge ${statusClass}`; }
+  }
 }
 
 function getCurrentList() {
@@ -1482,7 +1565,7 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
   if (currentModule === "fees") {
     // Collect all fee fields from the hidden inputs + visible fields
     const feeFields = ["studentName","className","rollNo","term","feeTypes",
-      "tuitionFee","computerFee","developmentFee","sportsFee","libraryFee","otherFee",
+      "tuitionFee","computerFee","developmentFee","labFee","sportsFee","libraryFee","examFee","otherFee",
       "totalFee","paidAmount","balance","status"];
     feeFields.forEach(f => { payload[f] = (form.get(f) || "").toString().trim(); });
   } else {

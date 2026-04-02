@@ -416,48 +416,79 @@ tbody tr {
 
 /* ─── Fee Module UI ──────────────────────────────────────────────────────────── */
 
-.fee-form-row {
+/* Two-column layout: form left, receipt preview right */
+.fee-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  margin-bottom: 14px;
+  grid-template-columns: 1fr 340px;
+  gap: 18px;
+  align-items: start;
 }
 
-.fee-types-section {
-  background: linear-gradient(135deg, #f0f7ff 0%, #e8f4fd 100%);
-  border: 1.5px solid #bfdbfe;
+@media (max-width: 900px) {
+  .fee-layout {
+    grid-template-columns: 1fr;
+  }
+  .fee-right {
+    order: -1;
+  }
+}
+
+.fee-left {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Fee cards */
+.fee-card {
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
   border-radius: 14px;
   padding: 16px 18px;
-  margin-bottom: 14px;
 }
 
-.fee-types-header {
+.fee-card-blue {
+  background: linear-gradient(135deg, #f0f7ff 0%, #e8f4fd 100%);
+  border-color: #bfdbfe;
+}
+
+.fee-card-green {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border-color: #86efac;
+}
+
+.fee-card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 14px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
+  gap: 8px;
   flex-wrap: wrap;
-  gap: 6px;
 }
 
-.fee-types-title {
-  font-size: 1rem;
-  font-weight: 700;
-  color: #1d4ed8;
-}
-
-.fee-types-hint {
-  font-size: 0.78rem;
+.fee-hint-badge {
+  font-size: 0.72rem;
+  font-weight: 500;
   color: #6b7280;
   background: #fff;
   border: 1px solid #d1d5db;
   border-radius: 20px;
-  padding: 3px 10px;
+  padding: 2px 9px;
+  margin-left: auto;
 }
 
+.fee-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+/* Checkbox grid: 2 columns */
 .fee-checkbox-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 10px;
 }
 
@@ -465,14 +496,15 @@ tbody tr {
   background: #fff;
   border: 1.5px solid #e5e7eb;
   border-radius: 10px;
-  padding: 10px 12px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  padding: 11px 13px;
+  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+  cursor: pointer;
 }
 
-.fee-checkbox-item:has(.fee-checkbox:checked) {
+.fee-checkbox-item.checked {
   border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
   background: #eff6ff;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.13);
 }
 
 .fee-check-row {
@@ -480,6 +512,7 @@ tbody tr {
   align-items: center;
   gap: 8px;
   cursor: pointer;
+  user-select: none;
 }
 
 .fee-checkbox {
@@ -487,57 +520,54 @@ tbody tr {
   height: 18px !important;
   accent-color: #1d4ed8;
   cursor: pointer;
-  border-radius: 4px !important;
+  flex-shrink: 0;
   margin: 0 !important;
+}
+
+.fee-type-icon {
+  font-size: 1.05rem;
   flex-shrink: 0;
 }
 
 .fee-checkbox-label {
-  font-size: 0.88rem;
+  font-size: 0.87rem;
   font-weight: 600;
   color: #374151;
   cursor: pointer;
-  user-select: none;
 }
 
-.fee-amount-row {
-  margin-top: 8px;
+.fee-amount-wrap {
+  margin-top: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.fee-amount-row.hidden {
+.fee-amount-wrap.hidden {
   display: none !important;
+}
+
+.fee-amount-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 500;
 }
 
 .fee-amount-input {
   width: 100% !important;
   border: 1.5px solid #93c5fd !important;
   border-radius: 8px !important;
-  padding: 8px 10px !important;
-  font-size: 0.9rem !important;
+  padding: 7px 10px !important;
+  font-size: 0.92rem !important;
   background: #fff !important;
   color: #1d4ed8 !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
 }
 
 .fee-amount-input:focus {
   outline: none;
   border-color: #2563eb !important;
   box-shadow: 0 0 0 3px rgba(37,99,235,0.15);
-}
-
-.fee-summary-section {
-  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
-  border: 1.5px solid #86efac;
-  border-radius: 14px;
-  padding: 16px 18px;
-  margin-bottom: 14px;
-}
-
-.fee-summary-title {
-  font-size: 0.98rem;
-  font-weight: 700;
-  color: #16a34a;
-  margin-bottom: 12px;
 }
 
 .fee-total-display {
@@ -549,11 +579,15 @@ tbody tr {
   cursor: not-allowed;
 }
 
+.fee-actions {
+  justify-content: flex-start !important;
+}
+
 .fee-submit-btn {
   background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 100%) !important;
   color: #fff !important;
   border: none !important;
-  padding: 11px 28px !important;
+  padding: 11px 30px !important;
   border-radius: 10px !important;
   font-size: 0.95rem !important;
   font-weight: 600 !important;
@@ -564,5 +598,158 @@ tbody tr {
 
 .fee-submit-btn:hover {
   transform: translateY(-2px) !important;
-  box-shadow: 0 4px 14px rgba(29,78,216,0.35) !important;
+  box-shadow: 0 4px 16px rgba(29,78,216,0.38) !important;
+}
+
+/* ── Live Receipt Preview ── */
+.fee-right {
+  position: sticky;
+  top: 20px;
+}
+
+.fee-receipt-preview {
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  font-family: Arial, sans-serif;
+}
+
+.receipt-header {
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+  color: #fff;
+  padding: 18px 20px 14px;
+  text-align: center;
+}
+
+.receipt-school {
+  font-size: 0.88rem;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.receipt-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #f1f5f9;
+}
+
+.receipt-subtitle {
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 3px;
+}
+
+.receipt-student-info {
+  padding: 14px 18px 10px;
+  background: #f8fafc;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.receipt-info-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  padding: 3px 0;
+  color: #374151;
+}
+
+.receipt-info-row span:first-child {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.receipt-info-row span:last-child {
+  font-weight: 700;
+  color: #111827;
+  text-align: right;
+  max-width: 60%;
+}
+
+.receipt-divider {
+  border: none;
+  border-top: 1.5px dashed #d1d5db;
+  margin: 0;
+}
+
+.receipt-fee-list {
+  padding: 12px 18px;
+  min-height: 60px;
+}
+
+.receipt-empty-msg {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  text-align: center;
+  padding: 10px 0;
+}
+
+.receipt-fee-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.84rem;
+  padding: 5px 0;
+  border-bottom: 1px solid #f3f4f6;
+  color: #374151;
+}
+
+.receipt-fee-row:last-child { border-bottom: none; }
+
+.receipt-fee-amt {
+  font-weight: 700;
+  color: #1d4ed8;
+}
+
+.receipt-totals {
+  padding: 12px 18px 16px;
+  background: #f8fafc;
+}
+
+.receipt-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  padding: 4px 0;
+  color: #374151;
+}
+
+.receipt-total-row span:last-child {
+  font-weight: 700;
+}
+
+.receipt-balance-row {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+  border-top: 2px solid #e5e7eb;
+  margin-top: 6px;
+  padding-top: 8px;
+}
+
+.receipt-status-badge {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 5px 18px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.status-paid    { background: #dcfce7; color: #16a34a; border: 1.5px solid #86efac; }
+.status-partial { background: #fef9c3; color: #a16207; border: 1.5px solid #fde047; }
+.status-pending { background: #fee2e2; color: #dc2626; border: 1.5px solid #fca5a5; }
+
+/* legacy compat */
+.fee-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
 }
