@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>School Management System</title>
+  <title>Tapowan Public School — Management System</title>
+  <meta name="description" content="Tapowan Public School management system for students, fees, attendance, exams, and more." />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -57,8 +58,11 @@
     </div>
   </div>
 
+  <!-- Mobile sidebar backdrop -->
+  <div id="mobileSidebarBackdrop" class="mobile-sidebar-backdrop hidden"></div>
+
   <div class="app">
-    <aside class="sidebar">
+    <aside id="sidebar" class="sidebar">
       <div class="brand">
         <div class="brand-inner">
           <div class="brand-icon">🏫</div>
@@ -74,6 +78,12 @@
 
     <main class="main">
       <header class="topbar">
+        <!-- Mobile menu button -->
+        <button id="mobileMenuBtn" class="mobile-menu-btn" aria-label="Toggle menu" aria-expanded="false">
+          <span class="hamburger">
+            <span></span><span></span><span></span>
+          </span>
+        </button>
         <div class="topbar-title">
           <h2 id="moduleTitle">Dashboard</h2>
           <p id="moduleSubtitle">School overview and quick statistics</p>
@@ -206,6 +216,25 @@
     </main>
   </div>
 
+  <!-- Student Profile Modal -->
+  <div id="studentProfileBackdrop" class="student-profile-backdrop hidden"></div>
+  <div id="studentProfileModal" class="student-profile-modal hidden">
+    <div class="student-profile-header">
+      <div class="student-profile-title">
+        <h3 id="studentProfileName">Student Name</h3>
+        <p id="studentProfileSub">Class &amp; Roll</p>
+      </div>
+      <button id="studentProfileCloseBtn" class="student-profile-close">✕ Close</button>
+    </div>
+    <div class="student-profile-tabs">
+      <button class="student-profile-tab active" data-tab="profile">Profile</button>
+      <button class="student-profile-tab" data-tab="fees">Fees</button>
+      <button class="student-profile-tab" data-tab="exams">Exams</button>
+      <button class="student-profile-tab" data-tab="attendance">Attendance</button>
+    </div>
+    <div id="studentProfileContent" class="student-profile-content"></div>
+  </div>
+
   <template id="emptyState">
     <tr>
       <td colspan="99" class="empty">No records found.</td>
@@ -220,3 +249,4 @@
   <script src="app.js"></script>
 </body>
 </html>
+

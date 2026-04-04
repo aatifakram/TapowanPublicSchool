@@ -1328,6 +1328,7 @@ function renderStatsCards() {
         <span class="pct">${trend.text}</span>
       </div>
     `;
+    card.className = "stat-card";
     refs.statsCards.appendChild(card);
   });
 }
@@ -2442,6 +2443,24 @@ refs.logoutBtn.addEventListener("click", async () => {
   refs.dynamicForm.innerHTML = "";
 });
 
+// Reset data — admin only
+const resetDataBtnEl = document.getElementById("resetDataBtn");
+if (resetDataBtnEl) {
+  resetDataBtnEl.addEventListener("click", async () => {
+    if (!userIsAdmin()) return window.alert("Only Administrators can reset data.");
+    if (!window.confirm("⚠️ Are you sure you want to RESET ALL DATA? This cannot be undone!")) return;
+    if (!window.confirm("Final confirmation: Reset ALL school data to defaults?")) return;
+    try {
+      await api("/api/admin/reset", { method: "POST" });
+      await loadStore();
+      renderAll();
+      showToast("Data reset to defaults.", "success");
+    } catch (err) {
+      window.alert("Reset failed: " + err.message);
+    }
+  });
+}
+
 refs.startCameraBtn.addEventListener("click", startCamera);
 refs.captureFaceBtn.addEventListener("click", captureFace);
 refs.markFaceAttendanceBtn.addEventListener("click", () => markFaceAttendance().catch((e) => window.alert(e.message)));
@@ -2746,11 +2765,15 @@ function renderNavEnhanced() {
   if (!nav) return;
   nav.innerHTML = '';
 
-  // Respect role-based visibility — same logic as original renderNav
+  // Respect role-based visibility
   const visible = new Set(typeof getVisibleModules === 'function' ? getVisibleModules() : Object.keys(moduleConfig));
 
+  // If current module is not visible for this role, redirect to dashboard
+  if (!visible.has(currentModule)) {
+    currentModule = 'dashboard';
+  }
+
   for (const [groupName, modules] of Object.entries(NAV_GROUPS)) {
-    // Only render the group label if at least one module in it is visible
     const visibleInGroup = modules.filter(mod => moduleConfig[mod] && visible.has(mod));
     if (!visibleInGroup.length) continue;
 
@@ -2763,11 +2786,15 @@ function renderNavEnhanced() {
       const btn = document.createElement('button');
       btn.dataset.module = mod;
       btn.className = mod === currentModule ? 'active' : '';
-      btn.innerHTML = `<span class="nav-icon">${MODULE_ICONS[mod] || '📌'}</span><span>${moduleConfig[mod].title}</span>`;
+      btn.setAttribute('aria-current', mod === currentModule ? 'page' : 'false');
+      btn.innerHTML = `<span class="nav-icon">${MODULE_ICONS[mod] || '📌'}</span><span class="nav-text">${moduleConfig[mod].title}</span>`;
       btn.addEventListener('click', () => {
         currentModule = mod;
+        // Clear search like original renderNav does
+        const si = document.getElementById('searchInput');
+        if (si) si.value = '';
         renderAll();
-        if (window.isMobileLayout && isMobileLayout()) setMobileSidebarOpen(false);
+        if (typeof isMobileLayout === 'function' && isMobileLayout()) setMobileSidebarOpen(false);
       });
       nav.appendChild(btn);
     });
@@ -2892,10 +2919,12 @@ function generateIdCardsHTML(store) {
 
 // === INTERCEPT printDocumentByModule to use new ID card generator ===
 // We patch the function after page load
-document.addEventListener('DOMContentLoaded', () => {
-  // small delay to let app.js finish setting up
+// patchApp runs via DOMContentLoaded (or immediately if already loaded)
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => { setTimeout(patchApp, 200); });
+} else {
   setTimeout(patchApp, 200);
-});
+}
 
 function patchApp() {
   // Patch nav render
