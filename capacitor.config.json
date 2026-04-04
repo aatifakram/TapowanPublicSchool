@@ -1,0 +1,6 @@
+{
+  "appId": "com.tapowan.school",
+  "appName": "Tapovan Public School",
+  "webDir": "public",
+  "bundledWebRuntime": false
+}

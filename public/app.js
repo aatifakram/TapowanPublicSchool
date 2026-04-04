@@ -22,7 +22,8 @@ const moduleConfig = {
   hostel: { title: "Hostel", subtitle: "Manage hostel rooms and allocations", fields: ["hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"], columns: ["id", "hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"] },
   payroll: { title: "Payroll", subtitle: "Generate salary records and allowances", fields: ["employeeName", "designation", "month", "basicSalary", "allowances", "deductions", "netPay"], columns: ["id", "employeeName", "designation", "month", "basicSalary", "allowances", "deductions", "netPay"] },
   users: { title: "Users & Roles", subtitle: "System user accounts and permissions", fields: ["username", "fullName", "role", "email", "status", "lastLogin", "password"], columns: ["id", "username", "fullName", "role", "email", "status", "lastLogin"] },
-  timetable: { title: "Timetable", subtitle: "Weekly class and subject scheduling", fields: ["className", "day", "period", "subject", "teacher", "roomNo"], columns: ["id", "className", "day", "period", "subject", "teacher", "roomNo"] }
+  timetable: { title: "Timetable", subtitle: "Weekly class and subject scheduling", fields: ["className", "day", "period", "subject", "teacher", "roomNo"], columns: ["id", "className", "day", "period", "subject", "teacher", "roomNo"] },
+  booksAndDress: { title: "Books & Dress", subtitle: "Manage class-wise book and dress costs", fields: [], columns: [] }
 };
 
 const moduleOrder = Object.keys(moduleConfig);
@@ -403,7 +404,8 @@ function renderNav() {
     payroll: "💼",
     users: "🛡️",
     timetable: "⏰",
-    notifications: "🔔"
+    notifications: "🔔",
+    booksAndDress: "📦"
   };
 
   const visibleModules = getVisibleModules();
@@ -1425,6 +1427,10 @@ function renderAll() {
   renderForm();
   renderTable();
   renderModuleTools();
+
+  if (currentModule === "booksAndDress" && typeof window.showBDPanel === "function") {
+    window.showBDPanel();
+  }
 }
 
 function toCsv(rows, columns) {
@@ -4642,8 +4648,8 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
   function renderBDModule() {
     const classes = allClasses();
 
-    // Inject into the standard moduleContent area to prevent global overlap
-    const main = document.getElementById("moduleContent") || document.querySelector(".module-content");
+    // Inject into the standard content-area to prevent global overlap
+    const main = document.getElementById("moduleContent") || document.querySelector(".content-area");
     // Ensure the container is visible
     if (main) main.style.display = "block";
     let panel = document.getElementById("bd-panel");
@@ -5122,7 +5128,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     }
   }
 
-  async function showBDPanel() {
+  window.showBDPanel = async function showBDPanel() {
     // Clear out standard UI bits for this custom plugin view
     const titleEl = document.getElementById("moduleTitle");
     const subtitleEl = document.getElementById("moduleSubtitle");
@@ -5131,7 +5137,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     if (subtitleEl) subtitleEl.innerHTML = "";
     
     // Clear the main container and render inside it
-    const contentEl = document.getElementById("moduleContent") || document.querySelector(".module-content");
+    const contentEl = document.getElementById("moduleContent") || document.querySelector(".content-area");
     if (contentEl) {
       contentEl.innerHTML = "";
       contentEl.style.display = "block";
@@ -5664,6 +5670,9 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       return;
     }
 
+    // Remember previously checked books and dresses
+    const prevCheckedItems = Array.from(info.querySelectorAll(".bd-item-checkbox:checked")).map(cb => cb.dataset.id);
+
     info.style.display = "block";
 
     const itemRows = allItems.map(item => {
@@ -5672,7 +5681,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         <label style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #dbeafe;cursor:pointer;">
           <input type="checkbox" class="bd-item-checkbox" data-id="${item.id}" data-price="${item.price}"
             style="width:16px;height:16px;accent-color:#1e3a8a;cursor:pointer;"
-            ${item.itemType === "Dress" ? "" : ""}>
+            ${prevCheckedItems.includes(String(item.id)) ? "checked" : ""}>
           <span style="flex:1;">${icon} ${item.itemName}</span>
           <span style="font-weight:600;color:#0f172a;">${formatINR(item.price)}</span>
         </label>`;
@@ -5793,16 +5802,6 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         if (classField.value) showBDInfoForClass(classField.value);
       }
 
-      if (studentField && !studentField.dataset.bdPatched) {
-        studentField.dataset.bdPatched = "1";
-        studentField.addEventListener("change", () => {
-          setTimeout(() => {
-            const cls = classField ? classField.value : "";
-            showBDInfoForClass(cls);
-          }, 80);
-        });
-      }
-
       // Show panel for current class (e.g. after prefill)
       setTimeout(() => {
         const cls = classField ? classField.value : "";
@@ -5825,13 +5824,6 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 
     await waitForStore();
     await Promise.all([loadBD(), loadFS()]);
-
-    // Inject nav item (retry until nav is rendered)
-    const tryNav = () => {
-      injectBDNavItem();
-      if (!document.querySelector("[data-module='booksAndDress']")) setTimeout(tryNav, 500);
-    };
-    tryNav();
 
     patchFeeFormForBD();
   }

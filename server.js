@@ -170,7 +170,7 @@ function canDelete(req, res, next) {
 // Modules teachers can write to
 const TEACHER_WRITE_MODULES = new Set(["attendance", "teacherAttendance"]);
 // Modules only admin/staff can write to  
-const ADMIN_STAFF_ONLY_MODULES = new Set(["users", "payroll", "fees", "schoolInvestments", "schoolIncome", "schoolExpenses"]);
+const ADMIN_STAFF_ONLY_MODULES = new Set(["users", "payroll", "fees", "schoolInvestments", "schoolIncome", "schoolExpenses", "booksAndDress", "feeStructures"]);
 // Modules only admin can access at all
 const ADMIN_ONLY_MODULES = new Set(["users"]);
 
