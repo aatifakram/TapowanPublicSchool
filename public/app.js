@@ -4642,14 +4642,16 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
   function renderBDModule() {
     const classes = allClasses();
 
-    // Inject into main content area (same pattern used by finance module)
-    const main = document.querySelector(".main-content") || document.querySelector("main") || document.body;
+    // Inject into the standard moduleContent area to prevent global overlap
+    const main = document.getElementById("moduleContent") || document.querySelector(".module-content");
+    // Ensure the container is visible
+    if (main) main.style.display = "block";
     let panel = document.getElementById("bd-panel");
     if (!panel) {
       panel = document.createElement("div");
       panel.id = "bd-panel";
       panel.style.cssText = "padding:24px;max-width:1200px;margin:0 auto;";
-      main.appendChild(panel);
+      if (main) main.appendChild(panel);
     }
 
     panel.innerHTML = `
@@ -5103,10 +5105,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     btn.innerHTML = `<span class="nav-icon">📦</span><span>Books & Dress</span>`;
     btn.addEventListener("click", async () => {
       currentModule = "booksAndDress";
-      // Hide standard content panels
-      const contentEl = document.getElementById("moduleContent") || document.querySelector(".module-content");
-      if (contentEl) contentEl.style.display = "none";
-
+      
       showBDPanel();
 
       // Update active states
@@ -5124,10 +5123,19 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
   }
 
   async function showBDPanel() {
-    // Hide other panels
-    document.querySelectorAll(".module-panel, #bd-panel").forEach(el => el.remove());
+    // Clear out standard UI bits for this custom plugin view
+    const titleEl = document.getElementById("moduleTitle");
+    const subtitleEl = document.getElementById("moduleSubtitle");
+    const searchEl = document.getElementById("searchInput");
+    if (titleEl) titleEl.innerHTML = "";
+    if (subtitleEl) subtitleEl.innerHTML = "";
+    
+    // Clear the main container and render inside it
     const contentEl = document.getElementById("moduleContent") || document.querySelector(".module-content");
-    if (contentEl) contentEl.style.display = "none";
+    if (contentEl) {
+      contentEl.innerHTML = "";
+      contentEl.style.display = "block";
+    }
 
     await Promise.all([loadBD(), loadFS()]);
     renderBDModule();
