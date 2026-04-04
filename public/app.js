@@ -4744,6 +4744,71 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       </div>`;
   }
 
+  // ── Shared fee-type definitions (mirrors app.js FEE_TYPES) ────────────────
+  const RECEIPT_FEE_TYPES = [
+    { key: "tuitionFee",     label: "Tuition Fee",     icon: "📚" },
+    { key: "computerFee",    label: "Computer Fee",    icon: "💻" },
+    { key: "developmentFee", label: "Development Fee", icon: "🏗️" },
+    { key: "labFee",         label: "Lab Fee",         icon: "🔬" },
+    { key: "sportsFee",      label: "Sports Fee",      icon: "⚽" },
+    { key: "libraryFee",     label: "Library Fee",     icon: "📖" },
+    { key: "examFee",        label: "Exam Fee",        icon: "📝" },
+    { key: "otherFee",       label: "Other Fee",       icon: "➕" }
+  ];
+
+  function buildFeeRows_receipt(f) {
+    let rows = "";
+    RECEIPT_FEE_TYPES.forEach(({ key, label, icon }, idx) => {
+      const amt = parseFloat(f[key]) || 0;
+      if (amt > 0) {
+        const bg = idx % 2 === 0 ? "#f8fafc" : "#ffffff";
+        rows += `<tr style="background:${bg};">
+          <td style="padding:5px 8px;border:1px solid #e2e8f0;color:#475569;font-size:11px;">${icon} ${label}</td>
+          <td style="padding:5px 8px;border:1px solid #e2e8f0;text-align:right;font-weight:600;font-size:11px;">₹ ${amt.toLocaleString("en-IN")}</td>
+        </tr>`;
+      }
+    });
+    return rows;
+  }
+
+  function buildA4PrintHtml(title, singleCardHtml) {
+    // Prints 4 identical copies on one A4 page (2×2 grid)
+    const card = singleCardHtml;
+    return `<!doctype html><html><head><title>${title}</title>
+    <style>
+      @page { size: A4 portrait; margin: 8mm; }
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 0; font-family: Arial, sans-serif; background: #fff; }
+      .a4-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 6mm;
+        width: 100%;
+        height: 277mm;
+      }
+      .receipt-copy {
+        border: 1.5px solid #1e3a8a;
+        border-radius: 6px;
+        overflow: hidden;
+        page-break-inside: avoid;
+        font-size: 11px;
+      }
+      @media print {
+        body { margin: 0; }
+        .no-print { display: none; }
+      }
+    </style></head><body>
+    <div class="a4-grid">
+      <div class="receipt-copy">${card}</div>
+      <div class="receipt-copy">${card}</div>
+      <div class="receipt-copy">${card}</div>
+      <div class="receipt-copy">${card}</div>
+    </div>
+    <script>window.onload=function(){window.print();}<\/script>
+    </body></html>`;
+  }
+
   // Directly override printFeeReceipt with full rebuilt version including BD section
   window.printFeeReceipt = function(f) {
     const schoolName = "Tapowan Public School";
@@ -4752,134 +4817,100 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     const totalFee   = parseFloat(f.totalFee) || 0;
     const paidAmount = parseFloat(f.paidAmount) || 0;
     const balance    = parseFloat(f.balance) || Math.max(0, totalFee - paidAmount);
-    const monthlyFee = parseFloat(f.monthlyFee) || 0;
-    const monthlyFeeLabel = f.monthlyFeeLabel || "Monthly School Fee";
     const statusColor = String(f.status).toLowerCase() === "paid" ? "#16a34a"
       : String(f.status).toLowerCase() === "partial" ? "#d97706" : "#dc2626";
 
-    // Build individual fee type rows (split comma-separated labels against feeStructures)
-    let feeTypeRows = "";
-    if (monthlyFee > 0) {
-      const labels = monthlyFeeLabel.split(",").map(s => s.trim()).filter(Boolean);
-      if (labels.length > 1) {
-        // Multiple fee types — match each label to feeStructures to get per-type amount
-        labels.forEach((lbl, idx) => {
-          const struct = feeStructures.find(fs => fs.feeType === lbl && (f.className ? fs.className === f.className : true));
-          const amt = struct ? parseFloat(struct.amount) || 0 : 0;
-          const bg = idx % 2 === 0 ? "background:#f8fafc;" : "";
-          feeTypeRows += `<tr style="${bg}">
-            <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">✔ ${lbl}</td>
-            <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">${amt > 0 ? "₹ " + amt.toLocaleString("en-IN") : "-"}</td>
-          </tr>`;
-        });
-      } else {
-        feeTypeRows = `<tr style="background:#f8fafc;">
-          <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">✔ ${monthlyFeeLabel}</td>
-          <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">₹ ${monthlyFee.toLocaleString("en-IN")}</td>
-        </tr>`;
-      }
-    }
+    // ── Build fee rows from individual stored fields ──────────────────────
+    const feeTypeRows = buildFeeRows_receipt(f);
 
-    // Build selected items section from stored selectedBookIds
-    let selectedItemsHtml = "";
-    let itemsTotal = 0;
+    // ── Books & Dress items ───────────────────────────────────────────────
+    let bdRows = ""; let itemsTotal = 0;
     try {
       const ids = JSON.parse(f.selectedBookIds || "[]");
       if (ids.length) {
-        const allBDItems = [...bdBooks, ...bdDresses];
-        const selectedItems = ids.map(id => allBDItems.find(r => String(r.id) === String(id))).filter(Boolean);
-        if (selectedItems.length) {
-          const rows = selectedItems.map(item => {
-            const price = parseFloat(item.price) || 0;
-            itemsTotal += price;
-            const icon = item.itemType === "Book" ? "📚" : "👕";
-            return `<tr>
-              <td style="padding:7px 10px;border:1px solid #e2e8f0;color:#475569;">${icon} ${item.itemName}</td>
-              <td style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">₹ ${price.toLocaleString("en-IN")}</td>
-            </tr>`;
-          }).join("");
-          selectedItemsHtml = `
-            <div style="padding:16px 24px;border-bottom:1px solid #e2e8f0;">
-              <div style="font-weight:700;color:#1e3a8a;margin-bottom:10px;font-size:15px;">📦 Books & Dress Charges</div>
-              <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                <thead><tr style="background:#f0f4ff;">
-                  <th style="padding:7px 10px;border:1px solid #c7d2fe;text-align:left;color:#1e3a8a;">Item</th>
-                  <th style="padding:7px 10px;border:1px solid #c7d2fe;text-align:right;color:#1e3a8a;">Price</th>
-                </tr></thead>
-                <tbody>${rows}</tbody>
-                <tfoot><tr style="background:#1e3a8a;">
-                  <td style="padding:9px 10px;border:1px solid #1e3a8a;font-weight:700;color:#fff;">Books & Dress Total</td>
-                  <td style="padding:9px 10px;border:1px solid #1e3a8a;text-align:right;font-weight:800;color:#fff;">₹ ${itemsTotal.toLocaleString("en-IN")}</td>
-                </tr></tfoot>
-              </table>
-            </div>`;
-        }
+        const allBDItems = [...(typeof bdBooks !== "undefined" ? bdBooks : []), ...(typeof bdDresses !== "undefined" ? bdDresses : [])];
+        ids.map(id => allBDItems.find(r => String(r.id) === String(id))).filter(Boolean).forEach(item => {
+          const price = parseFloat(item.price) || 0;
+          itemsTotal += price;
+          bdRows += `<tr><td style="padding:5px 8px;border:1px solid #e2e8f0;font-size:11px;color:#475569;">${item.itemType === "Book" ? "📚" : "👕"} ${item.itemName}</td>
+            <td style="padding:5px 8px;border:1px solid #e2e8f0;text-align:right;font-size:11px;font-weight:600;">₹ ${price.toLocaleString("en-IN")}</td></tr>`;
+        });
       }
-    } catch(e) { /* ignore parse errors */ }
+    } catch(e) {}
 
-    const html = `
-      <div style="max-width:620px;margin:0 auto;font-family:Arial,sans-serif;border:2px solid #1e3a8a;border-radius:10px;overflow:hidden;">
+    const noFeeData = !feeTypeRows && itemsTotal === 0;
+
+    const card = `
+      <div style="height:100%;display:flex;flex-direction:column;font-family:Arial,sans-serif;font-size:11px;">
         <!-- Header -->
-        <div style="background:#1e3a8a;color:#fff;padding:18px 24px;text-align:center;">
-          <div style="font-size:26px;font-weight:900;letter-spacing:1px;">${schoolName}</div>
-          <div style="font-size:13px;margin-top:4px;opacity:0.85;">Fee Payment Receipt</div>
+        <div style="background:#1e3a8a;color:#fff;padding:7px 10px;text-align:center;">
+          <div style="font-size:13px;font-weight:900;letter-spacing:0.5px;">🏫 ${schoolName}</div>
+          <div style="font-size:9px;opacity:0.85;margin-top:1px;">FEE PAYMENT RECEIPT</div>
         </div>
-        <!-- Receipt meta -->
-        <div style="display:flex;justify-content:space-between;padding:12px 24px;background:#f0f4ff;border-bottom:1px solid #c7d2fe;font-size:13px;color:#1e3a8a;">
-          <div><strong>Receipt No:</strong> ${receiptNo}</div>
-          <div><strong>Date:</strong> ${printDate}</div>
+        <!-- Meta bar -->
+        <div style="display:flex;justify-content:space-between;padding:4px 10px;background:#eef2ff;border-bottom:1px solid #c7d2fe;font-size:9px;color:#1e3a8a;">
+          <span><strong>Receipt No:</strong> ${receiptNo}</span>
+          <span><strong>Date:</strong> ${printDate}</span>
         </div>
         <!-- Student Info -->
-        <div style="padding:16px 24px;border-bottom:1px solid #e2e8f0;">
-          <table style="width:100%;border-collapse:collapse;font-size:14px;">
-            <tr><td style="padding:5px 0;color:#64748b;width:40%;">Student Name</td><td style="padding:5px 0;font-weight:700;color:#0f172a;">${f.studentName || "-"}</td></tr>
-            <tr><td style="padding:5px 0;color:#64748b;">Class</td><td style="padding:5px 0;font-weight:600;">${f.className || "-"}</td></tr>
-            <tr><td style="padding:5px 0;color:#64748b;">Roll No</td><td style="padding:5px 0;">${f.rollNo || "-"}</td></tr>
-            <tr><td style="padding:5px 0;color:#64748b;">Term</td><td style="padding:5px 0;">${f.term || "-"}</td></tr>
-            <tr><td style="padding:5px 0;color:#64748b;">Payment Date</td><td style="padding:5px 0;">${f.paymentDate || "-"}</td></tr>
-            <tr><td style="padding:5px 0;color:#64748b;">Payment Method</td><td style="padding:5px 0;">${f.paymentMethod || "-"}</td></tr>
+        <div style="padding:5px 10px;border-bottom:1px solid #e2e8f0;">
+          <table style="width:100%;border-collapse:collapse;">
+            <tr>
+              <td style="padding:2px 0;color:#64748b;width:38%;font-size:10px;">Student</td>
+              <td style="padding:2px 0;font-weight:700;color:#0f172a;font-size:10px;">${f.studentName || "-"}</td>
+              <td style="padding:2px 0;color:#64748b;width:20%;font-size:10px;">Class</td>
+              <td style="padding:2px 0;font-weight:600;font-size:10px;">${f.className || "-"}</td>
+            </tr>
+            <tr>
+              <td style="padding:2px 0;color:#64748b;font-size:10px;">Roll No</td>
+              <td style="padding:2px 0;font-size:10px;">${f.rollNo || "-"}</td>
+              <td style="padding:2px 0;color:#64748b;font-size:10px;">Term</td>
+              <td style="padding:2px 0;font-size:10px;">${f.term || "-"}</td>
+            </tr>
+            <tr>
+              <td style="padding:2px 0;color:#64748b;font-size:10px;">Pay Date</td>
+              <td style="padding:2px 0;font-size:10px;">${f.paymentDate || "-"}</td>
+              <td style="padding:2px 0;color:#64748b;font-size:10px;">Method</td>
+              <td style="padding:2px 0;font-size:10px;">${f.paymentMethod || "-"}</td>
+            </tr>
           </table>
         </div>
         <!-- Fee Breakdown -->
-        <div style="padding:16px 24px;border-bottom:1px solid #e2e8f0;">
-          <div style="font-weight:700;color:#1e3a8a;margin-bottom:10px;font-size:15px;">Fee Summary</div>
-          <table style="width:100%;border-collapse:collapse;font-size:14px;">
-            ${feeTypeRows}
-            ${itemsTotal > 0 ? `<tr>
-              <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">Books & Dress Charges</td>
-              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;">₹ ${itemsTotal.toLocaleString("en-IN")}</td>
-            </tr>` : ""}
+        <div style="padding:5px 10px;border-bottom:1px solid #e2e8f0;flex:1;">
+          <div style="font-weight:700;color:#1e3a8a;margin-bottom:4px;font-size:10px;">📋 Fee Details</div>
+          <table style="width:100%;border-collapse:collapse;">
+            ${noFeeData ? `<tr><td colspan="2" style="padding:6px 8px;color:#94a3b8;font-style:italic;text-align:center;font-size:10px;">No fee types selected</td></tr>` : feeTypeRows}
+            ${itemsTotal > 0 ? `<tr style="background:#f0f4ff;"><td style="padding:5px 8px;border:1px solid #e2e8f0;font-size:11px;color:#475569;">📦 Books &amp; Dress</td>
+              <td style="padding:5px 8px;border:1px solid #e2e8f0;text-align:right;font-size:11px;font-weight:600;">₹ ${itemsTotal.toLocaleString("en-IN")}</td></tr>` : ""}
+          </table>
+        </div>
+        <!-- Totals -->
+        <div style="padding:5px 10px;border-bottom:1px solid #e2e8f0;">
+          <table style="width:100%;border-collapse:collapse;">
             <tr style="background:#eef2ff;">
-              <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#1e3a8a;font-weight:700;">Total Fee</td>
-              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:700;color:#1e3a8a;">₹ ${totalFee.toLocaleString("en-IN")}</td>
+              <td style="padding:4px 8px;border:1px solid #c7d2fe;font-weight:700;color:#1e3a8a;font-size:11px;">Total Fee</td>
+              <td style="padding:4px 8px;border:1px solid #c7d2fe;text-align:right;font-weight:700;color:#1e3a8a;font-size:11px;">₹ ${totalFee.toLocaleString("en-IN")}</td>
             </tr>
             <tr>
-              <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">Amount Paid</td>
-              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600;color:#16a34a;">₹ ${paidAmount.toLocaleString("en-IN")}</td>
+              <td style="padding:4px 8px;border:1px solid #e2e8f0;color:#475569;font-size:11px;">Amount Paid</td>
+              <td style="padding:4px 8px;border:1px solid #e2e8f0;text-align:right;font-weight:600;color:#16a34a;font-size:11px;">₹ ${paidAmount.toLocaleString("en-IN")}</td>
             </tr>
             <tr style="background:#fef2f2;">
-              <td style="padding:8px 10px;border:1px solid #e2e8f0;color:#475569;">Balance Due</td>
-              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:700;color:#dc2626;">₹ ${balance.toLocaleString("en-IN")}</td>
+              <td style="padding:4px 8px;border:1px solid #fca5a5;color:#dc2626;font-size:11px;">Balance Due</td>
+              <td style="padding:4px 8px;border:1px solid #fca5a5;text-align:right;font-weight:700;color:#dc2626;font-size:11px;">₹ ${balance.toLocaleString("en-IN")}</td>
             </tr>
           </table>
         </div>
-        <!-- Books & Dress Detail -->
-        ${selectedItemsHtml}
-        <!-- Status -->
-        <div style="padding:14px 24px;display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-size:13px;color:#64748b;">Payment Status</div>
-          <div style="background:${statusColor};color:#fff;padding:4px 18px;border-radius:20px;font-size:13px;font-weight:700;">${f.status || "Pending"}</div>
-        </div>
-        <!-- Footer -->
-        <div style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:12px 24px;text-align:center;font-size:12px;color:#94a3b8;">
-          This is a computer-generated receipt. No signature required. — ${schoolName}
+        <!-- Status + Footer -->
+        <div style="padding:5px 10px;display:flex;justify-content:space-between;align-items:center;background:#f8fafc;border-top:1px solid #e2e8f0;">
+          <span style="font-size:9px;color:#94a3b8;">Computer-generated receipt</span>
+          <span style="background:${statusColor};color:#fff;padding:2px 10px;border-radius:10px;font-size:9px;font-weight:700;">${(f.status || "PENDING").toUpperCase()}</span>
         </div>
       </div>`;
 
-    const receiptHtml = buildPrintableHtml("Fee Receipt - " + schoolName, html);
     const w = window.open("", "_blank");
     if (!w) return window.alert("Popup blocked. Please allow popups for this site and try again.");
-    w.document.write(receiptHtml);
+    w.document.write(buildA4PrintHtml("Fee Receipt - " + schoolName, card));
     w.document.close();
     w.focus();
   };
@@ -4892,149 +4923,123 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     const totalFee   = parseFloat(f.totalFee) || 0;
     const paidAmount = parseFloat(f.paidAmount) || 0;
     const balance    = parseFloat(f.balance) || Math.max(0, totalFee - paidAmount);
-    const monthlyFee = parseFloat(f.monthlyFee) || 0;
-    const monthlyFeeLabel = f.monthlyFeeLabel || "Monthly School Fee";
     const statusColor = String(f.status).toLowerCase() === "paid" ? "#16a34a"
       : String(f.status).toLowerCase() === "partial" ? "#d97706" : "#dc2626";
     const statusBg = String(f.status).toLowerCase() === "paid" ? "#dcfce7"
       : String(f.status).toLowerCase() === "partial" ? "#fef3c7" : "#fee2e2";
 
-    // Individual fee type rows
-    let feeLineItems = [];
-    if (monthlyFee > 0) {
-      const labels = monthlyFeeLabel.split(",").map(s => s.trim()).filter(Boolean);
-      if (labels.length > 1) {
-        labels.forEach(lbl => {
-          const struct = feeStructures.find(fs => fs.feeType === lbl && (f.className ? fs.className === f.className : true));
-          const amt = struct ? parseFloat(struct.amount) || 0 : 0;
-          feeLineItems.push({ label: lbl, amount: amt });
-        });
-      } else {
-        feeLineItems.push({ label: monthlyFeeLabel, amount: monthlyFee });
+    // ── Build fee rows from individual stored fields ──────────────────────
+    let feeRows = "";
+    RECEIPT_FEE_TYPES.forEach(({ key, label, icon }, idx) => {
+      const amt = parseFloat(f[key]) || 0;
+      if (amt > 0) {
+        const bg = idx % 2 === 0 ? "#f9fafb" : "#fff";
+        feeRows += `<tr style="background:${bg};">
+          <td style="padding:5px 9px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#374151;">${icon} ${label}</td>
+          <td style="padding:5px 9px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:11px;font-weight:600;color:#111827;">₹ ${amt.toLocaleString("en-IN")}</td>
+        </tr>`;
       }
-    }
+    });
 
     // Books & Dress items
     let itemsTotal = 0;
-    let bdLineItems = [];
     try {
       const ids = JSON.parse(f.selectedBookIds || "[]");
       if (ids.length) {
-        const allBDItems = [...bdBooks, ...bdDresses];
-        ids.map(id => allBDItems.find(r => String(r.id) === String(id))).filter(Boolean).forEach(item => {
+        const allBDItems = [...(typeof bdBooks !== "undefined" ? bdBooks : []), ...(typeof bdDresses !== "undefined" ? bdDresses : [])];
+        ids.map(id => allBDItems.find(r => String(r.id) === String(id))).filter(Boolean).forEach((item, idx) => {
           const price = parseFloat(item.price) || 0;
           itemsTotal += price;
-          bdLineItems.push({ label: (item.itemType === "Book" ? "📚 " : "👕 ") + item.itemName, amount: price });
+          const bg = idx % 2 === 0 ? "#f0f4ff" : "#fff";
+          feeRows += `<tr style="background:${bg};"><td style="padding:5px 9px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#374151;">${item.itemType === "Book" ? "📚" : "👕"} ${item.itemName}</td>
+            <td style="padding:5px 9px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:11px;font-weight:600;">₹ ${price.toLocaleString("en-IN")}</td></tr>`;
         });
       }
     } catch(e) {}
 
-    const allLineItems = [...feeLineItems, ...bdLineItems];
-    const feeRows = allLineItems.map((item, i) => `
-      <tr style="background:${i % 2 === 0 ? "#f9fafb" : "#fff"};">
-        <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;font-size:13.5px;color:#374151;">${item.label}</td>
-        <td style="padding:10px 14px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:13.5px;font-weight:600;color:#111827;">₹ ${item.amount.toLocaleString("en-IN")}</td>
-      </tr>`).join("");
-
-    const html = `
-      <div style="max-width:680px;margin:0 auto;font-family:'Times New Roman',serif;background:#fff;border:1px solid #d1d5db;">
-
-        <!-- School Header -->
-        <div style="padding:24px 30px 16px;border-bottom:3px double #1e3a8a;text-align:center;">
-          <div style="font-size:28px;font-weight:900;color:#1e3a8a;letter-spacing:1.5px;text-transform:uppercase;">${schoolName}</div>
-          <div style="font-size:12px;color:#6b7280;margin-top:3px;letter-spacing:0.5px;">Affiliated to CBSE &nbsp;|&nbsp; Excellence in Education</div>
-          <div style="margin-top:10px;display:inline-block;background:#1e3a8a;color:#fff;padding:4px 24px;font-size:14px;font-weight:700;letter-spacing:2px;text-transform:uppercase;">FEE SLIP</div>
+    const card = `
+      <div style="height:100%;display:flex;flex-direction:column;font-family:Arial,sans-serif;font-size:11px;">
+        <!-- Header -->
+        <div style="border-bottom:2px solid #1e3a8a;padding:7px 10px;text-align:center;">
+          <div style="font-size:13px;font-weight:900;color:#1e3a8a;letter-spacing:0.5px;text-transform:uppercase;">🏫 ${schoolName}</div>
+          <div style="font-size:8px;color:#6b7280;margin-top:1px;">Affiliated to CBSE &nbsp;|&nbsp; Excellence in Education</div>
+          <div style="margin-top:3px;display:inline-block;background:#1e3a8a;color:#fff;padding:2px 12px;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">FEE SLIP</div>
         </div>
-
         <!-- Slip Meta -->
-        <div style="display:flex;justify-content:space-between;padding:10px 30px;background:#f0f4ff;border-bottom:1px solid #c7d2fe;font-size:12.5px;font-family:Arial,sans-serif;">
-          <div><strong>Slip No:</strong> ${slipNo}</div>
-          <div><strong>Academic Year:</strong> ${f.term || new Date().getFullYear() + "-" + (new Date().getFullYear()+1)}</div>
-          <div><strong>Issue Date:</strong> ${printDate}</div>
+        <div style="display:flex;justify-content:space-between;padding:3px 10px;background:#eef2ff;border-bottom:1px solid #c7d2fe;font-size:9px;color:#1e3a8a;">
+          <span><strong>Slip No:</strong> ${slipNo}</span>
+          <span><strong>Term:</strong> ${f.term || "-"}</span>
+          <span><strong>Date:</strong> ${printDate}</span>
         </div>
-
-        <!-- Student Details -->
-        <div style="padding:16px 30px;border-bottom:1px solid #e5e7eb;">
-          <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;font-family:Arial,sans-serif;">Student Information</div>
-          <table style="width:100%;border-collapse:collapse;font-size:13.5px;">
+        <!-- Student Info -->
+        <div style="padding:5px 10px;border-bottom:1px solid #e5e7eb;">
+          <div style="font-size:8px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">Student Information</div>
+          <table style="width:100%;border-collapse:collapse;font-size:10px;">
             <tr>
-              <td style="width:25%;color:#6b7280;padding:4px 0;">Student Name</td>
-              <td style="width:35%;font-weight:700;color:#111827;padding:4px 0;border-bottom:1px dotted #d1d5db;">${f.studentName || "-"}</td>
-              <td style="width:15%;color:#6b7280;padding:4px 0 4px 16px;">Class</td>
-              <td style="font-weight:700;color:#111827;padding:4px 0;border-bottom:1px dotted #d1d5db;">${f.className || "-"}</td>
+              <td style="color:#6b7280;width:28%;padding:2px 0;">Student Name</td>
+              <td style="font-weight:700;color:#111827;padding:2px 0;border-bottom:1px dotted #d1d5db;width:38%;">${f.studentName || "-"}</td>
+              <td style="color:#6b7280;padding:2px 0 2px 6px;width:14%;">Class</td>
+              <td style="font-weight:700;padding:2px 0;border-bottom:1px dotted #d1d5db;">${f.className || "-"}</td>
             </tr>
             <tr>
-              <td style="color:#6b7280;padding:4px 0;">Roll No.</td>
-              <td style="font-weight:600;padding:4px 0;border-bottom:1px dotted #d1d5db;">${f.rollNo || "-"}</td>
-              <td style="color:#6b7280;padding:4px 0 4px 16px;">Payment Date</td>
-              <td style="font-weight:600;padding:4px 0;border-bottom:1px dotted #d1d5db;">${f.paymentDate || "-"}</td>
+              <td style="color:#6b7280;padding:2px 0;">Roll No.</td>
+              <td style="font-weight:600;padding:2px 0;border-bottom:1px dotted #d1d5db;">${f.rollNo || "-"}</td>
+              <td style="color:#6b7280;padding:2px 0 2px 6px;">Pay Date</td>
+              <td style="font-weight:600;padding:2px 0;border-bottom:1px dotted #d1d5db;">${f.paymentDate || "-"}</td>
             </tr>
             <tr>
-              <td style="color:#6b7280;padding:4px 0;">Payment Method</td>
-              <td style="font-weight:600;padding:4px 0;border-bottom:1px dotted #d1d5db;">${f.paymentMethod || "-"}</td>
-              <td style="color:#6b7280;padding:4px 0 4px 16px;">Status</td>
-              <td style="padding:4px 0;">
-                <span style="background:${statusBg};color:${statusColor};font-weight:700;padding:2px 12px;border-radius:3px;font-size:12px;border:1px solid ${statusColor};">${f.status || "Pending"}</span>
-              </td>
+              <td style="color:#6b7280;padding:2px 0;">Method</td>
+              <td style="font-weight:600;padding:2px 0;border-bottom:1px dotted #d1d5db;">${f.paymentMethod || "-"}</td>
+              <td style="color:#6b7280;padding:2px 0 2px 6px;">Status</td>
+              <td style="padding:2px 0;"><span style="background:${statusBg};color:${statusColor};font-weight:700;padding:1px 6px;border-radius:3px;font-size:9px;border:1px solid ${statusColor};">${f.status || "Pending"}</span></td>
             </tr>
           </table>
         </div>
-
         <!-- Fee Table -->
-        <div style="padding:16px 30px;border-bottom:1px solid #e5e7eb;">
-          <div style="font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;font-family:Arial,sans-serif;">Fee Details</div>
+        <div style="padding:5px 10px;border-bottom:1px solid #e5e7eb;flex:1;">
+          <div style="font-size:8px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;">Fee Details</div>
           <table style="width:100%;border-collapse:collapse;">
             <thead>
               <tr style="background:#1e3a8a;color:#fff;">
-                <th style="padding:10px 14px;text-align:left;font-size:12.5px;font-family:Arial,sans-serif;font-weight:600;">Description</th>
-                <th style="padding:10px 14px;text-align:right;font-size:12.5px;font-family:Arial,sans-serif;font-weight:600;">Amount (₹)</th>
+                <th style="padding:4px 9px;text-align:left;font-size:10px;font-weight:600;">Description</th>
+                <th style="padding:4px 9px;text-align:right;font-size:10px;font-weight:600;">Amount (₹)</th>
               </tr>
             </thead>
             <tbody>
-              ${feeRows || `<tr><td colspan="2" style="padding:10px 14px;color:#9ca3af;font-style:italic;text-align:center;">No fee details recorded</td></tr>`}
+              ${feeRows || `<tr><td colspan="2" style="padding:6px 9px;color:#9ca3af;font-style:italic;text-align:center;font-size:10px;">No fee details recorded</td></tr>`}
             </tbody>
             <tfoot>
-              <tr style="background:#eef2ff;border-top:2px solid #1e3a8a;">
-                <td style="padding:10px 14px;font-weight:700;font-size:14px;color:#1e3a8a;">Total Fee</td>
-                <td style="padding:10px 14px;text-align:right;font-weight:700;font-size:14px;color:#1e3a8a;">₹ ${totalFee.toLocaleString("en-IN")}</td>
+              <tr style="background:#eef2ff;border-top:1.5px solid #1e3a8a;">
+                <td style="padding:4px 9px;font-weight:700;font-size:11px;color:#1e3a8a;">Total Fee</td>
+                <td style="padding:4px 9px;text-align:right;font-weight:700;font-size:11px;color:#1e3a8a;">₹ ${totalFee.toLocaleString("en-IN")}</td>
               </tr>
               <tr style="background:#f0fdf4;">
-                <td style="padding:8px 14px;font-size:13px;color:#374151;">Amount Paid</td>
-                <td style="padding:8px 14px;text-align:right;font-weight:700;color:#16a34a;">₹ ${paidAmount.toLocaleString("en-IN")}</td>
+                <td style="padding:3px 9px;font-size:10px;color:#374151;">Amount Paid</td>
+                <td style="padding:3px 9px;text-align:right;font-weight:700;color:#16a34a;font-size:10px;">₹ ${paidAmount.toLocaleString("en-IN")}</td>
               </tr>
               <tr style="background:#fef2f2;">
-                <td style="padding:8px 14px;font-size:13px;color:#374151;">Balance Due</td>
-                <td style="padding:8px 14px;text-align:right;font-weight:700;color:#dc2626;">₹ ${balance.toLocaleString("en-IN")}</td>
+                <td style="padding:3px 9px;font-size:10px;color:#374151;">Balance Due</td>
+                <td style="padding:3px 9px;text-align:right;font-weight:700;color:#dc2626;font-size:10px;">₹ ${balance.toLocaleString("en-IN")}</td>
               </tr>
             </tfoot>
           </table>
         </div>
-
         <!-- Signatures -->
-        <div style="padding:24px 30px 16px;display:flex;justify-content:space-between;font-size:12.5px;font-family:Arial,sans-serif;">
-          <div style="text-align:center;width:30%;">
-            <div style="border-top:1px solid #374151;margin-top:32px;padding-top:6px;color:#374151;">Parent / Guardian Signature</div>
-          </div>
-          <div style="text-align:center;width:30%;">
-            <div style="border-top:1px solid #374151;margin-top:32px;padding-top:6px;color:#374151;">Cashier / Accountant</div>
-          </div>
-          <div style="text-align:center;width:30%;">
-            <div style="border-top:1px solid #374151;margin-top:32px;padding-top:6px;color:#374151;">Principal Signature & Stamp</div>
-          </div>
+        <div style="padding:5px 10px 4px;display:flex;justify-content:space-between;font-size:9px;">
+          <div style="text-align:center;width:30%;"><div style="border-top:1px solid #374151;margin-top:16px;padding-top:3px;color:#374151;">Parent Signature</div></div>
+          <div style="text-align:center;width:30%;"><div style="border-top:1px solid #374151;margin-top:16px;padding-top:3px;color:#374151;">Cashier</div></div>
+          <div style="text-align:center;width:30%;"><div style="border-top:1px solid #374151;margin-top:16px;padding-top:3px;color:#374151;">Principal</div></div>
         </div>
-
         <!-- Footer -->
-        <div style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:10px 30px;display:flex;justify-content:space-between;font-size:11px;color:#9ca3af;font-family:Arial,sans-serif;">
-          <div>Slip No: ${slipNo}</div>
-          <div>This is an official school fee slip.</div>
-          <div>${schoolName}</div>
+        <div style="background:#f9fafb;border-top:1px solid #e5e7eb;padding:3px 10px;display:flex;justify-content:space-between;font-size:8px;color:#9ca3af;">
+          <span>Slip No: ${slipNo}</span>
+          <span>Official School Fee Slip — ${schoolName}</span>
         </div>
       </div>`;
 
-    const slipHtml = buildPrintableHtml("Fee Slip - " + schoolName, html);
     const w = window.open("", "_blank");
     if (!w) return window.alert("Popup blocked. Please allow popups for this site and try again.");
-    w.document.write(slipHtml);
+    w.document.write(buildA4PrintHtml("Fee Slip - " + schoolName, card));
     w.document.close();
     w.focus();
   };
