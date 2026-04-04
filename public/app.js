@@ -2843,79 +2843,388 @@ function renderStatCardsEnhanced(store) {
 // === ENHANCED FACE RECOGNITION (faster TinyFace options) ===
 const FAST_FACE_OPTIONS = { inputSize: 224, scoreThreshold: 0.5 };
 
-// === ENHANCED ID CARD GENERATOR (no backend template needed) ===
+// === PREMIUM ID CARD GENERATOR — v3 ===
 function generateIdCardsHTML(store) {
   const students = store.students || [];
-  if (!students.length) return '<p style="padding:32px;text-align:center;color:#64748b;">No students found. Add students first.</p>';
+  if (!students.length) return '<p style="padding:32px;text-align:center;color:#64748b;font-family:sans-serif;">No students found. Add students first.</p>';
 
-  const schoolName = 'Tapowan Public School';
-  const cards = students.map(s => {
-    const initials = (s.fullName || 'ST').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
-    const photoHtml = s.photo
-      ? `<img src="${s.photo}" alt="Photo" style="width:100%;height:100%;object-fit:cover;border-radius:10px;" />`
-      : `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(135deg,#1a4fcf,#4f83f1);border-radius:10px;color:#fff;font-size:2rem;font-weight:800;">${initials}</div>`;
+  const schoolName  = 'Tapowan Public School';
+  const schoolAddr  = 'Sector 12, Model Town, Delhi – 110009';
+  const schoolPhone = '+91-11-2345-6789';
+  const schoolEmail = 'info@tapowanschool.edu.in';
+  const curYear     = new Date().getFullYear();
+  const session     = `${curYear}–${String(curYear + 1).slice(2)}`;
 
-    const cardId = s.admissionNo ? `TPS-${s.admissionNo}` : `TPS-${s.id || '000'}`;
+  // Color palettes for different classes
+  const classColors = [
+    { bg: 'linear-gradient(135deg,#1e3a8a,#3b82f6)', accent: '#93c5fd', badge: '#1d4ed8' },
+    { bg: 'linear-gradient(135deg,#065f46,#10b981)', accent: '#6ee7b7', badge: '#047857' },
+    { bg: 'linear-gradient(135deg,#7c2d12,#f97316)', accent: '#fed7aa', badge: '#c2410c' },
+    { bg: 'linear-gradient(135deg,#581c87,#a855f7)', accent: '#d8b4fe', badge: '#7e22ce' },
+    { bg: 'linear-gradient(135deg,#831843,#ec4899)', accent: '#fbcfe8', badge: '#be185d' },
+    { bg: 'linear-gradient(135deg,#0c4a6e,#0ea5e9)', accent: '#bae6fd', badge: '#0369a1' },
+    { bg: 'linear-gradient(135deg,#1c1917,#78716c)', accent: '#d6d3d1', badge: '#57534e' },
+    { bg: 'linear-gradient(135deg,#14532d,#22c55e)', accent: '#bbf7d0', badge: '#15803d' },
+  ];
+
+  function getClassColor(className) {
+    const num = parseInt((className || '0').replace(/[^0-9]/g,'')) || 0;
+    return classColors[num % classColors.length];
+  }
+
+  // Decorative SVG background pattern
+  const patternSvg = `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`;
+
+  const frontCards = students.map((s, idx) => {
+    const initials   = (s.fullName || 'ST').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+    const cardId     = s.admissionNo ? `TPS-${s.admissionNo}` : `TPS-${String(s.id || idx+1).padStart(4,'0')}`;
     const { classPart, sectionPart } = splitClassName(s.className || '');
-    const classDisplay = sectionPart ? `${classPart} - ${sectionPart}` : classPart;
+    const classDisplay  = [classPart, sectionPart].filter(Boolean).join(' – ');
+    const color      = getClassColor(classPart);
+
+    const photoHtml = s.photo
+      ? `<img src="${s.photo}" alt="Photo" style="width:100%;height:100%;object-fit:cover;" />`
+      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(255,255,255,0.15),rgba(255,255,255,0.05));color:#fff;font-size:1.9rem;font-weight:900;letter-spacing:0.02em;">${initials}</div>`;
 
     return `
-      <div style="
-        width:340px; min-height:200px;
-        background:linear-gradient(135deg,#0b1437 0%,#1a3a7c 50%,#0b1437 100%);
-        border-radius:16px; overflow:hidden; position:relative;
-        box-shadow:0 8px 32px rgba(0,0,0,0.35); page-break-inside:avoid;
-        border:1px solid rgba(255,255,255,0.1); display:flex; flex-direction:column;
-      ">
-        <!-- Header -->
-        <div style="background:linear-gradient(90deg,#1a4fcf,#4f83f1);padding:12px 16px;display:flex;align-items:center;gap:10px;">
-          <div style="font-size:1.4rem;">🏫</div>
-          <div>
-            <div style="color:#fff;font-weight:800;font-size:0.9rem;letter-spacing:0.02em;">${escapeHtml(schoolName)}</div>
-            <div style="color:rgba(255,255,255,0.7);font-size:0.65rem;letter-spacing:0.08em;text-transform:uppercase;">Student Identity Card</div>
+    <div class="id-card-wrap">
+      <!-- FRONT -->
+      <div class="id-card front" style="background:${color.bg};">
+        <!-- Decorative background pattern -->
+        <div style="position:absolute;inset:0;background-image:${patternSvg};pointer-events:none;z-index:0;"></div>
+        <!-- Decorative circles -->
+        <div style="position:absolute;top:-40px;right:-40px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,0.05);pointer-events:none;z-index:0;"></div>
+        <div style="position:absolute;bottom:-50px;left:-30px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,0.04);pointer-events:none;z-index:0;"></div>
+
+        <!-- Header band -->
+        <div class="card-header" style="z-index:1;position:relative;">
+          <div class="school-logo">🏫</div>
+          <div class="school-info">
+            <div class="school-name">${escapeHtml(schoolName)}</div>
+            <div class="card-subtitle">STUDENT IDENTITY CARD</div>
           </div>
-          <div style="margin-left:auto;background:rgba(255,255,255,0.15);color:#fff;padding:3px 8px;border-radius:6px;font-size:0.62rem;font-weight:700;">${escapeHtml(cardId)}</div>
+          <div class="card-id-badge">${escapeHtml(cardId)}</div>
         </div>
+
         <!-- Body -->
-        <div style="padding:14px 16px;display:flex;gap:14px;align-items:flex-start;flex:1;">
+        <div class="card-body" style="z-index:1;position:relative;">
           <!-- Photo -->
-          <div style="width:80px;height:95px;flex-shrink:0;border-radius:10px;overflow:hidden;border:2px solid rgba(255,255,255,0.2);">
+          <div class="photo-frame">
             ${photoHtml}
           </div>
+
           <!-- Info -->
-          <div style="flex:1;color:#fff;">
-            <div style="font-size:1rem;font-weight:800;color:#fff;margin-bottom:6px;line-height:1.2;">${escapeHtml(s.fullName || 'Student')}</div>
-            <div style="display:grid;grid-template-columns:auto 1fr;gap:2px 8px;font-size:0.72rem;">
-              <span style="color:rgba(255,255,255,0.5);">Class:</span><span style="color:#93c5fd;font-weight:600;">${escapeHtml(classDisplay || 'N/A')}</span>
-              <span style="color:rgba(255,255,255,0.5);">Roll No:</span><span style="color:#93c5fd;font-weight:600;">${escapeHtml(s.rollNo || 'N/A')}</span>
-              <span style="color:rgba(255,255,255,0.5);">DOB:</span><span style="color:rgba(255,255,255,0.8);">${escapeHtml(s.dob || 'N/A')}</span>
-              <span style="color:rgba(255,255,255,0.5);">Father:</span><span style="color:rgba(255,255,255,0.8);">${escapeHtml(s.parentName || 'N/A')}</span>
-              <span style="color:rgba(255,255,255,0.5);">Phone:</span><span style="color:rgba(255,255,255,0.8);">${escapeHtml(s.phone || 'N/A')}</span>
+          <div class="card-info">
+            <div class="student-name">${escapeHtml(s.fullName || 'Student Name')}</div>
+            <div class="class-badge" style="background:${color.badge};">
+              Class ${escapeHtml(classDisplay || '—')}
+            </div>
+
+            <div class="info-grid">
+              <div class="info-row">
+                <span class="info-label">Roll No</span>
+                <span class="info-val" style="color:${color.accent};">${escapeHtml(s.rollNo || '—')}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">DOB</span>
+                <span class="info-val">${escapeHtml(s.dob || '—')}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Gender</span>
+                <span class="info-val">${escapeHtml(s.gender || '—')}</span>
+              </div>
+              <div class="info-row">
+                <span class="info-label">Parent</span>
+                <span class="info-val">${escapeHtml(s.parentName || '—')}</span>
+              </div>
             </div>
           </div>
         </div>
+
         <!-- Footer -->
-        <div style="background:rgba(0,0,0,0.3);padding:8px 16px;display:flex;align-items:center;justify-content:space-between;font-size:0.65rem;color:rgba(255,255,255,0.4);">
-          <span>Valid: 2024–25</span>
-          <span style="color:rgba(255,255,255,0.2);">|</span>
-          <span>If found, please return to school</span>
+        <div class="card-footer" style="z-index:1;position:relative;">
+          <div class="validity">Session: ${session}</div>
+          <div class="barcode-strip">
+            <div class="bar"></div><div class="bar w2"></div><div class="bar"></div><div class="bar w3"></div>
+            <div class="bar w2"></div><div class="bar"></div><div class="bar w2"></div><div class="bar"></div>
+            <div class="bar w3"></div><div class="bar"></div><div class="bar w2"></div><div class="bar"></div>
+            <span class="bar-text">${escapeHtml(cardId)}</span>
+          </div>
         </div>
       </div>
-    `;
+
+      <!-- BACK -->
+      <div class="id-card back">
+        <!-- Magnetic stripe -->
+        <div class="mag-stripe"></div>
+
+        <!-- School seal area -->
+        <div class="back-header">
+          <div class="back-seal">🏫</div>
+          <div>
+            <div class="back-school-name">${escapeHtml(schoolName)}</div>
+            <div class="back-school-addr">${escapeHtml(schoolAddr)}</div>
+          </div>
+        </div>
+
+        <!-- Contact -->
+        <div class="back-contacts">
+          <div class="back-contact-row">📞 ${escapeHtml(schoolPhone)}</div>
+          <div class="back-contact-row">✉️ ${escapeHtml(schoolEmail)}</div>
+        </div>
+
+        <!-- Emergency -->
+        <div class="back-info-section">
+          <div class="back-section-title">EMERGENCY CONTACT</div>
+          <div class="back-field">
+            <span class="back-field-label">Name:</span>
+            <span class="back-field-val">${escapeHtml(s.parentName || '—')}</span>
+          </div>
+          <div class="back-field">
+            <span class="back-field-label">Phone:</span>
+            <span class="back-field-val">${escapeHtml(s.phone || '—')}</span>
+          </div>
+          <div class="back-field">
+            <span class="back-field-label">Address:</span>
+            <span class="back-field-val">${escapeHtml((s.address || '—').slice(0,40))}${(s.address||'').length>40?'…':''}</span>
+          </div>
+        </div>
+
+        <!-- Signature -->
+        <div class="signature-row">
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <div class="sig-label">Student Signature</div>
+          </div>
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <div class="sig-label">Principal</div>
+          </div>
+        </div>
+
+        <!-- Footer note -->
+        <div class="back-footer">
+          If found, please return to: ${escapeHtml(schoolName)}, ${escapeHtml(schoolAddr)}
+        </div>
+      </div>
+    </div>`;
   }).join('');
 
-  return `
-    <div style="padding:32px;background:#f0f4ff;min-height:100vh;">
-      <div style="text-align:center;margin-bottom:28px;">
-        <h1 style="font-size:1.8rem;font-weight:800;color:#0b1437;">${schoolName}</h1>
-        <p style="color:#64748b;margin-top:4px;">Student ID Cards — ${new Date().toLocaleDateString('en-IN',{year:'numeric',month:'long'})}</p>
-      </div>
-      <div style="display:flex;flex-wrap:wrap;gap:20px;justify-content:center;">
-        ${cards}
-      </div>
-    </div>
+  // CSS injected into the print page
+  const css = `
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
+
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{
+      font-family:'Plus Jakarta Sans',sans-serif;
+      background:#e8edf5;
+      padding:40px 24px;
+      color:#0f172a;
+    }
+    h1.page-title{
+      text-align:center;font-size:1.6rem;font-weight:900;
+      color:#1e3a8a;letter-spacing:-0.02em;margin-bottom:4px;
+    }
+    p.page-sub{
+      text-align:center;color:#64748b;font-size:0.85rem;
+      margin-bottom:36px;
+    }
+
+    /* Card grid */
+    .cards-grid{
+      display:flex;flex-wrap:wrap;gap:32px;justify-content:center;
+    }
+
+    /* Each front+back pair */
+    .id-card-wrap{
+      display:flex;flex-direction:column;gap:12px;align-items:center;
+      page-break-inside:avoid;break-inside:avoid;
+    }
+
+    /* Card base — CR80 standard ratio 85.6×54mm */
+    .id-card{
+      width:340px;height:215px;
+      border-radius:16px;
+      overflow:hidden;
+      position:relative;
+      box-shadow:0 12px 40px rgba(0,0,0,0.22),0 0 0 1px rgba(0,0,0,0.06);
+      flex-shrink:0;
+    }
+
+    /* ─── FRONT ─── */
+    .front{color:#fff;}
+
+    .card-header{
+      display:flex;align-items:center;gap:10px;
+      padding:10px 14px 9px;
+      background:rgba(0,0,0,0.28);
+      border-bottom:1px solid rgba(255,255,255,0.12);
+    }
+    .school-logo{font-size:1.5rem;flex-shrink:0;}
+    .school-info{flex:1;min-width:0;}
+    .school-name{
+      font-size:0.78rem;font-weight:800;letter-spacing:0.01em;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    }
+    .card-subtitle{
+      font-size:0.52rem;letter-spacing:0.14em;
+      text-transform:uppercase;opacity:0.65;margin-top:1px;
+    }
+    .card-id-badge{
+      background:rgba(255,255,255,0.18);
+      padding:3px 8px;border-radius:6px;
+      font-size:0.58rem;font-weight:700;letter-spacing:0.04em;
+      white-space:nowrap;border:1px solid rgba(255,255,255,0.15);
+    }
+
+    .card-body{
+      display:flex;gap:14px;padding:12px 14px 10px;align-items:flex-start;flex:1;
+    }
+
+    /* Photo */
+    .photo-frame{
+      width:76px;height:90px;
+      border-radius:10px;
+      overflow:hidden;
+      flex-shrink:0;
+      border:2.5px solid rgba(255,255,255,0.35);
+      box-shadow:0 4px 14px rgba(0,0,0,0.3);
+      background:rgba(255,255,255,0.08);
+    }
+
+    /* Info */
+    .card-info{flex:1;min-width:0;}
+    .student-name{
+      font-size:0.95rem;font-weight:800;line-height:1.15;
+      margin-bottom:5px;
+      text-shadow:0 1px 4px rgba(0,0,0,0.3);
+    }
+    .class-badge{
+      display:inline-block;
+      padding:2px 10px;border-radius:20px;
+      font-size:0.62rem;font-weight:700;letter-spacing:0.06em;
+      text-transform:uppercase;
+      color:#fff;
+      margin-bottom:8px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.2);
+    }
+    .info-grid{display:flex;flex-direction:column;gap:3px;}
+    .info-row{display:flex;align-items:baseline;gap:0;}
+    .info-label{
+      font-size:0.6rem;font-weight:600;
+      text-transform:uppercase;letter-spacing:0.06em;
+      opacity:0.55;min-width:46px;flex-shrink:0;
+    }
+    .info-val{font-size:0.68rem;font-weight:600;}
+
+    /* Footer */
+    .card-footer{
+      padding:6px 14px;
+      background:rgba(0,0,0,0.3);
+      display:flex;align-items:center;justify-content:space-between;
+      border-top:1px solid rgba(255,255,255,0.08);
+    }
+    .validity{font-size:0.58rem;opacity:0.6;font-weight:600;letter-spacing:0.04em;}
+
+    /* Barcode strip */
+    .barcode-strip{
+      display:flex;align-items:flex-end;gap:2px;height:24px;
+      position:relative;
+    }
+    .bar{height:18px;width:2px;background:rgba(255,255,255,0.55);border-radius:1px;}
+    .bar.w2{width:3px;}
+    .bar.w3{width:4px;}
+    .bar-text{
+      font-size:0.46rem;font-weight:700;letter-spacing:0.08em;
+      opacity:0.5;margin-left:4px;align-self:flex-end;
+    }
+
+    /* ─── BACK ─── */
+    .back{
+      background:linear-gradient(160deg,#f8faff 0%,#fff 50%,#f1f5ff 100%);
+      color:#0f172a;
+      display:flex;flex-direction:column;
+    }
+    .mag-stripe{
+      height:36px;width:100%;
+      background:linear-gradient(180deg,#1e293b,#334155,#1e293b);
+      flex-shrink:0;
+    }
+    .back-header{
+      display:flex;align-items:center;gap:10px;
+      padding:10px 14px 8px;
+      border-bottom:1px solid #e2e8f0;
+    }
+    .back-seal{
+      width:36px;height:36px;
+      border-radius:50%;
+      background:linear-gradient(135deg,#1e3a8a,#3b82f6);
+      display:flex;align-items:center;justify-content:center;
+      font-size:1rem;flex-shrink:0;
+      box-shadow:0 2px 8px rgba(37,99,235,0.35);
+    }
+    .back-school-name{font-size:0.72rem;font-weight:800;color:#1e3a8a;}
+    .back-school-addr{font-size:0.58rem;color:#64748b;margin-top:1px;}
+
+    .back-contacts{
+      padding:5px 14px;
+      display:flex;gap:12px;
+      border-bottom:1px solid #f1f5f9;
+    }
+    .back-contact-row{font-size:0.58rem;color:#475569;font-weight:500;}
+
+    .back-info-section{padding:6px 14px 4px;}
+    .back-section-title{
+      font-size:0.5rem;font-weight:800;letter-spacing:0.12em;
+      text-transform:uppercase;color:#94a3b8;margin-bottom:4px;
+    }
+    .back-field{display:flex;gap:4px;align-items:baseline;margin-bottom:2px;}
+    .back-field-label{
+      font-size:0.58rem;font-weight:700;color:#64748b;
+      min-width:46px;flex-shrink:0;
+    }
+    .back-field-val{font-size:0.62rem;color:#0f172a;font-weight:500;}
+
+    .signature-row{
+      margin:6px 14px 0;
+      display:flex;gap:16px;
+    }
+    .sig-box{flex:1;}
+    .sig-line{
+      height:1px;background:#cbd5e1;
+      margin-bottom:3px;
+    }
+    .sig-label{font-size:0.5rem;color:#94a3b8;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;}
+
+    .back-footer{
+      margin-top:auto;padding:5px 14px;
+      font-size:0.5rem;color:#94a3b8;
+      border-top:1px solid #f1f5f9;
+      line-height:1.4;
+    }
+
+    /* ─── PRINT ─── */
+    @media print{
+      body{background:#fff;padding:10mm;}
+      .id-card{box-shadow:0 0 0 1px #cbd5e1;}
+      .cards-grid{gap:16px;}
+      .id-card-wrap{gap:8px;}
+      @page{margin:10mm;}
+    }
   `;
+
+  return `<!DOCTYPE html><html><head>
+    <meta charset="UTF-8"/>
+    <title>Student ID Cards — ${schoolName}</title>
+    <style>${css}</style>
+  </head><body>
+    <h1 class="page-title">🏫 ${schoolName}</h1>
+    <p class="page-sub">Student Identity Cards &nbsp;·&nbsp; Session ${session} &nbsp;·&nbsp; ${students.length} card${students.length!==1?'s':''} generated</p>
+    <div class="cards-grid">${frontCards}</div>
+    <script>window.onload=()=>{setTimeout(()=>window.print(),800);}<\/script>
+  </body></html>`;
 }
+
 
 // === INTERCEPT printDocumentByModule to use new ID card generator ===
 // We patch the function after page load
@@ -2976,23 +3285,12 @@ function patchApp() {
     window.printDocumentByModule = function() {
       if (currentModule === 'students') {
         const store = getStore();
-        const html = generateIdCardsHTML(store);
+        // generateIdCardsHTML now returns a full HTML document
+        const fullHtml = generateIdCardsHTML(store);
         const w = window.open('', '_blank');
         if (!w) return window.alert('Popup blocked. Please allow popups.');
-        w.document.write(`<!DOCTYPE html><html><head>
-          <title>ID Cards — Tapowan Public School</title>
-          <link rel="preconnect" href="https://fonts.googleapis.com">
-          <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-          <style>
-            body { font-family: 'Plus Jakarta Sans',sans-serif; margin:0; }
-            @media print {
-              body { background:#fff; }
-              @page { margin: 10mm; }
-            }
-          </style>
-        </head><body>${html}
-          <script>window.onload = () => { setTimeout(() => window.print(), 600); }<\/script>
-        </body></html>`);
+        w.document.open();
+        w.document.write(fullHtml);
         w.document.close();
         showToast('🖨 Opening ID cards for print…', 'info');
       } else {
