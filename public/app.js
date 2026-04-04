@@ -939,21 +939,78 @@ function renderStudentProfile() {
     const paidAmount = fees.reduce((sum, f) => sum + asNum(f.paidAmount), 0);
     const dueAmount = fees.reduce((sum, f) => sum + asNum(f.balance), 0);
 
+    const FEE_TYPE_KEYS = [
+      { key: "tuitionFee", label: "Tuition Fee", icon: "📚" },
+      { key: "admissionFee", label: "Admission Fee", icon: "🎓" },
+      { key: "computerFee", label: "Computer Fee", icon: "💻" },
+      { key: "developmentFee", label: "Development Fee", icon: "🏗️" },
+      { key: "labFee", label: "Lab Fee", icon: "🔬" },
+      { key: "sportsFee", label: "Sports Fee", icon: "⚽" },
+      { key: "libraryFee", label: "Library Fee", icon: "📖" },
+      { key: "examFee", label: "Exam Fee", icon: "📝" },
+      { key: "otherFee", label: "Other Fee", icon: "➕" },
+    ];
+    function buildFeeBreakdown(f) {
+      let lines = "";
+      let hasAny = false;
+      FEE_TYPE_KEYS.forEach(({ key, label, icon }) => {
+        const amt = parseFloat(f[key]) || 0;
+        if (amt > 0) {
+          hasAny = true;
+          lines += `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:0.82rem;border-bottom:1px dashed rgba(148,163,184,0.2);">
+            <span style="color:#475569;">${icon} ${label}</span>
+            <span style="font-weight:600;color:#0f172a;">₹ ${amt.toLocaleString("en-IN")}</span></div>`;
+        }
+      });
+      if (!hasAny) {
+        // Fallback: show fee types label if available
+        const labels = (f.feeTypes || f.monthlyFeeLabel || "").trim();
+        const totalMonthly = parseFloat(f.monthlyFee) || 0;
+        if (labels) {
+          const parts = labels.split(",").map(s => s.trim()).filter(Boolean);
+          if (parts.length > 0 && totalMonthly > 0) {
+            const perPart = totalMonthly / parts.length;
+            parts.forEach(part => {
+              lines += `<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:0.82rem;border-bottom:1px dashed rgba(148,163,184,0.2);">
+                <span style="color:#475569;">💳 ${part}</span>
+                <span style="font-weight:600;color:#0f172a;">₹ ${perPart.toLocaleString("en-IN")}</span></div>`;
+            });
+          } else if (labels) {
+            lines += `<div style="font-size:0.8rem;color:#64748b;">Fee Types: ${labels}</div>`;
+          }
+        }
+      }
+      return lines ? `<div style="margin-top:6px;padding:4px 0;">${lines}</div>` : "";
+    }
     const history = fees
       .slice()
       .sort((a, b) => String(b.term).localeCompare(String(a.term)))
-      .map((f) => `
+      .map((f) => {
+        const feeBreakdown = buildFeeBreakdown(f);
+        const statusColor = String(f.status||'').toLowerCase()==='paid'?'#16a34a':String(f.status||'').toLowerCase()==='partial'?'#d97706':'#dc2626';
+        const statusBg = String(f.status||'').toLowerCase()==='paid'?'#dcfce7':String(f.status||'').toLowerCase()==='partial'?'#fef3c7':'#fee2e2';
+        return `
         <div style="padding:10px;border:1px solid rgba(148,163,184,0.25);border-radius:10px;margin-bottom:10px;">
-          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-            <b>Term:</b> ${f.term || ""} <span class="badge" style="background:#e0e7ff;color:#3730a3;">${f.status || ""}</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+            <b style="color:#1e3a8a;">Term: ${f.term || "—"}</b>
+            <span style="background:${statusBg};color:${statusColor};font-weight:700;padding:2px 10px;border-radius:10px;font-size:0.78rem;border:1px solid ${statusColor};">${f.status || "Pending"}</span>
           </div>
-          <div style="margin-top:8px;"><b>Total Fee:</b> ${f.totalFee || ""}</div>
-          <div><b>Paid:</b> ${f.paidAmount || ""} | <b>Due:</b> ${f.balance || ""}</div>
-          <div style="color:#64748b;margin-top:4px;">
-            <b>Payment Date:</b> ${f.paymentDate || "-"} • <b>Method:</b> ${f.paymentMethod || "-"}
+          ${feeBreakdown}
+          <div style="margin-top:8px;display:flex;justify-content:space-between;font-size:0.82rem;">
+            <span style="color:#64748b;">Total Fee</span><span style="font-weight:700;color:#1e3a8a;">₹ ${(parseFloat(f.totalFee)||0).toLocaleString('en-IN')}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:0.82rem;">
+            <span style="color:#64748b;">Amount Paid</span><span style="font-weight:700;color:#16a34a;">₹ ${(parseFloat(f.paidAmount)||0).toLocaleString('en-IN')}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:0.82rem;">
+            <span style="color:#64748b;">Balance Due</span><span style="font-weight:700;color:#dc2626;">₹ ${(parseFloat(f.balance)||0).toLocaleString('en-IN')}</span>
+          </div>
+          <div style="color:#64748b;margin-top:4px;font-size:0.78rem;">
+            <b>Payment Date:</b> ${f.paymentDate || "-"} &nbsp;•&nbsp; <b>Method:</b> ${f.paymentMethod || "-"}
           </div>
         </div>
-      `).join("");
+      `;
+      }).join("");
 
     refs.studentProfileContent.innerHTML = `
       <div class="panel" style="margin-bottom:12px;">
@@ -1093,18 +1150,49 @@ function printStudentReport(student) {
 
   const feesHtml = (() => {
     if (!fees.length) return `<div class="box">No fee records.</div>`;
+    const FEE_REPORT_TYPES = [
+      { key: "tuitionFee", label: "Tuition Fee", icon: "📚" },
+      { key: "admissionFee", label: "Admission Fee", icon: "🎓" },
+      { key: "computerFee", label: "Computer Fee", icon: "💻" },
+      { key: "developmentFee", label: "Development Fee", icon: "🏗️" },
+      { key: "labFee", label: "Lab Fee", icon: "🔬" },
+      { key: "sportsFee", label: "Sports Fee", icon: "⚽" },
+      { key: "libraryFee", label: "Library Fee", icon: "📖" },
+      { key: "examFee", label: "Exam Fee", icon: "📝" },
+      { key: "otherFee", label: "Other Fee", icon: "➕" },
+    ];
     const blocks = fees
       .slice()
       .sort((a, b) => String(b.term).localeCompare(String(a.term)))
-      .map((f) => `
+      .map((f) => {
+        let feeDetails = "";
+        let hasAny = false;
+        FEE_REPORT_TYPES.forEach(({ key, label, icon }) => {
+          const amt = parseFloat(f[key]) || 0;
+          if (amt > 0) { hasAny = true; feeDetails += `<div class="row">${icon} ${label}: ₹${amt.toLocaleString("en-IN")}</div>`; }
+        });
+        if (!hasAny) {
+          const labels = (f.feeTypes || f.monthlyFeeLabel || "").trim();
+          const totalMonthly = parseFloat(f.monthlyFee) || 0;
+          if (labels && totalMonthly > 0) {
+            const parts = labels.split(",").map(s => s.trim()).filter(Boolean);
+            const perPart = parts.length > 0 ? totalMonthly / parts.length : 0;
+            parts.forEach(part => { feeDetails += `<div class="row">💳 ${part}: ₹${perPart.toLocaleString("en-IN")}</div>`; });
+          } else if (labels) {
+            feeDetails += `<div class="row">Fee Types: ${labels}</div>`;
+          }
+        }
+        return `
         <div class="box">
-          <h2>Term: ${f.term || ""}</h2>
-          <div class="row"><b>Total:</b> ${f.totalFee || ""}</div>
-          <div class="row"><b>Paid:</b> ${f.paidAmount || ""}</div>
-          <div class="row"><b>Due:</b> ${f.balance || ""}</div>
+          <h2>Term: ${f.term || ""} — RCP-${f.id}</h2>
+          ${feeDetails || '<div class="row" style="color:#94a3b8;">No fee breakdown recorded.</div>'}
+          <div class="row" style="margin-top:6px;font-weight:700;"><b>Total Fee:</b> ₹${(parseFloat(f.totalFee)||0).toLocaleString("en-IN")}</div>
+          <div class="row"><b>Amount Paid:</b> ₹${(parseFloat(f.paidAmount)||0).toLocaleString("en-IN")}</div>
+          <div class="row"><b>Balance Due:</b> ₹${(parseFloat(f.balance)||0).toLocaleString("en-IN")}</div>
           <div class="row" style="color:#64748b;"><b>Date:</b> ${f.paymentDate || "-"} • <b>Method:</b> ${f.paymentMethod || "-"}</div>
         </div>
-      `)
+      `;
+      })
       .join("");
     return blocks;
   })();
@@ -1642,6 +1730,17 @@ function printDocumentByModule() {
       <div class="row"><strong>Marks:</strong> ${r.marksObtained}/${r.maxMarks} (${r.grade})</div></div>`).join("");
   } else if (currentModule === "fees") {
     const schoolName = "Tapowan Public School";
+    const PRINT_FEE_TYPES = [
+      { key: "tuitionFee", label: "Tuition Fee", icon: "📚" },
+      { key: "admissionFee", label: "Admission Fee", icon: "🎓" },
+      { key: "computerFee", label: "Computer Fee", icon: "💻" },
+      { key: "developmentFee", label: "Development Fee", icon: "🏗️" },
+      { key: "labFee", label: "Lab Fee", icon: "🔬" },
+      { key: "sportsFee", label: "Sports Fee", icon: "⚽" },
+      { key: "libraryFee", label: "Library Fee", icon: "📖" },
+      { key: "examFee", label: "Exam Fee", icon: "📝" },
+      { key: "otherFee", label: "Other Fee", icon: "➕" },
+    ];
     html = `
       <div style="text-align:center;margin-bottom:20px;border-bottom:2px solid #1e3a8a;padding-bottom:14px;">
         <div style="font-size:24px;font-weight:900;color:#1e3a8a;">${schoolName}</div>
@@ -1652,11 +1751,33 @@ function printDocumentByModule() {
       const paidAmount = parseFloat(f.paidAmount) || 0;
       const balance = parseFloat(f.balance) || (totalFee - paidAmount);
       const statusColor = String(f.status).toLowerCase() === "paid" ? "#16a34a" : String(f.status).toLowerCase() === "partial" ? "#d97706" : "#dc2626";
+      // Build fee breakdown
+      let feeDetails = "";
+      let hasBrk = false;
+      PRINT_FEE_TYPES.forEach(({ key, label, icon }) => {
+        const amt = parseFloat(f[key]) || 0;
+        if (amt > 0) { hasBrk = true; feeDetails += `<div class="row">${icon} ${label}: <strong>₹${amt.toLocaleString("en-IN")}</strong></div>`; }
+      });
+      if (!hasBrk) {
+        const labels = (f.feeTypes || f.monthlyFeeLabel || "").trim();
+        const totalMonthly = parseFloat(f.monthlyFee) || 0;
+        if (labels && totalMonthly > 0) {
+          const parts = labels.split(",").map(s => s.trim()).filter(Boolean);
+          const perPart = parts.length > 0 ? totalMonthly / parts.length : 0;
+          parts.forEach(part => { feeDetails += `<div class="row">💳 ${part}: <strong>₹${perPart.toLocaleString("en-IN")}</strong></div>`; });
+        } else if (labels) {
+          feeDetails += `<div class="row">Fee Types: ${labels}</div>`;
+        }
+      }
       return `<div class="box" style="page-break-inside:avoid;">
         <h2 style="color:#1e3a8a;margin-bottom:8px;">Fee Receipt &mdash; RCP-${f.id}</h2>
         <div class="row"><strong>Student:</strong> ${f.studentName || "-"}</div>
         <div class="row"><strong>Class:</strong> ${f.className || "-"} &nbsp;|&nbsp; <strong>Roll No:</strong> ${f.rollNo || "-"}</div>
         <div class="row"><strong>Term:</strong> ${f.term || "-"} &nbsp;|&nbsp; <strong>Payment Date:</strong> ${f.paymentDate || "-"}</div>
+        <div style="margin:8px 0;padding:8px;background:#f0f4ff;border-radius:6px;border-left:3px solid #1e3a8a;">
+          <div style="font-weight:700;color:#1e3a8a;margin-bottom:4px;font-size:0.85em;">📋 Fee Breakdown:</div>
+          ${feeDetails || '<div class="row" style="color:#94a3b8;">No fee breakdown recorded.</div>'}
+        </div>
         <div class="row"><strong>Total Fee:</strong> ₹${totalFee.toLocaleString("en-IN")} &nbsp;|&nbsp; <strong>Paid:</strong> ₹${paidAmount.toLocaleString("en-IN")} &nbsp;|&nbsp; <strong>Balance:</strong> ₹${balance.toLocaleString("en-IN")}</div>
         <div class="row"><strong>Method:</strong> ${f.paymentMethod || "-"} &nbsp;|&nbsp; <strong>Status:</strong> <span style="color:${statusColor};font-weight:700;">${f.status || "Pending"}</span></div>
       </div>`;
@@ -2177,6 +2298,42 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
     payload.monthlyFeeLabel = checkedFeeBoxes.length > 0 && monthlyFee > 0
       ? checkedFeeBoxes.map(cb => cb.dataset.label || "School Fee").join(", ")
       : "";
+
+    // ── MAP each checked fee type to its individual field for receipt display ──
+    // This ensures the receipt/slip can show a line-by-line breakdown of what was paid.
+    const FEE_LABEL_MAP = {
+      "tuition fee":     "tuitionFee",
+      "tuition":         "tuitionFee",
+      "admission fee":   "admissionFee",
+      "admission":       "admissionFee",
+      "computer fee":    "computerFee",
+      "computer":        "computerFee",
+      "development fee": "developmentFee",
+      "development":     "developmentFee",
+      "lab fee":         "labFee",
+      "lab":             "labFee",
+      "sports fee":      "sportsFee",
+      "sports":          "sportsFee",
+      "library fee":     "libraryFee",
+      "library":         "libraryFee",
+      "exam fee":        "examFee",
+      "exam":            "examFee",
+      "activity fee":    "otherFee",
+      "activity":        "otherFee",
+    };
+    // Reset individual fee type fields first
+    ["tuitionFee","admissionFee","computerFee","developmentFee","labFee","sportsFee","libraryFee","examFee","otherFee"].forEach(k => { payload[k] = ""; });
+    // Map each checked fee type label → its matching field, accumulate amounts per field
+    const feeAccum = {};
+    checkedFeeBoxes.forEach(cb => {
+      const label = (cb.dataset.label || "").trim();
+      const amt = parseFloat(cb.value) || 0;
+      const fieldKey = FEE_LABEL_MAP[label.toLowerCase()] || "otherFee";
+      feeAccum[fieldKey] = (feeAccum[fieldKey] || 0) + amt;
+    });
+    Object.entries(feeAccum).forEach(([k, v]) => { payload[k] = String(v); });
+    // Also store the fee type labels as feeTypes (comma-separated) for easy display
+    payload.feeTypes = checkedFeeBoxes.map(cb => cb.dataset.label || "School Fee").join(", ");
 
     // Collect selected book/dress items from checkboxes
     const selectedItems = [];
@@ -4373,10 +4530,13 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
               <label style="display:block;font-size:0.84rem;font-weight:600;color:#475569;margin-bottom:5px;">Fee Type *</label>
               <select id="fs-f-type" required style="width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:8px 12px;font-size:0.88rem;">
                 <option value="Tuition Fee">Tuition Fee</option>
+                <option value="Admission Fee">Admission Fee</option>
                 <option value="Development Fee">Development Fee</option>
                 <option value="Sports Fee">Sports Fee</option>
                 <option value="Lab Fee">Lab Fee</option>
                 <option value="Computer Fee">Computer Fee</option>
+                <option value="Library Fee">Library Fee</option>
+                <option value="Exam Fee">Exam Fee</option>
                 <option value="Activity Fee">Activity Fee</option>
                 <option value="Other">Other</option>
               </select>
@@ -4747,6 +4907,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
   // ── Shared fee-type definitions (mirrors app.js FEE_TYPES) ────────────────
   const RECEIPT_FEE_TYPES = [
     { key: "tuitionFee",     label: "Tuition Fee",     icon: "📚" },
+    { key: "admissionFee",   label: "Admission Fee",   icon: "🎓" },
     { key: "computerFee",    label: "Computer Fee",    icon: "💻" },
     { key: "developmentFee", label: "Development Fee", icon: "🏗️" },
     { key: "labFee",         label: "Lab Fee",         icon: "🔬" },
@@ -4756,11 +4917,15 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     { key: "otherFee",       label: "Other Fee",       icon: "➕" }
   ];
 
+  // Build fee rows: first try individual fee type fields, fall back to feeTypes label string
   function buildFeeRows_receipt(f) {
     let rows = "";
+    let hasIndividual = false;
+
     RECEIPT_FEE_TYPES.forEach(({ key, label, icon }, idx) => {
       const amt = parseFloat(f[key]) || 0;
       if (amt > 0) {
+        hasIndividual = true;
         const bg = idx % 2 === 0 ? "#f8fafc" : "#ffffff";
         rows += `<tr style="background:${bg};">
           <td style="padding:5px 8px;border:1px solid #e2e8f0;color:#475569;font-size:11px;">${icon} ${label}</td>
@@ -4768,6 +4933,31 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         </tr>`;
       }
     });
+
+    // Fallback: if no individual fee fields set, try monthlyFeeLabel or feeTypes
+    if (!hasIndividual) {
+      const labels = (f.feeTypes || f.monthlyFeeLabel || "").trim();
+      const totalMonthly = parseFloat(f.monthlyFee) || parseFloat(f.totalFee) || 0;
+      if (labels && totalMonthly > 0) {
+        // Show each fee type label on separate rows, distributing total equally or show as lump
+        const parts = labels.split(",").map(s => s.trim()).filter(Boolean);
+        if (parts.length > 0) {
+          const perPart = totalMonthly / parts.length;
+          parts.forEach((part, idx) => {
+            const bg = idx % 2 === 0 ? "#f8fafc" : "#ffffff";
+            rows += `<tr style="background:${bg};">
+              <td style="padding:5px 8px;border:1px solid #e2e8f0;color:#475569;font-size:11px;">💳 ${part}</td>
+              <td style="padding:5px 8px;border:1px solid #e2e8f0;text-align:right;font-weight:600;font-size:11px;">₹ ${perPart.toLocaleString("en-IN")}</td>
+            </tr>`;
+          });
+        } else {
+          rows += `<tr style="background:#f8fafc;">
+            <td style="padding:5px 8px;border:1px solid #e2e8f0;color:#475569;font-size:11px;">💳 School Fee</td>
+            <td style="padding:5px 8px;border:1px solid #e2e8f0;text-align:right;font-weight:600;font-size:11px;">₹ ${totalMonthly.toLocaleString("en-IN")}</td>
+          </tr>`;
+        }
+      }
+    }
     return rows;
   }
 
@@ -4930,9 +5120,11 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 
     // ── Build fee rows from individual stored fields ──────────────────────
     let feeRows = "";
+    let hasSlipIndividual = false;
     RECEIPT_FEE_TYPES.forEach(({ key, label, icon }, idx) => {
       const amt = parseFloat(f[key]) || 0;
       if (amt > 0) {
+        hasSlipIndividual = true;
         const bg = idx % 2 === 0 ? "#f9fafb" : "#fff";
         feeRows += `<tr style="background:${bg};">
           <td style="padding:5px 9px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#374151;">${icon} ${label}</td>
@@ -4940,6 +5132,29 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         </tr>`;
       }
     });
+    // Fallback for old records without individual fee fields
+    if (!hasSlipIndividual) {
+      const labels = (f.feeTypes || f.monthlyFeeLabel || "").trim();
+      const totalMonthly = parseFloat(f.monthlyFee) || parseFloat(f.totalFee) || 0;
+      if (labels && totalMonthly > 0) {
+        const parts = labels.split(",").map(s => s.trim()).filter(Boolean);
+        if (parts.length > 0) {
+          const perPart = totalMonthly / parts.length;
+          parts.forEach((part, idx) => {
+            const bg = idx % 2 === 0 ? "#f9fafb" : "#fff";
+            feeRows += `<tr style="background:${bg};">
+              <td style="padding:5px 9px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#374151;">💳 ${part}</td>
+              <td style="padding:5px 9px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:11px;font-weight:600;color:#111827;">₹ ${perPart.toLocaleString("en-IN")}</td>
+            </tr>`;
+          });
+        } else if (totalMonthly > 0) {
+          feeRows += `<tr style="background:#f9fafb;">
+            <td style="padding:5px 9px;border-bottom:1px solid #e5e7eb;font-size:11px;color:#374151;">💳 School Fee</td>
+            <td style="padding:5px 9px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:11px;font-weight:600;color:#111827;">₹ ${totalMonthly.toLocaleString("en-IN")}</td>
+          </tr>`;
+        }
+      }
+    }
 
     // Books & Dress items
     let itemsTotal = 0;

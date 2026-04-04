@@ -12,7 +12,7 @@ const MODULES = {
   attendance: ["date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks", "facePhoto"],
   teacherAttendance: ["date", "department", "teacherName", "status", "remarks"],
   exams: ["examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"],
-  fees: ["studentName", "className", "rollNo", "term", "feeTypes", "tuitionFee", "computerFee", "developmentFee", "labFee", "sportsFee", "libraryFee", "examFee", "otherFee", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod"],
+  fees: ["studentName", "className", "rollNo", "term", "feeTypes", "tuitionFee", "admissionFee", "computerFee", "developmentFee", "labFee", "sportsFee", "libraryFee", "examFee", "otherFee", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod", "monthlyFee", "monthlyFeeLabel", "selectedBookIds"],
   library: ["bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"],
   transport: ["routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"],
   hostel: ["hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"],
