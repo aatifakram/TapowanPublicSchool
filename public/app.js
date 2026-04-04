@@ -1622,113 +1622,29 @@ function buildPrintableHtml(title, contentHtml) {
 function printDocumentByModule() {
   if (!printableModules.has(currentModule)) return;
   const store = getStore();
+
+  // ── Students → Premium ID Cards ──────────────────────────────────────────
+  if (currentModule === "students") {
+    const fullHtml = generateIdCardsHTML(store);
+    const w = window.open("", "_blank");
+    if (!w) return window.alert("Popup blocked. Please allow popups for this site and try again.");
+    w.document.open();
+    w.document.write(fullHtml);
+    w.document.close();
+    w.focus();
+    return;
+  }
+
+  // ── Other modules ───────────────────────────────────────────────────────
   let html = `<h1>${moduleConfig[currentModule].title}</h1>`;
 
-  if (currentModule === "students") {
-    const schoolName = "Tapowan Public School";
-    const templateFile = "tapowan-id-template.png";
-
-    const escapeHtml = (v) => String(v ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-
-    const truncate = (v, maxLen) => {
-      const s = String(v ?? "");
-      if (s.length <= maxLen) return s;
-      return s.slice(0, Math.max(0, maxLen - 1)) + "…";
-    };
-
-    html = `
-      <div class="id-header">
-        <h1>${escapeHtml(schoolName)}</h1>
-        <p>AI template ID Cards (Generated)</p>
-      </div>
-      <div class="t-grid">
-        ${(store.students || []).map((s) => {
-          const cardNo = s.admissionNo ? `TPS-${s.admissionNo}` : `TPS-${s.id}`;
-          const studentName = truncate(s.fullName, 22);
-          const fatherName = truncate(s.parentName, 26);
-          const rollNo = truncate(s.rollNo, 16);
-          const dob = truncate(s.dob, 16);
-          const address = truncate(s.address, 30);
-          const phone = truncate(s.phone, 15);
-
-          const photoHtml = s.photo
-            ? `<div class="t-photo"><img src="${s.photo}" alt="Student photo" /></div>`
-            : `<div class="t-photo"><div style="font-size:12px;color:#0f172a;text-align:center;padding:8px;font-weight:600;">No<br/>Photo</div></div>`;
-
-          return `
-            <div class="t-card">
-              <img class="t-bg" src="${API_BASE_URL}/templates/${templateFile}" alt="ID card template" />
-
-              ${photoHtml}
-
-              <div class="t-overlay">
-                <!-- Cover template text zones -->
-                <div class="t-cover" style="left:60px; top:55px; width:290px; height:44px; border-radius:16px; background:rgba(255,255,255,0.62);"></div>
-                <div class="t-cover" style="left:40px; top:235px; width:340px; height:72px; border-radius:18px; background:rgba(255,255,255,0.60);"></div>
-                <div class="t-cover" style="left:40px; top:315px; width:340px; height:150px; border-radius:18px; background:rgba(0,102,255,0.18);"></div>
-                <div class="t-cover" style="left:40px; top:470px; width:230px; height:90px; border-radius:18px; background:rgba(0,102,255,0.22);"></div>
-
-                <!-- Student name -->
-                <div class="t-text fitbox" data-max="36" style="left:55px; top:240px; width:310px; height:62px; line-height:1.0; font-weight:900; font-size:32px; color:#FFD400; text-shadow:0 2px 3px rgba(0,0,0,0.35); background:rgba(0,0,0,0.18); padding:4px 10px; border-radius:16px; box-sizing:border-box;">
-                  ${escapeHtml(studentName).toUpperCase()}
-                </div>
-
-                <!-- Father name -->
-                <div class="t-text fitbox" data-max="18" style="left:55px; top:318px; width:340px; height:28px; line-height:1.1; font-size:16px; font-weight:800; color:#ffffff; background:rgba(13,110,253,0.55); padding:4px 10px; border-radius:12px; box-sizing:border-box;">
-                  Father Name - ${escapeHtml(fatherName)}
-                </div>
-
-                <!-- Roll no -->
-                <div class="t-text fitbox" data-max="18" style="left:55px; top:352px; width:240px; height:22px; line-height:1.1; font-size:14px; font-weight:900; color:#ffffff; background:rgba(13,110,253,0.55); padding:4px 10px; border-radius:12px; box-sizing:border-box;">
-                  Roll No - ${escapeHtml(rollNo)}
-                </div>
-
-                <!-- DOB -->
-                <div class="t-text fitbox" data-max="18" style="left:55px; top:378px; width:240px; height:22px; line-height:1.1; font-size:14px; font-weight:900; color:#ffffff; background:rgba(13,110,253,0.55); padding:4px 10px; border-radius:12px; box-sizing:border-box;">
-                  D.O.B - ${escapeHtml(dob)}
-                </div>
-
-                <!-- Address -->
-                <div class="t-text fitbox" data-max="16" style="left:55px; top:404px; width:330px; height:22px; line-height:1.1; font-size:13px; font-weight:900; color:#ffffff; background:rgba(13,110,253,0.55); padding:4px 10px; border-radius:12px; box-sizing:border-box;">
-                  Address - ${escapeHtml(address)}
-                </div>
-
-                <!-- Phone -->
-                <div class="t-text fitbox" data-max="18" style="left:55px; top:478px; width:290px; height:34px; line-height:1.0; font-size:20px; font-weight:900; color:#ffffff; background:rgba(225,29,72,0.9); padding:6px 10px; border-radius:14px; box-sizing:border-box;">
-                  ${escapeHtml(phone)}
-                </div>
-
-                <!-- School name overlay -->
-                <div class="t-text fitbox" data-max="22" style="left:65px; top:56px; width:290px; height:44px; line-height:1.0; font-size:22px; font-weight:900; color:#0B3BFF; background:rgba(255,255,255,0.65); padding:6px 10px; border-radius:14px; box-sizing:border-box;">
-                  ${escapeHtml(schoolName)}
-                </div>
-
-                <!-- Card no (small) -->
-                <div class="t-text fitbox" data-max="14" style="left:280px; top:515px; width:120px; height:22px; line-height:1.1; font-size:12px; font-weight:900; color:#0F172A; opacity:0.95; background:rgba(255,255,255,0.65); padding:4px 8px; border-radius:12px; box-sizing:border-box;">
-                  ${escapeHtml(cardNo)}
-                </div>
-              </div>
-
-              <style>
-                /* Position photo for each card separately (keeps template untouched). */
-                .t-card .t-photo{left:105px; top:115px; width:210px; height:210px;}
-              </style>
-            </div>
-          `;
-        }).join("")}
-      </div>
-    `;
-  } else if (currentModule === "exams") {
+  if (currentModule === "exams") {
     html += (store.exams || []).slice(0, 5).map(r => `<div class="box"><h2>Report Card</h2>
       <div class="row"><strong>Student:</strong> ${r.studentName}</div>
       <div class="row"><strong>Exam:</strong> ${r.examName}</div>
       <div class="row"><strong>Subject:</strong> ${r.subject}</div>
       <div class="row"><strong>Marks:</strong> ${r.marksObtained}/${r.maxMarks} (${r.grade})</div></div>`).join("");
+
   } else if (currentModule === "fees") {
     const schoolName = "Tapowan Public School";
     const PRINT_FEE_TYPES = [
@@ -1752,9 +1668,7 @@ function printDocumentByModule() {
       const paidAmount = parseFloat(f.paidAmount) || 0;
       const balance = parseFloat(f.balance) || (totalFee - paidAmount);
       const statusColor = String(f.status).toLowerCase() === "paid" ? "#16a34a" : String(f.status).toLowerCase() === "partial" ? "#d97706" : "#dc2626";
-      // Build fee breakdown
-      let feeDetails = "";
-      let hasBrk = false;
+      let feeDetails = ""; let hasBrk = false;
       PRINT_FEE_TYPES.forEach(({ key, label, icon }) => {
         const amt = parseFloat(f[key]) || 0;
         if (amt > 0) { hasBrk = true; feeDetails += `<div class="row">${icon} ${label}: <strong>₹${amt.toLocaleString("en-IN")}</strong></div>`; }
@@ -1790,8 +1704,9 @@ function printDocumentByModule() {
   w.document.write(buildPrintableHtml(moduleConfig[currentModule].title, html));
   w.document.close();
   w.focus();
-  // Printing is triggered by the auto-fit script inside buildPrintableHtml.
 }
+
+
 
 async function ensureFaceModelsLoaded() {
   if (faceModelsReady || !window.faceapi) return faceModelsReady;
@@ -3213,17 +3128,47 @@ function generateIdCardsHTML(store) {
     }
   `;
 
+  const printBarCss = `
+    .print-bar{
+      position:sticky;top:0;z-index:999;
+      background:rgba(30,58,138,0.95);
+      backdrop-filter:blur(8px);
+      padding:10px 32px;
+      display:flex;align-items:center;justify-content:space-between;
+      box-shadow:0 2px 12px rgba(0,0,0,0.15);
+      margin:-40px -24px 32px;
+    }
+    .print-bar-title{color:#fff;font-weight:700;font-size:0.95rem;}
+    .print-bar-sub{color:rgba(255,255,255,0.6);font-size:0.75rem;margin-top:1px;}
+    .print-btn{
+      background:linear-gradient(135deg,#3b82f6,#1d4ed8);
+      color:#fff;border:none;
+      padding:9px 22px;border-radius:10px;
+      font-weight:700;font-size:0.85rem;cursor:pointer;
+      box-shadow:0 3px 12px rgba(59,130,246,0.4);
+      transition:transform 0.15s,box-shadow 0.15s;
+    }
+    .print-btn:hover{transform:translateY(-2px);box-shadow:0 5px 18px rgba(59,130,246,0.5);}
+    @media print{.print-bar{display:none;}}
+  `;
+
   return `<!DOCTYPE html><html><head>
     <meta charset="UTF-8"/>
     <title>Student ID Cards — ${schoolName}</title>
-    <style>${css}</style>
+    <style>${css}${printBarCss}</style>
   </head><body>
-    <h1 class="page-title">🏫 ${schoolName}</h1>
-    <p class="page-sub">Student Identity Cards &nbsp;·&nbsp; Session ${session} &nbsp;·&nbsp; ${students.length} card${students.length!==1?'s':''} generated</p>
+    <div class="print-bar">
+      <div>
+        <div class="print-bar-title">🏫 ${schoolName} — Student ID Cards</div>
+        <div class="print-bar-sub">Session ${session} · ${students.length} card${students.length!==1?'s':''} · Ready to print</div>
+      </div>
+      <button class="print-btn" onclick="window.print()">🖨&nbsp; Print ID Cards</button>
+    </div>
     <div class="cards-grid">${frontCards}</div>
-    <script>window.onload=()=>{setTimeout(()=>window.print(),800);}<\/script>
+    <script>window.onload=()=>{setTimeout(()=>window.print(),1500);}<\/script>
   </body></html>`;
 }
+
 
 
 // === INTERCEPT printDocumentByModule to use new ID card generator ===
