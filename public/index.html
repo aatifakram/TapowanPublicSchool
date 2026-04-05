@@ -112,6 +112,7 @@
             <button id="exportCsvBtn" class="dark">Export CSV</button>
             <button id="exportPdfBtn" class="dark">Export PDF</button>
             <button id="printDocBtn" class="dark">Print Document</button>
+            <button id="print4in1Btn" class="dark hidden">Print 4-in-1</button>
           </div>
         </div>
         <div class="table-wrap">
@@ -235,6 +236,38 @@
     <div id="studentProfileContent" class="student-profile-content"></div>
   </div>
 
+  <div id="print4in1Backdrop" class="student-profile-backdrop hidden"></div>
+  <div id="print4in1Modal" class="student-profile-modal hidden" style="max-width:550px;">
+    <div class="student-profile-header">
+      <div class="student-profile-title">
+        <h3>Print 4 Receipts on 1 A4</h3>
+        <p>Select receipts for each quadrant</p>
+      </div>
+      <button id="print4in1CloseBtn" class="student-profile-close">✕ Close</button>
+    </div>
+    <div class="student-profile-content" style="padding:15px; display:grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+      <div class="field">
+        <label>Top Left (Box 1)</label>
+        <select id="box1Select"><option value="">Select Receipt</option></select>
+      </div>
+      <div class="field">
+        <label>Top Right (Box 2)</label>
+        <select id="box2Select"><option value="">Select Receipt</option></select>
+      </div>
+      <div class="field">
+        <label>Bottom Left (Box 3)</label>
+        <select id="box3Select"><option value="">Select Receipt</option></select>
+      </div>
+      <div class="field">
+        <label>Bottom Right (Box 4)</label>
+        <select id="box4Select"><option value="">Select Receipt</option></select>
+      </div>
+    </div>
+    <div style="padding:15px;text-align:right;border-top:1px solid #e2e8f0;">
+      <button id="executePrint4in1Btn" class="dark" style="padding:8px 16px;">Print A4 Grid</button>
+    </div>
+  </div>
+
   <template id="emptyState">
     <tr>
       <td colspan="99" class="empty">No records found.</td>
@@ -246,7 +279,7 @@
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=202604051706"></script>
 </body>
 </html>
 

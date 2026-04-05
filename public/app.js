@@ -125,7 +125,18 @@ const refs = {
   studentProfileName: document.getElementById("studentProfileName"),
   studentProfileSub: document.getElementById("studentProfileSub"),
   studentProfileContent: document.getElementById("studentProfileContent"),
-  studentProfileTabs: document.querySelectorAll('.student-profile-tab')
+  studentProfileTabs: document.querySelectorAll('.student-profile-tab'),
+
+  // 4-in-1 Print fields
+  print4in1Btn: document.getElementById("print4in1Btn"),
+  print4in1Backdrop: document.getElementById("print4in1Backdrop"),
+  print4in1Modal: document.getElementById("print4in1Modal"),
+  print4in1CloseBtn: document.getElementById("print4in1CloseBtn"),
+  box1Select: document.getElementById("box1Select"),
+  box2Select: document.getElementById("box2Select"),
+  box3Select: document.getElementById("box3Select"),
+  box4Select: document.getElementById("box4Select"),
+  executePrint4in1Btn: document.getElementById("executePrint4in1Btn")
 };
 
 function isMobileLayout() {
@@ -1380,6 +1391,7 @@ function renderModuleTools() {
   const canExport = userIsAdmin() || userIsStaffOrAbove() || String(currentUser?.role || "").toLowerCase() === "teacher";
   if (refs.exportCsvBtn) refs.exportCsvBtn.style.display = canExport ? "" : "none";
   if (refs.exportPdfBtn) refs.exportPdfBtn.style.display = canExport ? "" : "none";
+  if (refs.print4in1Btn) refs.print4in1Btn.classList.toggle("hidden", currentModule !== "fees");
 
   // Face panel only for users who can write attendance
   const showFacePanel = (currentModule === "attendance" || currentModule === "teacherAttendance" || currentModule === "students")
@@ -2303,6 +2315,163 @@ refs.searchInput.addEventListener("input", renderTable);
 refs.exportCsvBtn.addEventListener("click", exportCurrentCsv);
 refs.exportPdfBtn.addEventListener("click", exportCurrentPdf);
 refs.printDocBtn.addEventListener("click", printDocumentByModule);
+
+// 4-in-1 Print Logic
+if (refs.print4in1Btn) {
+  refs.print4in1Btn.addEventListener("click", openPrint4in1Modal);
+}
+if (refs.print4in1CloseBtn) {
+  refs.print4in1CloseBtn.addEventListener("click", closePrint4in1Modal);
+}
+if (refs.executePrint4in1Btn) {
+  refs.executePrint4in1Btn.addEventListener("click", executePrint4in1);
+}
+
+function openPrint4in1Modal() {
+  const store = getStore();
+  const fees = store.fees || [];
+  // Sort fees by ID descending so newest are on top
+  const sortedFees = [...fees].sort((a,b) => (b.id||0) - (a.id||0));
+  const optionsHtml = `<option value="">Select Receipt</option>` + sortedFees.map(f =>
+    `<option value="${f.id}">${f.studentName || 'Unknown'} - Term ${f.term || '-'} (RCP-${f.id})</option>`
+  ).join("");
+
+  [refs.box1Select, refs.box2Select, refs.box3Select, refs.box4Select].forEach(sel => {
+    if (sel) sel.innerHTML = optionsHtml;
+  });
+
+  if (refs.print4in1Backdrop && refs.print4in1Modal) {
+    refs.print4in1Backdrop.classList.remove("hidden");
+    refs.print4in1Modal.classList.remove("hidden");
+    document.body?.classList?.add("no-scroll");
+  }
+}
+
+function closePrint4in1Modal() {
+  if (refs.print4in1Backdrop && refs.print4in1Modal) {
+    refs.print4in1Backdrop.classList.add("hidden");
+    refs.print4in1Modal.classList.add("hidden");
+    document.body?.classList?.remove("no-scroll");
+  }
+}
+
+function executePrint4in1() {
+  const store = getStore();
+  const fees = store.fees || [];
+  const getHtml = (idStr) => {
+    if (!idStr) return "<div></div>";
+    const f = fees.find(x => String(x.id) === String(idStr));
+    if (!f) return "Receipt not found";
+    return buildSingleFeeHtmlForGrid(f);
+  };
+
+  const id1 = refs.box1Select?.value;
+  const id2 = refs.box2Select?.value;
+  const id3 = refs.box3Select?.value;
+  const id4 = refs.box4Select?.value;
+
+  const html = `<!doctype html>
+  <html><head><title>4-in-1 Receipts</title><style>
+    @media print {
+      @page { size: A4; margin: 10mm; }
+      body { margin: 0; padding: 0; }
+    }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; width: 190mm; height: 277mm; gap: 6mm; margin: 0 auto; box-sizing: border-box; }
+    .quadrant { height: 100%; width: 100%; box-sizing: border-box; overflow: hidden; page-break-inside: avoid; }
+  </style></head><body>
+    <div class="grid">
+      <div class="quadrant">${getHtml(id1)}</div>
+      <div class="quadrant">${getHtml(id2)}</div>
+      <div class="quadrant">${getHtml(id3)}</div>
+      <div class="quadrant">${getHtml(id4)}</div>
+    </div>
+    <script>
+      window.onload = function() { setTimeout(function(){ window.print(); window.close(); }, 400); };
+    </script>
+  </body></html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) return window.alert("Popup blocked.");
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  closePrint4in1Modal();
+}
+
+function buildSingleFeeHtmlForGrid(f) {
+  const schoolName = "Tapowan Public School";
+  const receiptNo = "RCP-" + (f.id || Date.now());
+  const printDate = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const totalFee = parseFloat(f.totalFee) || 0;
+  const paidAmount = parseFloat(f.paidAmount) || 0;
+  const balance = parseFloat(f.balance) || (totalFee - paidAmount);
+  const statusColor = String(f.status).toLowerCase() === "paid" ? "#16a34a" : String(f.status).toLowerCase() === "partial" ? "#d97706" : "#dc2626";
+
+  const FEE_TYPE_KEYS = [
+    { key: "tuitionFee", label: "Tuition" },
+    { key: "admissionFee", label: "Admission" },
+    { key: "computerFee", label: "Computer" },
+    { key: "developmentFee", label: "Develop" },
+    { key: "labFee", label: "Lab" },
+    { key: "sportsFee", label: "Sports" },
+    { key: "libraryFee", label: "Library" },
+    { key: "examFee", label: "Exam" },
+    { key: "otherFee", label: "Other" }
+  ];
+  let feeBreakdown = "";
+  let hasBrk = false;
+  FEE_TYPE_KEYS.forEach(({ key, label }) => {
+    const amt = parseFloat(f[key]) || 0;
+    if (amt > 0) { hasBrk = true; feeBreakdown += `<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #e2e8f0;padding:3px 0;"><span>${label}</span><strong>₹${amt.toLocaleString("en-IN")}</strong></div>`; }
+  });
+  if (!hasBrk) {
+    const labels = (f.feeTypes || f.monthlyFeeLabel || "").trim();
+    if (labels) feeBreakdown += `<div style="font-size:11px;color:#64748b;margin-bottom:4px;line-height:1.4;">Types: ${labels}</div>`;
+  }
+
+  return `
+    <div style="font-family:Arial,sans-serif;border:2px solid #1e3a8a;border-radius:10px;overflow:hidden;font-size:12px;display:flex;flex-direction:column;height:100%;box-sizing:border-box;">
+      <div style="background:#1e3a8a;color:#fff;padding:12px;text-align:center;flex-shrink:0;">
+        <div style="font-size:18px;font-weight:900;letter-spacing:1px;">${schoolName}</div>
+        <div style="font-size:11px;opacity:0.9;margin-top:2px;">Fee Payment Receipt</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:8px 12px;background:#f0f4ff;border-bottom:1px solid #c7d2fe;font-size:12px;color:#1e3a8a;flex-shrink:0;">
+        <div><strong>Rec:</strong> ${receiptNo}</div>
+        <div><strong>Date:</strong> ${printDate}</div>
+      </div>
+      <div style="padding:12px;flex-grow:1;display:flex;flex-direction:column;border-bottom:1px solid #e2e8f0;overflow:hidden;">
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin-bottom:10px;">
+          <span style="color:#64748b;">Student</span>
+          <span style="font-weight:700;text-align:right;">${f.studentName || "-"}</span>
+          <span style="color:#64748b;">Class/Roll</span>
+          <span style="font-weight:600;text-align:right;">${f.className || "-"} (${f.rollNo || "-"})</span>
+          <span style="color:#64748b;">Term</span>
+          <span style="text-align:right;">${f.term || "-"}</span>
+        </div>
+        <div style="font-weight:700;color:#1e3a8a;font-size:13px;border-bottom:1px solid #cbd5e1;padding-bottom:2px;margin-top:auto;">Summary</div>
+        <div style="margin-top:6px;overflow-y:auto;flex-grow:1;">${feeBreakdown}</div>
+      </div>
+      <div style="padding:10px 12px;background:#f8fafc;flex-shrink:0;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="color:#475569;">Total Fee</span>
+          <span style="font-weight:600;">₹ ${totalFee.toLocaleString("en-IN")}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="color:#475569;">Paid</span>
+          <span style="font-weight:600;color:#16a34a;">₹ ${paidAmount.toLocaleString("en-IN")}</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;background:#fef2f2;padding:2px 4px;margin:0 -4px;border-radius:4px;">
+          <span style="color:#475569;">Due</span>
+          <span style="font-weight:700;color:#dc2626;">₹ ${balance.toLocaleString("en-IN")}</span>
+        </div>
+      </div>
+      <div style="padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;flex-shrink:0;background:#fff;">
+        <div style="font-size:10px;color:#64748b;max-width:50%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.paymentMethod || "N/A"}</div>
+        <div style="background:${statusColor};color:#fff;padding:4px 14px;border-radius:12px;font-size:12px;font-weight:700;">${f.status || "Pending"}</div>
+      </div>
+    </div>`;
+}
 
 refs.loginForm.addEventListener("submit", async (e) => {
   e.preventDefault();
