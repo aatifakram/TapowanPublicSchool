@@ -960,3 +960,61 @@ tbody tr:nth-child(10){animation-delay:0.20s;}
   .wa-section{padding:16px 18px;}
   .wa-summary-badges{margin-left:0;}
 }
+
+/* ═══════════════════════════════════════════════════════════
+   Real-Time Analytics Dashboard
+   ═══════════════════════════════════════════════════════════ */
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 20px;
+  margin-top: 24px;
+  grid-column: 1 / -1; /* spans full width if inside another grid */
+}
+.chart-card {
+  background: white;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+  position: relative;
+  transition: transform var(--transition);
+}
+.chart-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.06);
+}
+.chart-title {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-top: 0;
+  margin-bottom: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.chart-badge {
+  font-size: 0.70rem;
+  background: #f0fdf4;
+  color: #16a34a;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.chart-badge .dot {
+  width: 6px;
+  height: 6px;
+  background: #22c55e;
+  border-radius: 50%;
+  animation: waPulse 2s infinite;
+}
+.canvas-container {
+  position: relative;
+  height: 250px;
+  width: 100%;
+}

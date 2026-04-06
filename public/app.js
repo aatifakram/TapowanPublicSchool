@@ -1296,6 +1296,10 @@ function getDashboardStats(store) {
 
 function renderStatsCards() {
   refs.statsCards.innerHTML = "";
+  if (currentModule !== "dashboard") {
+    renderAnalyticsCharts(getStore()); // This handles hiding the analytics grid
+    return;
+  }
 
   // Student pending-role notice banner
   if (userIsStudent()) {
@@ -1346,6 +1350,113 @@ function renderStatsCards() {
     card.className = "stat-card";
     refs.statsCards.appendChild(card);
   });
+
+  renderAnalyticsCharts(getStore());
+}
+
+let dashboardCharts = [];
+
+function renderAnalyticsCharts(store) {
+  let grid = document.querySelector(".analytics-grid");
+
+  if (currentModule !== "dashboard") {
+    if (grid) grid.style.display = "none";
+    return;
+  }
+
+  // Destroy old charts to prevent duplicate bindings/memory leaks
+  dashboardCharts.forEach(c => c.destroy());
+  dashboardCharts = [];
+
+  if (!grid) {
+    grid = document.createElement("div");
+    grid.className = "analytics-grid";
+    refs.statsCards.parentNode.insertBefore(grid, refs.statsCards.nextSibling);
+  }
+  grid.style.display = ""; // Ensure it is visible
+  grid.innerHTML = ""; // Clear existing grid
+  
+  if (userIsStudent()) return; // Restrict analytics overview from students
+
+  const fees = store.fees || [];
+  let feeStatus = { paid: 0, pending: 0, partial: 0 };
+  fees.forEach(f => {
+     let st = String(f.status).toLowerCase();
+     if(feeStatus[st] !== undefined) feeStatus[st]++;
+  });
+
+  const students = store.students || [];
+  let classDist = {};
+  students.forEach(s => {
+     let cls = s.className || "Unassigned";
+     classDist[cls] = (classDist[cls] || 0) + 1;
+  });
+
+  // Calculate generic "present today" vs entire active student population
+  const today = new Date().toISOString().slice(0, 10);
+  const attendance = store.attendance || [];
+  const presentToday = attendance.filter(a => String(a.status).toLowerCase() === "present" && a.date === today && a.studentName).length;
+  const absentToday = Math.max(0, students.length - presentToday);
+
+  const chartsHtml = `
+    <div class="chart-card">
+      <h3 class="chart-title">Real-Time Fee Collection <span class="chart-badge"><div class="dot"></div> Live</span></h3>
+      <div class="canvas-container"><canvas id="feeChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3 class="chart-title">Students Per Class <span class="chart-badge"><div class="dot"></div> Live</span></h3>
+      <div class="canvas-container"><canvas id="classChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3 class="chart-title">Today's Attendance <span class="chart-badge"><div class="dot"></div> Live</span></h3>
+      <div class="canvas-container"><canvas id="attChart"></canvas></div>
+    </div>`;
+  grid.innerHTML = chartsHtml;
+
+  if (typeof Chart !== "undefined") {
+    Chart.defaults.font.family = "'Inter', sans-serif";
+    Chart.defaults.color = "#64748b";
+
+    const feeEl = document.getElementById("feeChart");
+    if(feeEl) {
+      dashboardCharts.push(new Chart(feeEl, {
+        type: "doughnut",
+        data: {
+          labels: ["Paid", "Pending", "Partial"],
+          datasets: [{ data: [feeStatus.paid, feeStatus.pending, feeStatus.partial], backgroundColor: ["#22c55e", "#ef4444", "#f59e0b"], borderWidth: 0, hoverOffset: 4 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, cutout: '70%', animation: { duration: 800 } }
+      }));
+    }
+
+    const classEl = document.getElementById("classChart");
+    if(classEl) {
+      dashboardCharts.push(new Chart(classEl, {
+        type: "bar",
+        data: {
+          labels: Object.keys(classDist),
+          datasets: [{ label: 'Students', data: Object.values(classDist), backgroundColor: "#3b82f6", borderRadius: 6 }]
+        },
+        options: { 
+          responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, border: {dash: [4,4]} }, x: { grid: {display: false} } },
+          animation: { duration: 800 }
+        }
+      }));
+    }
+
+    const attEl = document.getElementById("attChart");
+    if(attEl) {
+      dashboardCharts.push(new Chart(attEl, {
+        type: "pie",
+        data: {
+          labels: ["Present", "Absent/Unknown"],
+          datasets: [{ data: [presentToday, absentToday], backgroundColor: ["#0284c7", "#94a3b8"], borderWidth: 0, hoverOffset: 4 }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } }, animation: { duration: 800 } }
+      }));
+    }
+  }
 }
 
 function renderHeader() {
@@ -1435,19 +1546,40 @@ function renderModuleTools() {
 }
 
 function renderAll() {
+  const isDashboard = currentModule === "dashboard";
+  const isBD = currentModule === "booksAndDress";
+  const isWA = currentModule === "whatsappAlerts";
+
+  const sc = document.getElementById("statsCards");
+  if (sc) sc.style.display = isDashboard ? "" : "none";
+
+  const contentArea = document.querySelector(".content-area");
+  if (contentArea) {
+    contentArea.querySelectorAll(".panel:not(#facePanel):not(#assistantPanel):not(#waAlertPanel):not(#bd-panel)").forEach(p => {
+      p.style.display = (isBD || isWA) ? "none" : "";
+    });
+  }
+
+  const bdPanel = document.getElementById("bd-panel");
+  if (isBD && typeof window.showBDPanel === "function") {
+    window.showBDPanel();
+  } else if (bdPanel) {
+    bdPanel.style.display = "none";
+  }
+
+  const waPanel = document.getElementById("waAlertPanel");
+  if (isWA && typeof window.renderWhatsAppModule === "function") {
+    window.renderWhatsAppModule();
+  } else if (waPanel) {
+    waPanel.style.display = "none";
+  }
+
   renderNav();
   renderHeader();
   renderStatsCards();
   renderForm();
   renderTable();
   renderModuleTools();
-
-  if (currentModule === "booksAndDress" && typeof window.showBDPanel === "function") {
-    window.showBDPanel();
-  }
-  if (currentModule === "whatsappAlerts" && typeof window.renderWhatsAppModule === "function") {
-    window.renderWhatsAppModule();
-  }
 }
 
 function toCsv(rows, columns) {
@@ -3977,6 +4109,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 
   /* ─── DASHBOARD BALANCE CARD ──────────────────────────────── */
   function injectDashboardCard() {
+    if (currentModule !== "dashboard") return;
     const grid = document.getElementById("statsCards");
     if (!grid) return;
     document.querySelectorAll(".finance-injected-card").forEach(el => el.remove());
@@ -5307,16 +5440,8 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     // Clear out standard UI bits for this custom plugin view
     const titleEl = document.getElementById("moduleTitle");
     const subtitleEl = document.getElementById("moduleSubtitle");
-    const searchEl = document.getElementById("searchInput");
     if (titleEl) titleEl.innerHTML = "";
     if (subtitleEl) subtitleEl.innerHTML = "";
-    
-    // Clear the main container and render inside it
-    const contentEl = document.getElementById("moduleContent") || document.querySelector(".content-area");
-    if (contentEl) {
-      contentEl.innerHTML = "";
-      contentEl.style.display = "block";
-    }
 
     await Promise.all([loadBD(), loadFS()]);
     renderBDModule();
@@ -6008,6 +6133,16 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
   } else {
     bdInit();
   }
+
+  // --- REAL TIME DASHBOARD ENGINE ---
+  // Periodically polls local store to auto-refresh KPI stats cards and Charts on Dashboard view
+  setInterval(async () => {
+    if (currentModule === "dashboard" && currentUser && !userIsStudent()) {
+      await loadStore();
+      renderStatsCards(); 
+    }
+  }, 30000); // 30 seconds
+  
 })();
 
 // ═══════════════════════════════════════════════════════════
@@ -6300,18 +6435,6 @@ Thank you 🙏`;
   }
 
   window.renderWhatsAppModule = renderWhatsAppModule;
-
-  document.addEventListener("click", e => {
-    const navBtn = e.target.closest(".nav-btn");
-    if (navBtn && currentModule !== "whatsappAlerts") {
-      const waPanel = document.getElementById("waAlertPanel");
-      if (waPanel) waPanel.style.display = "none";
-      const contentArea = document.querySelector(".content-area");
-      if (contentArea) {
-        contentArea.querySelectorAll(".panel:not(#facePanel):not(#assistantPanel):not(#waAlertPanel)").forEach(p => p.style.display = "");
-      }
-    }
-  }, true);
 
 })();
 
