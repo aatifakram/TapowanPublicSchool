@@ -6017,11 +6017,14 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       }
 
       const form = document.getElementById("dynamicForm");
-      if (!form || form.dataset.bdInfoInjected) return;
-      form.dataset.bdInfoInjected = "1";
+      if (!form) return;
+
+      const totalFeeInput = form.querySelector("[name='totalFee']");
+      if (!totalFeeInput) return; // Wait until form is fully rendered
+
+      if (form.querySelector("#bd-monthly-fee-wrapper")) return; // Already injected for this form instance
 
       // ── 1. Make totalFee and balance read-only immediately ──
-      const totalFeeInput = form.querySelector("[name='totalFee']");
       const balanceInput  = form.querySelector("[name='balance']");
       if (totalFeeInput) {
         totalFeeInput.readOnly = true;
