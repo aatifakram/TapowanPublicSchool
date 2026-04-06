@@ -6036,6 +6036,8 @@ Thank you 🙏`;
   const WA_STORAGE_KEY = "wa_alert_template_v1";
   let waDueFees = [];
   let waAlertLog = [];
+  let waQueue = [];
+  let waQueueIndex = 0;
 
   function getTemplate() { return localStorage.getItem(WA_STORAGE_KEY) || DEFAULT_TEMPLATE; }
   function saveTemplate(tpl) { localStorage.setItem(WA_STORAGE_KEY, tpl); }
@@ -6140,6 +6142,15 @@ Thank you 🙏`;
             <div style="font-size:2.5rem">🎉</div>
             <div>No pending fees! All students are up to date.</div>
           </div>` : `
+          <div id="waQueueContainer" style="display:none; background:#f0fdf4; border:2px solid #25D366; padding:24px; border-radius:12px; margin-bottom:20px; text-align:center; box-shadow:0 10px 25px rgba(37,211,102,0.15);">
+            <h3 style="color:#166534; margin-top:0;">📤 Bulk Sending Queue</h3>
+            <p style="font-size:1.05rem; margin:15px 0; color:#1f2937;" id="waQueueStatus"></p>
+            <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+               <button id="waQueueNextBtn" class="wa-btn wa-btn-primary" style="font-size:1.1rem; padding:12px 24px;">📲 Click to Send Next</button>
+               <button id="waQueueCancelBtn" class="wa-btn wa-btn-secondary" style="padding:12px 24px;">Cancel Bulk Send</button>
+            </div>
+            <p style="font-size:0.8rem; color:#64748b; margin-top:14px; margin-bottom:0;">Tip: After sending in WhatsApp, return here & click Next.</p>
+          </div>
           <div class="wa-table-wrap">
             <table class="wa-table">
               <thead><tr>
@@ -6222,29 +6233,69 @@ Thank you 🙏`;
       });
     });
 
-    document.getElementById("waSendSelected")?.addEventListener("click", async () => {
-      const checked = [...document.querySelectorAll(".wa-row-check:checked")].map(cb => Number(cb.dataset.idx));
-      if (!checked.length) { showToast("⚠ Please select at least one student.", "warn"); return; }
-      const tpl = tplEditor?.value || getTemplate(); let sent = 0;
-      for (const idx of checked) {
-        const row = waDueFees[idx]; if (!row) continue;
-        const msg = buildMessage(tpl, row);
-        if (openWhatsApp(row.phone, msg)) { sent++; await logAlert(row, msg); await new Promise(r => setTimeout(r, 400)); }
+    function startQueue(rows) {
+      if (!rows.length) return;
+      waQueue = rows;
+      waQueueIndex = 0;
+      document.getElementById("waQueueContainer").style.display = "block";
+      document.querySelector(".wa-table-wrap").style.display = "none";
+      document.getElementById("waSendSelected").style.display = "none";
+      document.getElementById("waSendAll").style.display = "none";
+      updateQueueUI();
+    }
+
+    function updateQueueUI() {
+      if (waQueueIndex >= waQueue.length) {
+        document.getElementById("waQueueContainer").style.display = "none";
+        document.querySelector(".wa-table-wrap").style.display = "block";
+        document.getElementById("waSendSelected").style.display = "";
+        document.getElementById("waSendAll").style.display = "";
+        showToast("✅ Successfully processed all queued messages!", "success");
+        loadStore().then(() => renderWhatsAppModule());
+        return;
       }
-      showToast(`📲 Opened WhatsApp for ${sent} student(s)`, "success");
-      if (sent > 0) { await loadStore(); setTimeout(() => renderWhatsAppModule(), 800); }
+      const row = waQueue[waQueueIndex];
+      const phoneHtml = row.phone ? "📞 " + row.phone : "<span style='color:#ef4444;font-weight:bold'>No phone found</span>";
+      document.getElementById("waQueueStatus").innerHTML = 
+        `Sending <b>${waQueueIndex + 1} of ${waQueue.length}</b><br><br>` +
+        `Student: <b>${row.studentName}</b><br>Parent: ${row.parentName || "—"} (${phoneHtml})`;
+    }
+
+    document.getElementById("waQueueNextBtn")?.addEventListener("click", async () => {
+      const row = waQueue[waQueueIndex];
+      const msg = buildMessage(tplEditor?.value || getTemplate(), row);
+      if (!row.phone) {
+        showToast("No phone number for " + row.studentName, "warn");
+      } else {
+        if (openWhatsApp(row.phone, msg)) {
+          await logAlert(row, msg);
+          showToast(`✅ Generated message for ${row.studentName}`, "success");
+        }
+      }
+      waQueueIndex++;
+      updateQueueUI();
     });
 
-    document.getElementById("waSendAll")?.addEventListener("click", async () => {
+    document.getElementById("waQueueCancelBtn")?.addEventListener("click", () => {
+      waQueue = [];
+      document.getElementById("waQueueContainer").style.display = "none";
+      document.querySelector(".wa-table-wrap").style.display = "block";
+      document.getElementById("waSendSelected").style.display = "";
+      document.getElementById("waSendAll").style.display = "";
+      showToast("Bulk send cancelled", "warn");
+      loadStore().then(() => renderWhatsAppModule());
+    });
+
+    document.getElementById("waSendSelected")?.addEventListener("click", () => {
+      const checkedIdxs = [...document.querySelectorAll(".wa-row-check:checked")].map(cb => Number(cb.dataset.idx));
+      if (!checkedIdxs.length) { showToast("⚠ Please select at least one student.", "warn"); return; }
+      const rows = checkedIdxs.map(i => waDueFees[i]).filter(Boolean);
+      startQueue(rows);
+    });
+
+    document.getElementById("waSendAll")?.addEventListener("click", () => {
       if (!waDueFees.length) { showToast("No due fees found.", "info"); return; }
-      if (!window.confirm(`Send WhatsApp alert to all ${waDueFees.length} students with pending fees?`)) return;
-      const tpl = tplEditor?.value || getTemplate(); let sent = 0;
-      for (const row of waDueFees) {
-        const msg = buildMessage(tpl, row);
-        if (openWhatsApp(row.phone, msg)) { sent++; await logAlert(row, msg); await new Promise(r => setTimeout(r, 500)); }
-      }
-      showToast(`📢 WhatsApp opened for ${sent} of ${waDueFees.length} students`, "success");
-      if (sent > 0) { await loadStore(); setTimeout(() => renderWhatsAppModule(), 1000); }
+      startQueue([...waDueFees]);
     });
   }
 
