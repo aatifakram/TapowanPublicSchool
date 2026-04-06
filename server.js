@@ -170,7 +170,7 @@ function canDelete(req, res, next) {
 // Modules teachers can write to
 const TEACHER_WRITE_MODULES = new Set(["attendance", "teacherAttendance"]);
 // Modules only admin/staff can write to  
-const ADMIN_STAFF_ONLY_MODULES = new Set(["users", "payroll", "fees", "schoolInvestments", "schoolIncome", "schoolExpenses", "booksAndDress", "feeStructures"]);
+const ADMIN_STAFF_ONLY_MODULES = new Set(["users", "payroll", "fees", "schoolInvestments", "schoolIncome", "schoolExpenses", "booksAndDress", "feeStructures", "whatsappAlerts"]);
 // Modules only admin can access at all
 const ADMIN_ONLY_MODULES = new Set(["users"]);
 
@@ -391,6 +391,78 @@ app.delete("/api/modules/:moduleName/:id", authRequired, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: "Delete failed" });
+  }
+});
+
+// ------------------- WHATSAPP ALERTS -------------------
+
+// GET /api/whatsapp/due-fees  →  returns pending/partial fee records enriched with parent phone
+app.get("/api/whatsapp/due-fees", authRequired, async (req, res) => {
+  try {
+    const user = req.session.user;
+    if (!isStaffOrAbove(user) && !isAdmin(user)) {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+    const fees = await list("fees");
+    const students = await list("students");
+
+    const studentMap = {};
+    students.forEach(s => { studentMap[s.fullName] = s; });
+
+    const dueFees = fees
+      .filter(f => {
+        const status = String(f.status || "").toLowerCase();
+        return status === "pending" || status === "partial";
+      })
+      .map(f => {
+        const student = studentMap[f.studentName] || {};
+        return {
+          feeId: f.id,
+          studentName: f.studentName || "",
+          className: f.className || student.className || "",
+          rollNo: f.rollNo || student.rollNo || "",
+          parentName: student.parentName || "",
+          phone: student.phone || "",
+          balance: f.balance || "",
+          totalFee: f.totalFee || "",
+          paidAmount: f.paidAmount || "",
+          term: f.term || "",
+          status: f.status || "",
+          paymentDate: f.paymentDate || ""
+        };
+      });
+
+    res.json(dueFees);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch due fees" });
+  }
+});
+
+// POST /api/whatsapp/log-alert  →  logs a WhatsApp alert that was sent
+app.post("/api/whatsapp/log-alert", authRequired, async (req, res) => {
+  try {
+    const user = req.session.user;
+    if (!isStaffOrAbove(user) && !isAdmin(user)) {
+      return res.status(403).json({ error: "Insufficient permissions" });
+    }
+    const { studentName, className, phone, parentName, balance, term, message } = req.body || {};
+    const today = new Date().toISOString().slice(0, 10);
+    const row = await insert("whatsappAlerts", {
+      studentName: studentName || "",
+      className: className || "",
+      phone: phone || "",
+      parentName: parentName || "",
+      balance: String(balance || ""),
+      term: term || "",
+      alertDate: today,
+      message: message || "",
+      status: "Sent"
+    });
+    res.status(201).json(row);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to log alert" });
   }
 });
 

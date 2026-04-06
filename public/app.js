@@ -23,7 +23,8 @@ const moduleConfig = {
   payroll: { title: "Payroll", subtitle: "Generate salary records and allowances", fields: ["employeeName", "designation", "month", "basicSalary", "allowances", "deductions", "netPay"], columns: ["id", "employeeName", "designation", "month", "basicSalary", "allowances", "deductions", "netPay"] },
   users: { title: "Users & Roles", subtitle: "System user accounts and permissions", fields: ["username", "fullName", "role", "email", "status", "lastLogin", "password"], columns: ["id", "username", "fullName", "role", "email", "status", "lastLogin"] },
   timetable: { title: "Timetable", subtitle: "Weekly class and subject scheduling", fields: ["className", "day", "period", "subject", "teacher", "roomNo"], columns: ["id", "className", "day", "period", "subject", "teacher", "roomNo"] },
-  booksAndDress: { title: "Books & Dress", subtitle: "Manage class-wise book and dress costs", fields: [], columns: [] }
+  booksAndDress: { title: "Books & Dress", subtitle: "Manage class-wise book and dress costs", fields: [], columns: [] },
+  whatsappAlerts: { title: "WhatsApp Alerts", subtitle: "Send fee due reminders to parents via WhatsApp", fields: [], columns: [] }
 };
 
 const moduleOrder = Object.keys(moduleConfig);
@@ -416,7 +417,8 @@ function renderNav() {
     users: "🛡️",
     timetable: "⏰",
     notifications: "🔔",
-    booksAndDress: "📦"
+    booksAndDress: "📦",
+    whatsappAlerts: "📲"
   };
 
   const visibleModules = getVisibleModules();
@@ -1442,6 +1444,9 @@ function renderAll() {
 
   if (currentModule === "booksAndDress" && typeof window.showBDPanel === "function") {
     window.showBDPanel();
+  }
+  if (currentModule === "whatsappAlerts" && typeof window.renderWhatsAppModule === "function") {
+    window.renderWhatsAppModule();
   }
 }
 
@@ -2836,14 +2841,15 @@ const MODULE_ICONS = {
   dashboard: '📊', students: '🎓', teachers: '👩‍🏫', classes: '🏛️',
   subjects: '📚', attendance: '📅', teacherAttendance: '👨‍💼',
   exams: '📝', fees: '💳', library: '📖', transport: '🚌',
-  hostel: '🏠', payroll: '💰', users: '🔐', timetable: '🗓️'
+  hostel: '🏠', payroll: '💰', users: '🔐', timetable: '🗓️',
+  booksAndDress: '📦', whatsappAlerts: '📲'
 };
 
 const NAV_GROUPS = {
   'Core': ['dashboard', 'students', 'teachers', 'classes'],
   'Academic': ['subjects', 'exams', 'timetable'],
   'Daily': ['attendance', 'teacherAttendance'],
-  'Finance': ['fees', 'payroll'],
+  'Finance': ['fees', 'payroll', 'booksAndDress', 'whatsappAlerts'],
   'Resources': ['library', 'transport', 'hostel', 'users']
 };
 
@@ -6003,3 +6009,258 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     bdInit();
   }
 })();
+
+// ═══════════════════════════════════════════════════════════
+//  WhatsApp Alert Automation Module
+// ═══════════════════════════════════════════════════════════
+(function () {
+  "use strict";
+
+  const DEFAULT_TEMPLATE = `🏫 *Tapowan Public School*
+📢 Fee Due Reminder
+
+Dear *{parentName}*,
+
+This is a kind reminder that school fees for your ward are pending:
+
+👤 *Student:* {studentName}
+📚 *Class:* {className}
+💰 *Balance Due:* ₹{balance}
+📅 *Term:* {term}
+
+Please pay the outstanding amount at the earliest to avoid any inconvenience.
+
+📞 Contact school office for queries.
+Thank you 🙏`;
+
+  const WA_STORAGE_KEY = "wa_alert_template_v1";
+  let waDueFees = [];
+  let waAlertLog = [];
+
+  function getTemplate() { return localStorage.getItem(WA_STORAGE_KEY) || DEFAULT_TEMPLATE; }
+  function saveTemplate(tpl) { localStorage.setItem(WA_STORAGE_KEY, tpl); }
+
+  function buildMessage(template, row) {
+    return template
+      .replace(/\{studentName\}/g, row.studentName || "Student")
+      .replace(/\{parentName\}/g, row.parentName || "Parent")
+      .replace(/\{className\}/g, row.className || "—")
+      .replace(/\{balance\}/g, row.balance || "0")
+      .replace(/\{term\}/g, row.term || "—")
+      .replace(/\{rollNo\}/g, row.rollNo || "—")
+      .replace(/\{totalFee\}/g, row.totalFee || "0")
+      .replace(/\{paidAmount\}/g, row.paidAmount || "0");
+  }
+
+  function cleanPhone(raw) {
+    let p = String(raw || "").replace(/\D/g, "");
+    if (p.length === 10) p = "91" + p;
+    if (p.length === 11 && p.startsWith("0")) p = "91" + p.slice(1);
+    return p;
+  }
+
+  function openWhatsApp(phone, message) {
+    const p = cleanPhone(phone);
+    if (!p || p.length < 10) { showToast("⚠ No valid phone number for this student.", "warn"); return false; }
+    window.open(`https://wa.me/${p}?text=${encodeURIComponent(message)}`, "_blank");
+    return true;
+  }
+
+  async function logAlert(row, message) {
+    try {
+      await api("/api/whatsapp/log-alert", {
+        method: "POST",
+        body: JSON.stringify({ studentName: row.studentName, className: row.className, phone: row.phone, parentName: row.parentName, balance: row.balance, term: row.term, message })
+      });
+    } catch (e) { console.warn("WhatsApp log failed:", e.message); }
+  }
+
+  async function loadDueFees() {
+    try { waDueFees = await api("/api/whatsapp/due-fees"); } catch (e) { waDueFees = []; }
+  }
+
+  async function loadAlertLog() {
+    try { waAlertLog = (getStore().whatsappAlerts || []).slice(0, 50); } catch (e) { waAlertLog = []; }
+  }
+
+  async function renderWhatsAppModule() {
+    const contentArea = document.querySelector(".content-area");
+    if (!contentArea) return;
+
+    contentArea.querySelectorAll(".panel:not(#facePanel):not(#assistantPanel)").forEach(p => { p.style.display = "none"; });
+
+    let waPanel = document.getElementById("waAlertPanel");
+    if (!waPanel) {
+      waPanel = document.createElement("section");
+      waPanel.id = "waAlertPanel";
+      waPanel.className = "panel wa-panel";
+      contentArea.insertBefore(waPanel, contentArea.firstChild);
+    }
+    waPanel.style.display = "";
+
+    await loadDueFees();
+    await loadAlertLog();
+    const template = getTemplate();
+
+    waPanel.innerHTML = `
+      <div class="wa-header">
+        <div class="wa-header-icon">📲</div>
+        <div>
+          <h3 class="wa-title">WhatsApp Fee Due Alerts</h3>
+          <p class="wa-sub">Send payment reminders directly to parents via WhatsApp</p>
+        </div>
+        <div class="wa-summary-badges">
+          <span class="wa-badge wa-badge-red">⚠ ${waDueFees.length} Due</span>
+          <span class="wa-badge wa-badge-green">✅ ${waAlertLog.length} Sent</span>
+        </div>
+      </div>
+
+      <div class="wa-section">
+        <div class="wa-section-title">✏️ Message Template
+          <span class="wa-section-hint">Use {studentName} {parentName} {className} {balance} {term} {rollNo} {totalFee} {paidAmount}</span>
+        </div>
+        <textarea id="waTemplateEditor" class="wa-template-editor" rows="10">${template.replace(/</g,"&lt;")}</textarea>
+        <div class="wa-template-actions">
+          <button class="wa-btn wa-btn-secondary" id="waSaveTemplate">💾 Save Template</button>
+          <button class="wa-btn wa-btn-secondary" id="waResetTemplate">↩ Reset to Default</button>
+          <span id="waTemplateSaveStatus" style="font-size:0.82rem;color:#16a34a;margin-left:8px;"></span>
+        </div>
+      </div>
+
+      <div class="wa-section">
+        <div class="wa-section-title" style="margin-bottom:12px;">
+          📋 Students with Pending / Partial Fees
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <button class="wa-btn wa-btn-primary" id="waSendAll">📢 Send All (${waDueFees.length})</button>
+            <button class="wa-btn wa-btn-primary" id="waSendSelected">📲 Send Selected</button>
+          </div>
+        </div>
+        ${waDueFees.length === 0 ? `
+          <div class="wa-empty">
+            <div style="font-size:2.5rem">🎉</div>
+            <div>No pending fees! All students are up to date.</div>
+          </div>` : `
+          <div class="wa-table-wrap">
+            <table class="wa-table">
+              <thead><tr>
+                <th><input type="checkbox" id="waSelectAll" title="Select all" /></th>
+                <th>Student</th><th>Class</th><th>Parent / Phone</th>
+                <th>Term</th><th>Balance</th><th>Status</th><th>Action</th>
+              </tr></thead>
+              <tbody id="waDueFeesTbody">
+                ${waDueFees.map((row, i) => `
+                  <tr class="wa-row" data-idx="${i}">
+                    <td><input type="checkbox" class="wa-row-check" data-idx="${i}" /></td>
+                    <td><strong>${row.studentName}</strong><br><small style="color:#64748b">${row.rollNo}</small></td>
+                    <td>${row.className}</td>
+                    <td>
+                      <div style="font-weight:600">${row.parentName || "—"}</div>
+                      <div style="color:#64748b;font-size:0.82rem">${row.phone ? "📞 " + row.phone : "<span style='color:#ef4444'>No phone</span>"}</div>
+                    </td>
+                    <td>${row.term}</td>
+                    <td><span class="wa-balance">₹${Number(row.balance || 0).toLocaleString("en-IN")}</span></td>
+                    <td><span class="wa-status-badge wa-status-${String(row.status).toLowerCase()}">${row.status}</span></td>
+                    <td>
+                      <button class="wa-btn wa-btn-green wa-send-one" data-idx="${i}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.521.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                        Send
+                      </button>
+                    </td>
+                  </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>`}
+      </div>
+
+      <div class="wa-section">
+        <div class="wa-section-title">📊 Alert Log (Last 50)</div>
+        ${waAlertLog.length === 0 ? `<div class="wa-empty" style="padding:20px 0"><div style="font-size:1.8rem">📭</div><div>No alerts sent yet.</div></div>` : `
+          <div class="wa-table-wrap">
+            <table class="wa-table">
+              <thead><tr><th>#</th><th>Student</th><th>Class</th><th>Phone</th><th>Balance</th><th>Term</th><th>Date</th><th>Status</th></tr></thead>
+              <tbody>
+                ${waAlertLog.map((r, i) => `<tr>
+                  <td>${i + 1}</td><td>${r.studentName}</td><td>${r.className}</td>
+                  <td>${r.phone}</td><td>₹${Number(r.balance || 0).toLocaleString("en-IN")}</td>
+                  <td>${r.term}</td><td>${r.alertDate}</td>
+                  <td><span class="wa-badge wa-badge-green">✅ ${r.status}</span></td>
+                </tr>`).join("")}
+              </tbody>
+            </table>
+          </div>`}
+      </div>
+    `;
+
+    // Wire events
+    const tplEditor = document.getElementById("waTemplateEditor");
+
+    document.getElementById("waSaveTemplate")?.addEventListener("click", () => {
+      saveTemplate(tplEditor.value);
+      const s = document.getElementById("waTemplateSaveStatus");
+      if (s) { s.textContent = "✅ Saved!"; setTimeout(() => s.textContent = "", 2000); }
+    });
+
+    document.getElementById("waResetTemplate")?.addEventListener("click", () => {
+      tplEditor.value = DEFAULT_TEMPLATE; saveTemplate(DEFAULT_TEMPLATE);
+      showToast("Template reset to default", "info");
+    });
+
+    document.getElementById("waSelectAll")?.addEventListener("change", e => {
+      document.querySelectorAll(".wa-row-check").forEach(cb => cb.checked = e.target.checked);
+    });
+
+    document.querySelectorAll(".wa-send-one").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const row = waDueFees[Number(btn.dataset.idx)]; if (!row) return;
+        const msg = buildMessage(tplEditor?.value || getTemplate(), row);
+        if (openWhatsApp(row.phone, msg)) {
+          await logAlert(row, msg);
+          showToast(`✅ WhatsApp opened for ${row.studentName}`, "success");
+          btn.style.background = "#16a34a"; btn.textContent = "✓ Sent"; btn.disabled = true;
+          setTimeout(async () => { await loadStore(); await loadAlertLog(); }, 1000);
+        }
+      });
+    });
+
+    document.getElementById("waSendSelected")?.addEventListener("click", async () => {
+      const checked = [...document.querySelectorAll(".wa-row-check:checked")].map(cb => Number(cb.dataset.idx));
+      if (!checked.length) { showToast("⚠ Please select at least one student.", "warn"); return; }
+      const tpl = tplEditor?.value || getTemplate(); let sent = 0;
+      for (const idx of checked) {
+        const row = waDueFees[idx]; if (!row) continue;
+        const msg = buildMessage(tpl, row);
+        if (openWhatsApp(row.phone, msg)) { sent++; await logAlert(row, msg); await new Promise(r => setTimeout(r, 400)); }
+      }
+      showToast(`📲 Opened WhatsApp for ${sent} student(s)`, "success");
+      if (sent > 0) { await loadStore(); setTimeout(() => renderWhatsAppModule(), 800); }
+    });
+
+    document.getElementById("waSendAll")?.addEventListener("click", async () => {
+      if (!waDueFees.length) { showToast("No due fees found.", "info"); return; }
+      if (!window.confirm(`Send WhatsApp alert to all ${waDueFees.length} students with pending fees?`)) return;
+      const tpl = tplEditor?.value || getTemplate(); let sent = 0;
+      for (const row of waDueFees) {
+        const msg = buildMessage(tpl, row);
+        if (openWhatsApp(row.phone, msg)) { sent++; await logAlert(row, msg); await new Promise(r => setTimeout(r, 500)); }
+      }
+      showToast(`📢 WhatsApp opened for ${sent} of ${waDueFees.length} students`, "success");
+      if (sent > 0) { await loadStore(); setTimeout(() => renderWhatsAppModule(), 1000); }
+    });
+  }
+
+  window.renderWhatsAppModule = renderWhatsAppModule;
+
+  document.addEventListener("click", e => {
+    const navBtn = e.target.closest(".nav-btn");
+    if (navBtn && currentModule !== "whatsappAlerts") {
+      const waPanel = document.getElementById("waAlertPanel");
+      if (waPanel) waPanel.style.display = "none";
+      const contentArea = document.querySelector(".content-area");
+      if (contentArea) {
+        contentArea.querySelectorAll(".panel:not(#facePanel):not(#assistantPanel):not(#waAlertPanel)").forEach(p => p.style.display = "");
+      }
+    }
+  }, true);
+
+})();
+

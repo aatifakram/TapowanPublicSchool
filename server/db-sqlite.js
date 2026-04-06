@@ -25,7 +25,8 @@ const MODULES = {
   schoolIncome: ["date", "source", "category", "amount", "mode", "description"],
   schoolExpenses: ["date", "head", "category", "amount", "mode", "description"],
   booksAndDress: ["className", "itemType", "itemName", "price", "term"],
-  feeStructures: ["className", "feeType", "amount", "term", "description"]
+  feeStructures: ["className", "feeType", "amount", "term", "description"],
+  whatsappAlerts: ["studentName", "className", "phone", "parentName", "balance", "term", "alertDate", "message", "status"]
 };
 
 function runRaw(sql, params = []) {
