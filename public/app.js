@@ -602,6 +602,41 @@ function renderForm() {
       if (formRefs.rollNo) formRefs.rollNo.value = selected.rollNo || formRefs.rollNo.value;
     });
   }
+
+  // Filter student dropdown when class is changed (fees, attendance, etc.)
+  if (formRefs.className && formRefs.studentName && (currentModule === "fees" || currentModule === "attendance")) {
+    formRefs.className.addEventListener("change", () => {
+      const selectedClass = formRefs.className.value;
+      const studentSelect = formRefs.studentName;
+      const currentStudentVal = studentSelect.value;
+      
+      // Clear existing options
+      studentSelect.innerHTML = "";
+      
+      // Add default option
+      const defaultOpt = document.createElement("option");
+      defaultOpt.value = "";
+      defaultOpt.textContent = "Select Student Name";
+      studentSelect.appendChild(defaultOpt);
+      
+      // Filter students by selected class (or show all if no class selected)
+      const filtered = selectedClass 
+        ? studentOptions.filter(s => s.className === selectedClass)
+        : studentOptions;
+      
+      filtered.forEach(opt => {
+        const option = document.createElement("option");
+        option.value = opt.value;
+        option.textContent = opt.label;
+        studentSelect.appendChild(option);
+      });
+      
+      // Restore previous selection if still valid
+      if (currentStudentVal && filtered.some(s => s.value === currentStudentVal)) {
+        studentSelect.value = currentStudentVal;
+      }
+    });
+  }
   // Auto-fill department from teacher selection when available.
   const teacherField = formRefs.teacherName || formRefs.classTeacher || formRefs.teacher || formRefs.employeeName;
   if (teacherField && formRefs.department) {
@@ -1610,6 +1645,56 @@ function exportCurrentCsv() {
 function exportCurrentPdf() {
   const rows = getCurrentList();
   if (!rows.length) return window.alert("No records to export.");
+
+  if (currentModule === "fees") {
+    const feeColumns = ["Student Name", "Class", "Roll No", "Term", "Fee Details", "Total Fee", "Paid Amount", "Balance", "Status"];
+    const body = rows.map(f => {
+      let details = "";
+      if (f.monthlyFeeLabel && parseFloat(f.monthlyFee) > 0) {
+        details += `Fees: ${f.monthlyFeeLabel} (Rs. ${f.monthlyFee})\n`;
+      } else if (f.feeTypes) {
+        details += `Fees: ${f.feeTypes}\n`;
+      }
+      
+      const indivFees = [
+        { key: "tuitionFee", label: "Tuition" },
+        { key: "admissionFee", label: "Admission" },
+        { key: "computerFee", label: "Computer" },
+        { key: "developmentFee", label: "Development" },
+        { key: "labFee", label: "Lab" },
+        { key: "sportsFee", label: "Sports" },
+        { key: "libraryFee", label: "Library" },
+        { key: "examFee", label: "Exam" },
+        { key: "otherFee", label: "Other" }
+      ];
+      indivFees.forEach(inf => {
+        if (parseFloat(f[inf.key]) > 0) {
+          details += `${inf.label}: Rs. ${f[inf.key]}\n`;
+        }
+      });
+      
+      try {
+        const ids = JSON.parse(f.selectedBookIds || "[]");
+        if (ids.length) {
+          const allBDItems = [...(typeof bdBooks !== "undefined" ? bdBooks : []), ...(typeof bdDresses !== "undefined" ? bdDresses : [])];
+          const itemsText = ids.map(id => {
+            const item = allBDItems.find(r => String(r.id) === String(id));
+            return item ? `${item.itemName} (Rs. ${item.price})` : null;
+          }).filter(Boolean).join(", ");
+          if (itemsText) details += `Books/Dress: ${itemsText}\n`;
+        }
+      } catch(e) {}
+      
+      return [f.studentName || "", f.className || "", f.rollNo || "", f.term || "", details.trim() || "-", f.totalFee || "0", f.paidAmount || "0", f.balance || "0", f.status || ""];
+    });
+
+    const doc = new window.jspdf.jsPDF('landscape');
+    doc.text(`Fees Report`, 14, 14);
+    doc.autoTable({ head: [feeColumns], body, startY: 22, styles: { cellPadding: 2, fontSize: 8 }, columnStyles: { 4: { cellWidth: 80 } } });
+    doc.save(`fees-${todayStr()}.pdf`);
+    return;
+  }
+
   const columns = currentModule === "dashboard" ? ["Metric", "Value"] : moduleConfig[currentModule].columns;
   const body = rows.map(row => columns.map(c => row[c] ?? ""));
   const doc = new window.jspdf.jsPDF();
@@ -2463,6 +2548,10 @@ if (refs.print4in1CloseBtn) {
 if (refs.executePrint4in1Btn) {
   refs.executePrint4in1Btn.addEventListener("click", executePrint4in1);
 }
+const executePrint4in1SlipBtn = document.getElementById("executePrint4in1SlipBtn");
+if (executePrint4in1SlipBtn) {
+  executePrint4in1SlipBtn.addEventListener("click", executePrint4in1Slip);
+}
 
 function openPrint4in1Modal() {
   const store = getStore();
@@ -2534,6 +2623,188 @@ function executePrint4in1() {
   w.document.write(html);
   w.document.close();
   closePrint4in1Modal();
+}
+
+function executePrint4in1Slip() {
+  const store = getStore();
+  const fees = store.fees || [];
+  const getHtml = (idStr) => {
+    if (!idStr) return "<div></div>";
+    const f = fees.find(x => String(x.id) === String(idStr));
+    if (!f) return "Slip not found";
+    return buildSingleSlipHtmlForGrid(f);
+  };
+
+  const id1 = refs.box1Select?.value;
+  const id2 = refs.box2Select?.value;
+  const id3 = refs.box3Select?.value;
+  const id4 = refs.box4Select?.value;
+
+  const html = `<!doctype html>
+  <html><head><title>4-in-1 Slips</title><style>
+    @media print {
+      @page { size: A4; margin: 10mm; }
+      body { margin: 0; padding: 0; }
+    }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; box-sizing: border-box; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; width: 190mm; height: 277mm; gap: 6mm; margin: 0 auto; box-sizing: border-box; }
+    .quadrant { height: 100%; width: 100%; box-sizing: border-box; overflow: hidden; page-break-inside: avoid; }
+  </style></head><body>
+    <div class="grid">
+      <div class="quadrant">${getHtml(id1)}</div>
+      <div class="quadrant">${getHtml(id2)}</div>
+      <div class="quadrant">${getHtml(id3)}</div>
+      <div class="quadrant">${getHtml(id4)}</div>
+    </div>
+    <script>
+      window.onload = function() { setTimeout(function(){ window.print(); window.close(); }, 400); };
+    </script>
+  </body></html>`;
+
+  const w = window.open("", "_blank");
+  if (!w) return window.alert("Popup blocked.");
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
+  closePrint4in1Modal();
+}
+
+function buildSingleSlipHtmlForGrid(f) {
+  const schoolName = "Tapowan Public School";
+  const slipNo = "FS-" + (f.id || Date.now());
+  const printDate = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const totalFee   = parseFloat(f.totalFee) || 0;
+  const paidAmount = parseFloat(f.paidAmount) || 0;
+  const balance    = parseFloat(f.balance) || Math.max(0, totalFee - paidAmount);
+  const statusColor = String(f.status).toLowerCase() === "paid" ? "#16a34a" : String(f.status).toLowerCase() === "partial" ? "#d97706" : "#dc2626";
+  const statusBg = String(f.status).toLowerCase() === "paid" ? "#dcfce7" : String(f.status).toLowerCase() === "partial" ? "#fef3c7" : "#fee2e2";
+
+  let feeRows = "";
+  let hasSlipIndividual = false;
+  const SLIP_FEE_TYPES = [
+    { key: "tuitionFee",     label: "Tuition Fee",     icon: "📚" },
+    { key: "admissionFee",   label: "Admission Fee",   icon: "🎓" },
+    { key: "computerFee",    label: "Computer Fee",    icon: "💻" },
+    { key: "developmentFee", label: "Development Fee", icon: "🏗️" },
+    { key: "labFee",         label: "Lab Fee",         icon: "🔬" },
+    { key: "sportsFee",      label: "Sports Fee",      icon: "⚽" },
+    { key: "libraryFee",     label: "Library Fee",     icon: "📖" },
+    { key: "examFee",        label: "Exam Fee",        icon: "📝" },
+    { key: "otherFee",       label: "Other Fee",       icon: "➕" }
+  ];
+  SLIP_FEE_TYPES.forEach(({ key, label, icon }, idx) => {
+    const amt = parseFloat(f[key]) || 0;
+    if (amt > 0) {
+      hasSlipIndividual = true;
+      const bg = idx % 2 === 0 ? "#f9fafb" : "#fff";
+      feeRows += `<tr style="background:${bg};">
+        <td style="padding:4px 6px;border-bottom:1px solid #e5e7eb;font-size:10px;color:#374151;">${icon} ${label}</td>
+        <td style="padding:4px 6px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:10px;font-weight:600;color:#111827;">₹ ${amt.toLocaleString("en-IN")}</td>
+      </tr>`;
+    }
+  });
+  if (!hasSlipIndividual) {
+    const labels = (f.feeTypes || f.monthlyFeeLabel || "").trim();
+    const totalMonthly = parseFloat(f.monthlyFee) || parseFloat(f.totalFee) || 0;
+    if (labels && totalMonthly > 0) {
+      const parts = labels.split(",").map(s => s.trim()).filter(Boolean);
+      if (parts.length > 1) {
+        const perPart = totalMonthly / parts.length;
+        parts.forEach((part, idx) => {
+          const bg = idx % 2 === 0 ? "#f9fafb" : "#fff";
+          feeRows += `<tr style="background:${bg};">
+            <td style="padding:4px 6px;border-bottom:1px solid #e5e7eb;font-size:10px;color:#374151;">💳 ${part}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:10px;font-weight:600;color:#111827;">₹ ${perPart.toLocaleString("en-IN")}</td>
+          </tr>`;
+        });
+      } else {
+        feeRows += `<tr style="background:#f9fafb;">
+          <td style="padding:4px 6px;border-bottom:1px solid #e5e7eb;font-size:10px;color:#374151;">💳 ${labels}</td>
+          <td style="padding:4px 6px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:10px;font-weight:600;color:#111827;">₹ ${totalMonthly.toLocaleString("en-IN")}</td>
+        </tr>`;
+      }
+    }
+  }
+
+  let itemsTotal = 0;
+  try {
+    const ids = JSON.parse(f.selectedBookIds || "[]");
+    if (ids.length) {
+      const allBDItems = [...(typeof bdBooks !== "undefined" ? bdBooks : []), ...(typeof bdDresses !== "undefined" ? bdDresses : [])];
+      ids.map(id => allBDItems.find(r => String(r.id) === String(id))).filter(Boolean).forEach((item, idx) => {
+        const price = parseFloat(item.price) || 0;
+        itemsTotal += price;
+        const bg = idx % 2 === 0 ? "#f0f4ff" : "#fff";
+        feeRows += `<tr style="background:${bg};"><td style="padding:4px 6px;border-bottom:1px solid #e5e7eb;font-size:10px;color:#374151;">${item.itemType === "Book" ? "📚" : "👕"} ${item.itemName}</td>
+          <td style="padding:4px 6px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:10px;font-weight:600;">₹ ${price.toLocaleString("en-IN")}</td></tr>`;
+      });
+    }
+  } catch(e) {}
+
+  return `
+    <div style="height:100%;display:flex;flex-direction:column;font-family:Arial,sans-serif;font-size:10px;border:1px solid #1e3a8a;border-radius:6px;box-sizing:border-box;">
+      <div style="border-bottom:2px solid #1e3a8a;padding:5px;text-align:center;">
+        <div style="font-size:12px;font-weight:900;color:#1e3a8a;letter-spacing:0.5px;text-transform:uppercase;">🏫 ${schoolName}</div>
+        <div style="margin-top:2px;display:inline-block;background:#1e3a8a;color:#fff;padding:2px 10px;font-size:8px;font-weight:700;text-transform:uppercase;">FEE SLIP</div>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:3px 6px;background:#eef2ff;border-bottom:1px solid #c7d2fe;font-size:9px;color:#1e3a8a;">
+        <span><strong>No:</strong> ${slipNo}</span>
+        <span><strong>Term:</strong> ${f.term || "-"}</span>
+        <span><strong>Date:</strong> ${printDate}</span>
+      </div>
+      <div style="padding:4px 6px;border-bottom:1px solid #e5e7eb;">
+        <table style="width:100%;border-collapse:collapse;font-size:9px;">
+          <tr>
+            <td style="color:#6b7280;width:28%;">Name</td>
+            <td style="font-weight:700;color:#111827;">${f.studentName || "-"}</td>
+            <td style="color:#6b7280;width:14%;">Class</td>
+            <td style="font-weight:700;">${f.className || "-"}</td>
+          </tr>
+          <tr>
+            <td style="color:#6b7280;">Roll</td>
+            <td style="font-weight:600;">${f.rollNo || "-"}</td>
+             <td style="color:#6b7280">Method</td>
+            <td style="font-weight:600;">${f.paymentMethod || "-"}</td>
+          </tr>
+          <tr>
+            <td style="color:#6b7280;">Status</td>
+            <td colspan="3"><span style="background:${statusBg};color:${statusColor};font-weight:700;padding:1px 4px;border-radius:2px;font-size:8px;border:1px solid ${statusColor};">${f.status || "Pending"}</span></td>
+          </tr>
+        </table>
+      </div>
+      <div style="padding:4px 6px;border-bottom:1px solid #e5e7eb;flex:1;overflow-y:auto;">
+        <div style="font-size:8px;font-weight:700;color:#9ca3af;text-transform:uppercase;margin-bottom:2px;">Fee Details</div>
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="background:#1e3a8a;color:#fff;">
+              <th style="padding:3px 6px;text-align:left;font-size:9px;">Description</th>
+              <th style="padding:3px 6px;text-align:right;font-size:9px;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${feeRows || `<tr><td colspan="2" style="padding:4px;color:#9ca3af;text-align:center;font-size:9px;">No details</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+       <div style="padding:4px 6px;background:#f8fafc;border-top:1px solid #e2e8f0;flex-shrink:0;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+            <span style="color:#475569;">Total Fee</span>
+            <span style="font-weight:600;">₹ ${totalFee.toLocaleString("en-IN")}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+            <span style="color:#475569;">Paid</span>
+            <span style="font-weight:600;color:#16a34a;">₹ ${paidAmount.toLocaleString("en-IN")}</span>
+          </div>
+           <div style="display:flex;justify-content:space-between;">
+            <span style="color:#475569;">Balance</span>
+            <span style="font-weight:700;color:#dc2626;">₹ ${balance.toLocaleString("en-IN")}</span>
+          </div>
+        </div>
+        <div style="padding:4px 6px 2px;display:flex;justify-content:space-between;font-size:8px;color:#374151;margin-top:auto">
+          <div style="text-align:center;width:45%;"><div style="border-top:1px solid #374151;margin-top:12px;padding-top:2px;">Parent</div></div>
+          <div style="text-align:center;width:45%;"><div style="border-top:1px solid #374151;margin-top:12px;padding-top:2px;">Cashier</div></div>
+        </div>
+    </div>`;
 }
 
 function buildSingleFeeHtmlForGrid(f) {
@@ -2670,22 +2941,10 @@ refs.logoutBtn.addEventListener("click", async () => {
   refs.dynamicForm.innerHTML = "";
 });
 
-// Reset data — admin only
+// Reset data — Admin only (Deleted unconditionally)
 const resetDataBtnEl = document.getElementById("resetDataBtn");
 if (resetDataBtnEl) {
-  resetDataBtnEl.addEventListener("click", async () => {
-    if (!userIsAdmin()) return window.alert("Only Administrators can reset data.");
-    if (!window.confirm("⚠️ Are you sure you want to RESET ALL DATA? This cannot be undone!")) return;
-    if (!window.confirm("Final confirmation: Reset ALL school data to defaults?")) return;
-    try {
-      await api("/api/admin/reset", { method: "POST" });
-      await loadStore();
-      renderAll();
-      showToast("Data reset to defaults.", "success");
-    } catch (err) {
-      window.alert("Reset failed: " + err.message);
-    }
-  });
+  resetDataBtnEl.remove();
 }
 
 refs.startCameraBtn.addEventListener("click", startCamera);

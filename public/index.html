@@ -91,7 +91,6 @@
         <div class="topbar-actions">
           <span id="activeUserBadge" class="badge">Guest</span>
           <button id="logoutBtn" class="dark">Logout</button>
-          <button id="resetDataBtn" class="danger">Reset Data</button>
           <button id="assistantToggleBtn" class="dark">AI Assistant</button>
         </div>
       </header>
@@ -240,34 +239,34 @@
   <div id="print4in1Modal" class="student-profile-modal hidden" style="max-width:550px;">
     <div class="student-profile-header">
       <div class="student-profile-title">
-        <h3>Print 4 Receipts on 1 A4</h3>
-        <p>Select receipts for each quadrant</p>
+        <h3>Print 4 Records on 1 A4</h3>
+        <p>Select receipts/slips for each quadrant</p>
       </div>
       <button id="print4in1CloseBtn" class="student-profile-close">✕ Close</button>
     </div>
     <div class="student-profile-content" style="padding:15px; display:grid; grid-template-columns: 1fr 1fr; gap: 15px;">
       <div class="field">
         <label>Top Left (Box 1)</label>
-        <select id="box1Select"><option value="">Select Receipt</option></select>
+        <select id="box1Select"><option value="">Select Record</option></select>
       </div>
       <div class="field">
         <label>Top Right (Box 2)</label>
-        <select id="box2Select"><option value="">Select Receipt</option></select>
+        <select id="box2Select"><option value="">Select Record</option></select>
       </div>
       <div class="field">
         <label>Bottom Left (Box 3)</label>
-        <select id="box3Select"><option value="">Select Receipt</option></select>
+        <select id="box3Select"><option value="">Select Record</option></select>
       </div>
       <div class="field">
         <label>Bottom Right (Box 4)</label>
-        <select id="box4Select"><option value="">Select Receipt</option></select>
+        <select id="box4Select"><option value="">Select Record</option></select>
       </div>
     </div>
-    <div style="padding:15px;text-align:right;border-top:1px solid #e2e8f0;">
-      <button id="executePrint4in1Btn" class="dark" style="padding:8px 16px;">Print A4 Grid</button>
+    <div style="padding:15px;text-align:right;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:10px;">
+      <button id="executePrint4in1Btn" class="dark" style="padding:8px 16px;">Print Receipts Grid</button>
+      <button id="executePrint4in1SlipBtn" class="dark" style="padding:8px 16px;">Print Slips Grid</button>
     </div>
   </div>
-
   <template id="emptyState">
     <tr>
       <td colspan="99" class="empty">No records found.</td>
