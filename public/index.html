@@ -12,7 +12,7 @@
     <div class="auth-dots"></div>
     <div class="auth-card">
       <div class="auth-logo">
-        <div class="auth-logo-icon">🏫</div>
+        <div class="auth-logo-icon" style="background:transparent; box-shadow:none;"><img src="logo.png" alt="TPS Logo" style="width:100%; height:100%; object-fit:contain;" /></div>
         <div>
           <h1>EduCore</h1>
           <p>Tapowan Public School</p>
@@ -65,7 +65,7 @@
     <aside id="sidebar" class="sidebar">
       <div class="brand">
         <div class="brand-inner">
-          <div class="brand-icon">🏫</div>
+          <div class="brand-icon" style="background:transparent; box-shadow:none;"><img src="logo.png" alt="TPS Logo" style="width:100%; height:100%; object-fit:contain;" /></div>
           <div>
             <h1>EduCore</h1>
             <p>School Management</p>
@@ -107,7 +107,10 @@
         <div class="panel-head">
           <h3>Module Data</h3>
           <div class="panel-actions">
+            <select id="classFilter" class="hidden" style="padding: 10px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 0.9rem; margin-right: 8px;"><option value="">All Classes</option></select>
             <input type="search" id="searchInput" placeholder="Search records..." />
+            <input type="file" id="importFile" accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="hidden" />
+            <button id="importDataBtn" class="dark hidden">Import Data</button>
             <button id="exportCsvBtn" class="dark">Export CSV</button>
             <button id="exportPdfBtn" class="dark">Export PDF</button>
             <button id="printDocBtn" class="dark">Print Document</button>
@@ -129,6 +132,16 @@
             <button id="captureFaceBtn" class="dark">Capture Face</button>
             <button id="markFaceAttendanceBtn" class="dark">Mark Attendance</button>
             <button id="enrollFaceBtn" class="dark hidden">Enroll Face</button>
+            <div style="display:flex;align-items:center;gap:6px;margin-right:6px;">
+              <label style="font-size:0.85rem;color:#cbd5e1;">Camera:</label>
+              <select id="cameraSourceSelect" style="padding:4px 8px;border-radius:6px;border:1px solid #475569;background:#1e293b;color:#e2e8f0;font-size:0.82rem;">
+                <option value="local">💻 Local</option>
+                <option value="ip">🌐 IP Camera</option>
+              </select>
+            </div>
+            <div id="ipCameraControls" style="display:none;align-items:center;gap:6px;margin-right:6px;">
+              <input id="ipCameraUrl" type="text" placeholder="http://192.168.1.100:8080/video" style="padding:4px 8px;border-radius:6px;border:1px solid #475569;background:#1e293b;color:#e2e8f0;font-size:0.82rem;width:280px;" />
+            </div>
             <div id="faceAutoControls">
               <label style="display:flex;align-items:center;gap:8px;margin-left:10px;">
                 <input id="autoCaptureToggle" type="checkbox" />
@@ -141,7 +154,7 @@
               </div>
               <div style="display:flex;align-items:center;gap:8px;margin-left:6px;">
                 <span style="font-size:0.9rem;color:#cbd5e1;">Min Conf</span>
-                <input id="autoMinConfidence" type="number" value="0.88" min="0.5" max="0.99" step="0.01" style="width:92px;" />
+                <input id="autoMinConfidence" type="number" value="0.50" min="0.3" max="0.99" step="0.01" style="width:92px;" />
               </div>
               <div style="display:flex;align-items:center;gap:8px;margin-left:6px;">
                 <span style="font-size:0.9rem;color:#cbd5e1;">Stable</span>
@@ -157,8 +170,14 @@
           </div>
         </div>
         <div class="face-grid">
-          <video id="faceVideo" autoplay muted playsinline></video>
-          <canvas id="faceCanvas"></canvas>
+          <div id="localCamWrapper" style="position:relative;display:block;">
+            <video id="faceVideo" autoplay muted playsinline style="width:100%;display:block;border-radius:12px;"></video>
+            <canvas id="faceCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
+          </div>
+          <div id="ipCamWrapper" style="display:none;position:relative;width:100%;">
+            <img id="ipCameraImg" style="width:100%;display:block;border-radius:12px;background:#000;" alt="IP Camera Feed" />
+            <canvas id="ipOverlayCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
+          </div>
         </div>
         <div class="form-grid">
           <div class="field">
@@ -275,10 +294,20 @@
 
   <div id="toastContainer"></div>
 
+  <!-- Image Viewer Modal (Lightbox) -->
+  <div id="imageViewer" class="image-viewer-backdrop hidden" onclick="if(event.target===this) closeImageViewer()">
+    <button class="image-viewer-close" onclick="closeImageViewer()">✕</button>
+    <div class="image-viewer-content">
+      <img id="imageViewerImg" src="" alt="Preview">
+      <div id="imageViewerTitle" style="text-align:center; margin-top:12px; font-weight:800; color:#1e293b; font-size:1rem;"></div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="app.js?v=202604062145"></script>
 </body>
 </html>

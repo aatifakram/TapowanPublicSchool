@@ -3,6 +3,8 @@ const express = require("express");
 const session = require("express-session");
 const cors = require("cors");
 const os = require("os");
+require('dotenv').config();
+const { GoogleGenAI } = require('@google/genai');
 
 const {
   MODULES,
@@ -379,9 +381,10 @@ app.delete("/api/modules/:moduleName/:id", authRequired, async (req, res) => {
       return res.status(404).json({ error: "Unknown module" });
     }
     const user = req.session.user;
-    // Only admin and staff (principal/accountant) can delete
-    if (!isAdmin(user) && !isStaffOrAbove(user)) {
-      return res.status(403).json({ error: "Only Admins and Staff can delete records" });
+    // Only admin and principal can delete
+    const roleStr = String(user.role || "").toLowerCase();
+    if (roleStr !== "administrator" && roleStr !== "principal") {
+      return res.status(403).json({ error: "Only Admins and Principals can delete records" });
     }
     // Users module: only admin
     if (moduleName === "users" && !isAdmin(user)) {
@@ -463,6 +466,106 @@ app.post("/api/whatsapp/log-alert", authRequired, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to log alert" });
+  }
+});
+
+// ------------------- PROPER AI ASSISTANT -------------------
+
+app.post("/api/chat", authRequired, async (req, res) => {
+  try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(200).json({ reply: "⚠️ Gemini API Key is missing. Please add GEMINI_API_KEY to your backend environment (.env) to enable the AI." });
+    }
+
+    const { prompt, context } = req.body || {};
+    if (!prompt) return res.status(400).json({ error: "No prompt provided" });
+
+    const ai = new GoogleGenAI({ apiKey });
+
+    const systemInstruction = `You are EduCore AI, a highly intuitive and helpful assistant for a School Management System.
+The user is a staff member currently logged in.
+Here is the current state of their app right now:
+${context || 'No specific context provided.'}
+
+Answer their questions confidently. Keep responses concise and helpful.`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        systemInstruction,
+        temperature: 0.4,
+      }
+    });
+
+    res.json({ reply: response.text });
+  } catch (err) {
+    console.error("Gemini AI API Error:", err);
+    res.status(500).json({ reply: `❌ AI Error: ${err.message}` });
+  }
+});
+
+// ------------------- IP CAMERA SNAPSHOT PROXY -------------------
+// Fetches a single JPEG frame from the IP camera so the browser can read
+// the pixels without cross-origin canvas taint restrictions.
+
+app.get("/api/camera-snapshot", authRequired, async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).json({ error: "Missing ?url= parameter" });
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeout);
+
+    const contentType = response.headers.get("content-type") || "";
+
+    if (contentType.includes("multipart")) {
+      // MJPEG stream — read until we get one complete JPEG frame
+      const reader = response.body.getReader();
+      const chunks = [];
+      let totalLen = 0;
+      let foundJpeg = false;
+
+      while (!foundJpeg && totalLen < 2 * 1024 * 1024) { // max 2MB
+        const { value, done } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        totalLen += value.length;
+
+        // Concatenate and look for JPEG markers (FFD8 start, FFD9 end)
+        const buf = Buffer.concat(chunks);
+        const soi = buf.indexOf(Buffer.from([0xFF, 0xD8]));
+        const eoi = buf.indexOf(Buffer.from([0xFF, 0xD9]), soi > -1 ? soi : 0);
+        if (soi > -1 && eoi > -1 && eoi > soi) {
+          const jpeg = buf.slice(soi, eoi + 2);
+          reader.cancel();
+          res.set("Content-Type", "image/jpeg");
+          res.set("Cache-Control", "no-cache, no-store");
+          res.send(jpeg);
+          foundJpeg = true;
+        }
+      }
+      if (!foundJpeg) {
+        reader.cancel();
+        res.status(502).json({ error: "Could not extract JPEG frame from MJPEG stream" });
+      }
+    } else {
+      // Snapshot URL — pipe through
+      res.set("Content-Type", contentType || "image/jpeg");
+      res.set("Cache-Control", "no-cache, no-store");
+      const arrayBuf = await response.arrayBuffer();
+      res.send(Buffer.from(arrayBuf));
+    }
+  } catch (err) {
+    if (err.name === "AbortError") {
+      return res.status(504).json({ error: "IP camera request timed out" });
+    }
+    console.error("Camera proxy error:", err.message);
+    res.status(502).json({ error: "Failed to reach IP camera: " + err.message });
   }
 });
 

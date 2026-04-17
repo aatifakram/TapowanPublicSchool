@@ -5,14 +5,14 @@ const dbPath = path.join(__dirname, "school.db");
 const db = new Database(dbPath);
 
 const MODULES = {
-  students: ["admissionNo", "rollNo", "fullName", "className", "gender", "dob", "parentName", "phone", "address", "photo", "status", "aadhar", "tc", "reportCard"],
+  students: ["admissionNo", "rollNo", "fullName", "className", "gender", "dob", "parentName", "motherName", "phone", "address", "photo", "status", "aadhar", "tc", "reportCard", "fatherAadhar", "motherAadhar"],
   teachers: ["employeeNo", "fullName", "department", "qualification", "phone", "email", "joinDate"],
   classes: ["className", "section", "classTeacher", "roomNo", "capacity"],
   subjects: ["subjectCode", "subjectName", "className", "teacher", "credits"],
   attendance: ["date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks", "facePhoto"],
   teacherAttendance: ["date", "department", "teacherName", "status", "remarks"],
   exams: ["examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"],
-  fees: ["studentName", "className", "rollNo", "term", "feeTypes", "tuitionFee", "admissionFee", "computerFee", "developmentFee", "labFee", "sportsFee", "libraryFee", "examFee", "otherFee", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod", "monthlyFee", "monthlyFeeLabel", "selectedBookIds"],
+  fees: ["studentName", "className", "rollNo", "fatherName", "term", "feeTypes", "tuitionFee", "admissionFee", "computerFee", "developmentFee", "labFee", "sportsFee", "libraryFee", "examFee", "otherFee", "lateFee", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod", "onlineAmount", "cashAmount", "monthlyFee", "monthlyFeeLabel", "selectedBookIds"],
   library: ["bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"],
   transport: ["routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"],
   hostel: ["hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"],

@@ -1,5 +1,6 @@
 const FACE_KEY = "school_face_embeddings_v2";
-const FACE_MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/";
+let human = null;
+const HUMAN_MODELS_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/human/models/";
 const CLASS_STANDARD_OPTIONS = ["Nursery", "LKG", "UKG", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
 
 const moduleConfig = {
@@ -7,7 +8,7 @@ const moduleConfig = {
   students: {
     title: "Students",
     subtitle: "Manage student admissions and profiles",
-    fields: ["admissionNo", "rollNo", "fullName", "className", "gender", "dob", "parentName", "phone", "address", "photo", "status", "aadhar", "tc", "reportCard"],
+    fields: ["admissionNo", "rollNo", "fullName", "className", "gender", "dob", "parentName", "motherName", "phone", "address", "photo", "status", "aadhar", "tc", "reportCard", "fatherAadhar", "motherAadhar"],
     columns: ["fullName", "rollNo", "classPart", "sectionPart", "phone", "status"]
   },
   teachers: { title: "Teachers", subtitle: "Manage teacher records and contacts", fields: ["employeeNo", "fullName", "department", "qualification", "phone", "email", "joinDate"], columns: ["id", "employeeNo", "fullName", "department", "qualification", "phone", "email"] },
@@ -16,7 +17,7 @@ const moduleConfig = {
   attendance: { title: "Attendance", subtitle: "Track daily student attendance", fields: ["date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks"], columns: ["id", "date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks"] },
   teacherAttendance: { title: "Teacher Attendance", subtitle: "Track daily teacher attendance", fields: ["date", "department", "teacherName", "status", "remarks"], columns: ["id", "date", "department", "teacherName", "status", "remarks"] },
   exams: { title: "Exams & Results", subtitle: "Manage exams and student marks", fields: ["examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"], columns: ["id", "examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"] },
-  fees: { title: "Fees", subtitle: "Record fee structures and payments", fields: ["studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod"], columns: ["id", "studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"] },
+  fees: { title: "Fees", subtitle: "Record fee structures and payments", fields: ["studentName", "className", "rollNo", "fatherName", "term", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod", "onlineAmount", "cashAmount"], columns: ["id", "studentName", "className", "rollNo", "term", "totalFee", "paidAmount", "balance", "status"] },
   library: { title: "Library", subtitle: "Manage books, issues and returns", fields: ["bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"], columns: ["id", "bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"] },
   transport: { title: "Transport", subtitle: "Track routes, buses and student allocation", fields: ["routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"], columns: ["id", "routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"] },
   hostel: { title: "Hostel", subtitle: "Manage hostel rooms and allocations", fields: ["hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"], columns: ["id", "hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"] },
@@ -60,6 +61,7 @@ let autoLastAutoMarkAt = 0;
 let autoRecognitionStreakByKey = {};
 let autoLastAutoMarkAtByKey = {};
 let editStudentId = null;
+let editRecordId = null;
 let pendingStudentPrefill = null;
 
 const refs = {
@@ -73,6 +75,7 @@ const refs = {
   tableHead: document.getElementById("tableHead"),
   tableBody: document.getElementById("tableBody"),
   statsCards: document.getElementById("statsCards"),
+  classFilter: document.getElementById("classFilter"),
   searchInput: document.getElementById("searchInput"),
   emptyState: document.getElementById("emptyState"),
   authOverlay: document.getElementById("authOverlay"),
@@ -84,6 +87,8 @@ const refs = {
   logoutBtn: document.getElementById("logoutBtn"),
   activeUserBadge: document.getElementById("activeUserBadge"),
   exportCsvBtn: document.getElementById("exportCsvBtn"),
+  importDataBtn: document.getElementById("importDataBtn"),
+  importFile: document.getElementById("importFile"),
   exportPdfBtn: document.getElementById("exportPdfBtn"),
   printDocBtn: document.getElementById("printDocBtn"),
   facePanel: document.getElementById("facePanel"),
@@ -92,6 +97,13 @@ const refs = {
   markFaceAttendanceBtn: document.getElementById("markFaceAttendanceBtn"),
   faceVideo: document.getElementById("faceVideo"),
   faceCanvas: document.getElementById("faceCanvas"),
+  localCamWrapper: document.getElementById("localCamWrapper"),
+  ipCameraImg: document.getElementById("ipCameraImg"),
+  ipCamWrapper: document.getElementById("ipCamWrapper"),
+  ipOverlayCanvas: document.getElementById("ipOverlayCanvas"),
+  cameraSourceSelect: document.getElementById("cameraSourceSelect"),
+  ipCameraUrl: document.getElementById("ipCameraUrl"),
+  ipCameraControls: document.getElementById("ipCameraControls"),
   faceTargetType: document.getElementById("faceTargetType"),
   faceTargetName: document.getElementById("faceTargetName"),
   faceClassName: document.getElementById("faceClassName"),
@@ -155,7 +167,57 @@ function setMobileSidebarOpen(open) {
 }
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-');
+}
+
+function displayDate(iso) {
+  if (!iso || typeof iso !== 'string') return "";
+  const s = iso.trim().replace(/\//g, "-").replace(/\s+/g, "-");
+  if (s.includes("-")) {
+    const parts = s.split("-");
+    if (parts[0].length === 4) {
+      const [y, m, d] = parts;
+      return `${d}-${m}-${y}`;
+    }
+  }
+  return s;
+}
+
+function normalizeToISO(str) {
+  if (!str) return "";
+  let s = String(str).trim().replace(/\//g, "-").replace(/\s+/g, "-");
+  const parts = s.split("-");
+  if (parts.length === 3) {
+    if (parts[0].length === 4) return s.slice(0, 10); // YYYY-MM-DD
+    let [d, m, y] = parts;
+    if (y.length === 2) y = "20" + y;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  return s;
+}
+
+function displayDate(iso) {
+  if (!iso || typeof iso !== 'string') return "";
+  if (iso.includes("-") && iso.split("-")[0].length === 4) {
+    const [y, m, d] = iso.split("-");
+    return `${d}-${m}-${y}`;
+  }
+  return iso; // already in user format or unknown
+}
+
+function normalizeToISO(str) {
+  if (!str) return "";
+  const s = String(str).trim().replace(/\//g, "-").replace(/\s+/g, "-");
+  const parts = s.split("-");
+  if (parts.length === 3) {
+    if (parts[0].length === 4) return s.slice(0, 10); // already YYYY-MM-DD
+    // Handle DD-MM-YYYY or DD-MM-YY
+    let [d, m, y] = parts;
+    if (y.length === 2) y = "20" + y;
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  return s;
 }
 
 function nowStr() {
@@ -170,6 +232,24 @@ function timeStr() {
 function getStore() { return serverStore || {}; }
 function getFaceStore() { return JSON.parse(localStorage.getItem(FACE_KEY) || "{}"); }
 function saveFaceStore(v) { localStorage.setItem(FACE_KEY, JSON.stringify(v)); }
+
+// Auto-migration: wipe old 128D face-api.js embeddings (incompatible with new 1024D Human engine)
+(function migrateFaceStore() {
+  const store = getFaceStore();
+  const keys = Object.keys(store);
+  if (!keys.length) return;
+  // Check if any entry has old 128D descriptor instead of new 1024D
+  for (const key of keys) {
+    const entry = store[key];
+    const desc = entry.avgDescriptor || entry.descriptor;
+    if (desc && desc.length && desc.length < 512) {
+      // Old 128D data found — wipe everything
+      console.warn('[FaceAI] Old 128D embeddings detected — wiping face store for 1024D migration.');
+      localStorage.removeItem(FACE_KEY);
+      return;
+    }
+  }
+})();
 
 function toLabel(key) {
   const custom = {
@@ -189,7 +269,11 @@ function toLabel(key) {
   if (custom[key]) return custom[key];
   return key.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase());
 }
-function asNum(value) { return Number(value) || 0; }
+function asNum(value) {
+  if (typeof value === 'number') return value;
+  const s = String(value || "0").replace(/[^\d.-]/g, "");
+  return parseFloat(s) || 0;
+}
 
 function splitClassName(value) {
   const s = String(value ?? "").trim();
@@ -396,7 +480,8 @@ function canCurrentUserWrite(moduleName) {
 
 function canCurrentUserDelete() {
   if (!currentUser) return false;
-  return userIsAdmin() || userIsStaffOrAbove();
+  const role = String(currentUser.role || "").toLowerCase();
+  return role === "administrator" || role === "principal";
 }
 
 function renderNav() {
@@ -460,12 +545,13 @@ function renderForm() {
   const store = getStore();
 
   const classOptions = Array.from(new Set((store.classes || []).map((x) => [x.className, x.section].filter(Boolean).join("-")).filter(Boolean)));
-  const studentOptions = (store.students || []).map((s) => ({
-    value: s.fullName,
-    label: `${s.fullName}${s.rollNo ? ` (${s.rollNo})` : ""}${s.className ? ` - ${s.className}` : ""}`,
-    rollNo: s.rollNo || "",
-    className: s.className || ""
-  }));
+    const studentOptions = (store.students || []).map((s) => ({
+      value: s.fullName,
+      label: `${s.fullName}${s.rollNo ? ` (${s.rollNo})` : ""}${s.className ? ` - ${s.className}` : ""}`,
+      rollNo: s.rollNo || "",
+      className: s.className || "",
+      parentName: s.parentName || ""
+    }));
   const teacherOptions = (store.teachers || []).map((t) => ({
     value: t.fullName,
     label: `${t.fullName}${t.employeeNo ? ` (${t.employeeNo})` : ""}${t.department ? ` - ${t.department}` : ""}`,
@@ -492,7 +578,30 @@ function renderForm() {
     label.textContent = toLabel(field);
     let input;
 
-    const selectFrom = (options, mapFn) => {
+    const selectFrom = (options, mapFn, useDatalist = false) => {
+      if (useDatalist) {
+        const input = document.createElement("input");
+        input.type = "text";
+        input.name = field;
+        input.required = true;
+        input.placeholder = `Select or type ${toLabel(field)}...`;
+        input.setAttribute("list", field + "_dl");
+        input.setAttribute("autocomplete", "off");
+        
+        const dl = document.createElement("datalist");
+        dl.id = field + "_dl";
+        options.forEach((opt) => {
+          const { value, label: itemLabel } = mapFn(opt);
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = itemLabel;
+          dl.appendChild(option);
+        });
+        
+        input.__datalist = dl;
+        return input;
+      }
+
       const select = document.createElement("select");
       select.name = field;
       select.required = true;
@@ -516,7 +625,7 @@ function renderForm() {
     if (currentModule === "classes" && field === "className") {
       input = selectFrom(CLASS_STANDARD_OPTIONS, (opt) => ({ value: opt, label: opt }));
     } else if (field === "studentName" || field === "issuedTo") {
-      input = selectFrom(studentOptions, (opt) => ({ value: opt.value, label: opt.label }));
+      input = selectFrom(studentOptions, (opt) => ({ value: opt.value, label: opt.label }), true);
     } else if (isTeacherReferenceField) {
       input = selectFrom(teacherOptions, (opt) => ({ value: opt.value, label: opt.label }));
     } else if (isClassReferenceField) {
@@ -563,7 +672,10 @@ function renderForm() {
         note.textContent = "Auto-set based on Total Fee vs Amount Paid";
         label.appendChild(note);
       }
-    } else if (currentModule === "students" && ["photo", "aadhar", "tc", "reportCard"].includes(field)) {
+    } else if (currentModule === "fees" && field === "paymentMethod") {
+      input = selectFrom(["Cash", "Online", "Online + Cash"], (opt) => ({ value: opt, label: opt }));
+      input.id = "paymentMethodSelect";
+    } else if (currentModule === "students" && ["photo", "aadhar", "tc", "reportCard", "fatherAadhar", "motherAadhar"].includes(field)) {
       input = document.createElement("input");
       input.type = "file";
       input.name = field;
@@ -573,7 +685,7 @@ function renderForm() {
       input = document.createElement("input");
       input.name = field;
       input.required = true;
-      if (field === "paymentMethod" || field === "paymentDate" || field === "balance" || field === "totalFee") input.required = false;
+      if (field === "paymentMethod" || field === "paymentDate" || field === "balance" || field === "totalFee" || field === "onlineAmount" || field === "cashAmount") input.required = false;
       if (field.endsWith("Time")) {
         input.required = false; // arrival is required, but departure may be empty; handled by face auto-fill.
         input.type = "time";
@@ -581,11 +693,17 @@ function renderForm() {
       else if (["email"].includes(field)) input.type = "email";
       else if (field === "password") { input.type = "password"; input.required = false; input.placeholder = "Leave blank to keep unchanged"; }
       else if (["phone"].includes(field)) input.type = "tel";
-      else if (["marksObtained", "maxMarks", "totalFee", "paidAmount", "balance", "monthlyFee", "basicSalary", "allowances", "deductions", "netPay", "credits", "capacity"].includes(field)) input.type = "number";
+      else if (["marksObtained", "maxMarks", "totalFee", "paidAmount", "balance", "monthlyFee", "basicSalary", "allowances", "deductions", "netPay", "credits", "capacity", "onlineAmount", "cashAmount"].includes(field)) input.type = "number";
+    }
+
+    if (currentModule === "fees" && (field === "onlineAmount" || field === "cashAmount")) {
+      wrapper.id = field + "Wrapper";
+      wrapper.style.display = "none";
     }
 
     formRefs[field] = input;
     wrapper.append(label, input);
+    if (input.__datalist) wrapper.append(input.__datalist);
     refs.dynamicForm.appendChild(wrapper);
   });
 
@@ -600,6 +718,7 @@ function renderForm() {
         formRefs.className.dispatchEvent(new Event("change"));
       }
       if (formRefs.rollNo) formRefs.rollNo.value = selected.rollNo || formRefs.rollNo.value;
+      if (formRefs.fatherName) formRefs.fatherName.value = selected.parentName || formRefs.fatherName.value;
     });
   }
 
@@ -610,14 +729,18 @@ function renderForm() {
       const studentSelect = formRefs.studentName;
       const currentStudentVal = studentSelect.value;
       
-      // Clear existing options
-      studentSelect.innerHTML = "";
+      const targetElement = studentSelect.__datalist || studentSelect;
       
-      // Add default option
-      const defaultOpt = document.createElement("option");
-      defaultOpt.value = "";
-      defaultOpt.textContent = "Select Student Name";
-      studentSelect.appendChild(defaultOpt);
+      // Clear existing options
+      targetElement.innerHTML = "";
+      
+      // Add default option if it is a standard select
+      if (!studentSelect.__datalist) {
+        const defaultOpt = document.createElement("option");
+        defaultOpt.value = "";
+        defaultOpt.textContent = "Select Student Name";
+        targetElement.appendChild(defaultOpt);
+      }
       
       // Filter students by selected class (or show all if no class selected)
       const filtered = selectedClass 
@@ -628,7 +751,7 @@ function renderForm() {
         const option = document.createElement("option");
         option.value = opt.value;
         option.textContent = opt.label;
-        studentSelect.appendChild(option);
+        targetElement.appendChild(option);
       });
       
       // Restore previous selection if still valid
@@ -661,8 +784,37 @@ function renderForm() {
     }
     if (formRefs.rollNo && s.rollNo) formRefs.rollNo.value = s.rollNo;
     if (formRefs.date && (currentModule === "attendance" || currentModule === "teacherAttendance")) formRefs.date.value = todayStr();
+    if (formRefs.paymentDate && currentModule === "fees") formRefs.paymentDate.value = todayStr();
     if (formRefs.status && (currentModule === "attendance" || currentModule === "teacherAttendance")) formRefs.status.value = "Present";
     pendingStudentPrefill = null;
+  }
+
+  // Split Payment Handling (Fees Module)
+  if (currentModule === "fees" && formRefs.paymentMethod) {
+    const pm = formRefs.paymentMethod;
+    const onlineWrap = document.getElementById("onlineAmountWrapper");
+    const cashWrap = document.getElementById("cashAmountWrapper");
+
+    const toggleSplit = () => {
+      const isSplit = pm.value === "Online + Cash";
+      if (onlineWrap) onlineWrap.style.display = isSplit ? "" : "none";
+      if (cashWrap) cashWrap.style.display = isSplit ? "" : "none";
+    };
+
+    pm.addEventListener("change", toggleSplit);
+
+    const calcTotal = () => {
+      if (pm.value === "Online + Cash") {
+        const online = parseFloat(formRefs.onlineAmount.value) || 0;
+        const cash = parseFloat(formRefs.cashAmount.value) || 0;
+        formRefs.paidAmount.value = online + cash;
+        // Trigger input event to update balance/status if listeners exist
+        formRefs.paidAmount.dispatchEvent(new Event("input"));
+      }
+    };
+
+    if (formRefs.onlineAmount) formRefs.onlineAmount.addEventListener("input", calcTotal);
+    if (formRefs.cashAmount) formRefs.cashAmount.addEventListener("input", calcTotal);
   }
 
   const action = document.createElement("div");
@@ -678,6 +830,14 @@ function getCurrentList() {
   const store = getStore();
   const search = refs.searchInput.value.trim().toLowerCase();
   let list = (store[currentModule] || []).slice();
+  
+  if (currentModule === "students" && refs.classFilter && !refs.classFilter.classList.contains("hidden")) {
+    const classVal = refs.classFilter.value;
+    if (classVal) {
+      list = list.filter(item => String(item.className || "") === classVal);
+    }
+  }
+
   if (search) list = list.filter(item => JSON.stringify(item).toLowerCase().includes(search));
   return list;
 }
@@ -739,6 +899,7 @@ function renderTable() {
       tr.innerHTML = `${cells}<td style="white-space:nowrap;">
         <button class="action-btn action-view" data-action="print-receipt" data-id="${item.id}" style="margin-right:4px;">🖨 Receipt</button>
         <button class="action-btn" data-action="print-feeslip" data-id="${item.id}" style="margin-right:4px;background:#1e3a8a;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:0.8rem;cursor:pointer;">📄 Fee Slip</button>
+        ${userIsAdmin() ? `<button class="action-btn action-edit" data-action="generic-edit" data-id="${item.id}" style="margin-right:4px;">✏️ Edit</button>` : ""}
         ${canDel ? `<button class="chip" data-delete-id="${item.id}">Delete</button>` : ""}
       </td>`;
     } else if (currentModule === "users" && userIsAdmin()) {
@@ -749,10 +910,14 @@ function renderTable() {
           ).join("")}
         </select>
         <button class="action-btn" data-assign-role-id="${item.id}" style="padding:4px 10px;font-size:0.8rem;">Save</button>
+        ${canWrite ? `<button class="action-btn action-edit" data-action="generic-edit" data-id="${item.id}" style="margin-left:4px;">✏️ Edit</button>` : ""}
         ${canDel ? `<button class="chip" data-delete-id="${item.id}" style="margin-left:4px;">Delete</button>` : ""}
       </td>`;
     } else {
-      tr.innerHTML = `${cells}<td>${canDel ? `<button class="chip" data-delete-id="${item.id}">Delete</button>` : "—"}</td>`;
+      tr.innerHTML = `${cells}<td style="white-space:nowrap;">
+        ${canWrite ? `<button class="action-btn action-edit" data-action="generic-edit" data-id="${item.id}" style="margin-right:4px;">✏️ Edit</button>` : ""}
+        ${canDel ? `<button class="chip" data-delete-id="${item.id}">Delete</button>` : "—"}
+      </td>`;
     }
     refs.tableBody.appendChild(tr);
   });
@@ -816,6 +981,14 @@ function renderTable() {
       });
     });
   }
+
+  // Generic Edit action for all non-student modules
+  refs.tableBody.querySelectorAll("button[data-action='generic-edit']").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.id);
+      startGenericEditById(currentModule, id);
+    });
+  });
 }
 
 let activeStudentProfileTab = "profile";
@@ -869,50 +1042,110 @@ function renderStudentProfile() {
   if (activeStudentProfileTab === "profile") {
     const split = splitClassName(student.className);
     refs.studentProfileContent.innerHTML = `
-      <div class="panel" style="margin-bottom:12px;">
-        <h3 style="margin-bottom:8px;">Basic Information</h3>
-        <div class="student-actions" style="gap:12px;">
-          <div style="min-width:200px;">
-            <div><b>Name:</b> ${student.fullName || ""}</div>
-            <div><b>Roll Number:</b> ${student.rollNo || ""}</div>
-            <div><b>Class:</b> ${split.classPart || ""}</div>
-            <div><b>Section:</b> ${split.sectionPart || ""}</div>
+      <div style="display:flex; flex-wrap:wrap; gap:20px; margin-bottom:20px;">
+        <div style="flex:0 0 120px; display:flex; flex-direction:column; align-items:center; text-align:center;">
+          <div style="width:100px; height:100px; border-radius:50%; background:linear-gradient(135deg, #eff6ff, #dbeafe); color:#2563eb; display:flex; align-items:center; justify-content:center; font-size:3rem; font-weight:800; margin:0 auto 12px; border:4px solid #fff; box-shadow:0 8px 20px rgba(37,99,235,0.15); overflow:hidden;">
+            ${student.photo ? `<img src="${student.photo}" class="zoomable" onclick="openImageViewer('${student.photo}', 'Profile Photo')" style="width:100%; height:100%; object-fit:cover;" />` : (student.fullName ? student.fullName.charAt(0).toUpperCase() : "S")}
           </div>
-          <div style="min-width:200px;">
-            <div><b>Date of Birth:</b> ${student.dob || ""}</div>
-            <div><b>Gender:</b> ${student.gender || ""}</div>
-            <div><b>Address:</b> ${student.address || ""}</div>
-            <div><b>Mobile:</b> ${student.phone || ""}</div>
-            <div><b>Parent:</b> ${student.parentName || ""}</div>
+          <span class="badge" style="background:#dcfce7; color:#16a34a; border-color:#bbf7d0; font-size:0.65rem; padding:3px 10px;">${student.status || "Active"}</span>
+        </div>
+        
+        <div style="flex:1; min-width:250px; display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:10px;">
+          <div style="background:#f8fafc; padding:10px; border-radius:12px; border:1px solid #e2e8f0;">
+            <div style="font-size:0.62rem; color:#64748b; font-weight:800; text-transform:uppercase; margin-bottom:4px; letter-spacing:0.04em;">Full Name</div>
+            <div style="color:#0f172a; font-weight:700; font-size:0.85rem;">${student.fullName || "-"}</div>
+          </div>
+          <div style="background:#f8fafc; padding:10px; border-radius:12px; border:1px solid #e2e8f0;">
+            <div style="font-size:0.62rem; color:#64748b; font-weight:800; text-transform:uppercase; margin-bottom:4px; letter-spacing:0.04em;">Class & Sec</div>
+            <div style="color:#0f172a; font-weight:700; font-size:0.85rem;">${split.classPart || "-"} ${split.sectionPart ? `(${split.sectionPart})` : ""}</div>
+          </div>
+          <div style="background:#f8fafc; padding:10px; border-radius:12px; border:1px solid #e2e8f0;">
+            <div style="font-size:0.62rem; color:#64748b; font-weight:800; text-transform:uppercase; margin-bottom:4px; letter-spacing:0.04em;">Roll Number</div>
+            <div style="color:#0f172a; font-weight:700; font-size:0.85rem;">${student.rollNo || "-"}</div>
+          </div>
+          <div style="background:#f8fafc; padding:10px; border-radius:12px; border:1px solid #e2e8f0;">
+            <div style="font-size:0.62rem; color:#64748b; font-weight:800; text-transform:uppercase; margin-bottom:4px; letter-spacing:0.04em;">Date of Birth</div>
+            <div style="color:#0f172a; font-weight:700; font-size:0.85rem;">${student.dob || "-"}</div>
+          </div>
+          <div style="background:#f8fafc; padding:10px; border-radius:12px; border:1px solid #e2e8f0;">
+            <div style="font-size:0.62rem; color:#64748b; font-weight:800; text-transform:uppercase; margin-bottom:4px; letter-spacing:0.04em;">Gender</div>
+            <div style="color:#0f172a; font-weight:700; font-size:0.85rem;">${student.gender || "-"}</div>
+          </div>
+          <div style="background:#f8fafc; padding:10px; border-radius:12px; border:1px solid #e2e8f0; grid-column:1/-1;">
+            <div style="font-size:0.62rem; color:#64748b; font-weight:800; text-transform:uppercase; margin-bottom:4px; letter-spacing:0.04em;">Address</div>
+            <div style="color:#0f172a; font-weight:700; font-size:0.85rem;">${student.address || "-"}</div>
           </div>
         </div>
       </div>
-      <div class="panel" style="margin-bottom:12px;">
-        <h3 style="margin-bottom:8px;">Documents (Optional)</h3>
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
-          <div style="border:1px solid rgba(148,163,184,0.25);border-radius:10px;padding:10px;">
-            <b>Aadhar</b>
-            <div style="color:#64748b;margin-top:6px;">${student.aadhar ? `<img src="${student.aadhar}" alt="Aadhar" style="width:100%;max-width:160px;border-radius:10px;" />` : "Not uploaded"}</div>
+
+      <h4 style="font-size:0.82rem; font-weight:800; color:#334155; margin-bottom:10px; padding-bottom:6px; border-bottom:2px solid #f1f5f9;">Family & Contact</h4>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin-bottom:20px;">
+        <div style="display:flex; align-items:center; gap:12px; background:#fff; padding:12px; border-radius:14px; border:1px solid #e2e8f0;">
+          <div style="width:36px; height:36px; background:#eff6ff; color:#3b82f6; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.1rem;">👨‍👩‍👧</div>
+          <div>
+            <div style="font-size:0.62rem; color:#64748b; font-weight:800; text-transform:uppercase; letter-spacing:0.04em;">Parent / Guardian</div>
+            <div style="color:#0f172a; font-weight:700; font-size:0.85rem;">${student.parentName || "-"}</div>
           </div>
-          <div style="border:1px solid rgba(148,163,184,0.25);border-radius:10px;padding:10px;">
-            <b>TC</b>
-            <div style="color:#64748b;margin-top:6px;">${student.tc ? `<img src="${student.tc}" alt="TC" style="width:100%;max-width:160px;border-radius:10px;" />` : "Not uploaded"}</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px; background:#fff; padding:12px; border-radius:14px; border:1px solid #e2e8f0;">
+          <div style="width:36px; height:36px; background:#fdf2f8; color:#be185d; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.1rem;">👩</div>
+          <div>
+            <div style="font-size:0.62rem; color:#64748b; font-weight:800; text-transform:uppercase; letter-spacing:0.04em;">Mother's Name</div>
+            <div style="color:#0f172a; font-weight:700; font-size:0.85rem;">${student.motherName || "-"}</div>
           </div>
-          <div style="border:1px solid rgba(148,163,184,0.25);border-radius:10px;padding:10px;grid-column:1 / -1;">
-            <b>Report Card</b>
-            <div style="color:#64748b;margin-top:6px;">${student.reportCard ? `<img src="${student.reportCard}" alt="Report Card" style="width:100%;max-width:320px;border-radius:10px;" />` : "Not uploaded"}</div>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; background:#fff; padding:12px; border-radius:14px; border:1px solid #e2e8f0;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:36px; height:36px; background:#f0fdf4; color:#16a34a; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1.1rem;">📞</div>
+            <div>
+              <div style="font-size:0.62rem; color:#64748b; font-weight:800; text-transform:uppercase; letter-spacing:0.04em;">Mobile Number</div>
+              <div style="color:#0f172a; font-weight:700; font-size:0.85rem;">${student.phone || "-"}</div>
+            </div>
+          </div>
+          ${student.phone ? `<a href="https://wa.me/91${student.phone.replace(/\D/g,'')}" target="_blank" title="WhatsApp Parent" style="width:32px; height:32px; background:linear-gradient(135deg, #25D366, #128C7E); color:#fff; border-radius:8px; display:flex; align-items:center; justify-content:center; text-decoration:none;">💬</a>` : ''}
+        </div>
+      </div>
+
+      <h4 style="font-size:0.82rem; font-weight:800; color:#334155; margin-bottom:10px; padding-bottom:6px; border-bottom:2px solid #f1f5f9;">Documents (Optional)</h4>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:12px; margin-bottom:20px;">
+        <div style="border:1px solid #e2e8f0; border-radius:14px; padding:12px; background:#fff; text-align:center;">
+          <b style="font-size:0.68rem; color:#475569; text-transform:uppercase; letter-spacing:0.04em;">Aadhar</b>
+          <div style="color:#94a3b8; margin-top:8px;">
+            ${student.aadhar ? `<img src="${student.aadhar}" class="zoomable" onclick="openImageViewer('${student.aadhar}', 'Aadhar Card')" alt="Aadhar" style="width:100%; height:70px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0;" />` : `<div style="height:70px; display:flex; align-items:center; justify-content:center; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; font-size:0.75rem;">Missing</div>`}
+          </div>
+        </div>
+        <div style="border:1px solid #e2e8f0; border-radius:14px; padding:12px; background:#fff; text-align:center;">
+          <b style="font-size:0.68rem; color:#475569; text-transform:uppercase; letter-spacing:0.04em;">TC</b>
+          <div style="color:#94a3b8; margin-top:8px;">
+            ${student.tc ? `<img src="${student.tc}" class="zoomable" onclick="openImageViewer('${student.tc}', 'Transfer Certificate (TC)')" alt="TC" style="width:100%; height:70px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0;" />` : `<div style="height:70px; display:flex; align-items:center; justify-content:center; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; font-size:0.75rem;">Missing</div>`}
+          </div>
+        </div>
+        <div style="border:1px solid #e2e8f0; border-radius:14px; padding:12px; background:#fff; text-align:center;">
+          <b style="font-size:0.68rem; color:#475569; text-transform:uppercase; letter-spacing:0.04em;">Report Card</b>
+          <div style="color:#94a3b8; margin-top:8px;">
+            ${student.reportCard ? `<img src="${student.reportCard}" class="zoomable" onclick="openImageViewer('${student.reportCard}', 'Academic Report Card')" alt="Report" style="width:100%; height:70px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0;" />` : `<div style="height:70px; display:flex; align-items:center; justify-content:center; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; font-size:0.75rem;">Missing</div>`}
+          </div>
+        </div>
+        <div style="border:1px solid #e2e8f0; border-radius:14px; padding:12px; background:#fff; text-align:center;">
+          <b style="font-size:0.68rem; color:#475569; text-transform:uppercase; letter-spacing:0.04em;">Father Aadhar</b>
+          <div style="color:#94a3b8; margin-top:8px;">
+            ${student.fatherAadhar ? `<img src="${student.fatherAadhar}" class="zoomable" onclick="openImageViewer('${student.fatherAadhar}', 'Father Aadhar Card')" alt="Father Aadhar" style="width:100%; height:70px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0;" />` : `<div style="height:70px; display:flex; align-items:center; justify-content:center; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; font-size:0.75rem;">Missing</div>`}
+          </div>
+        </div>
+        <div style="border:1px solid #e2e8f0; border-radius:14px; padding:12px; background:#fff; text-align:center;">
+          <b style="font-size:0.68rem; color:#475569; text-transform:uppercase; letter-spacing:0.04em;">Mother Aadhar</b>
+          <div style="color:#94a3b8; margin-top:8px;">
+            ${student.motherAadhar ? `<img src="${student.motherAadhar}" class="zoomable" onclick="openImageViewer('${student.motherAadhar}', 'Mother Aadhar Card')" alt="Mother Aadhar" style="width:100%; height:70px; object-fit:cover; border-radius:8px; border:1px solid #e2e8f0;" />` : `<div style="height:70px; display:flex; align-items:center; justify-content:center; background:#f8fafc; border-radius:8px; border:1px dashed #cbd5e1; font-size:0.75rem;">Missing</div>`}
           </div>
         </div>
       </div>
-      <div class="panel" style="margin-bottom:12px;">
-        <h3 style="margin-bottom:8px;">Actions</h3>
-        <div class="student-actions">
-          <button type="button" class="action-btn" data-profile-action="edit">Edit Student</button>
-          <button type="button" class="action-btn" data-profile-action="fees">Add Fee</button>
-          <button type="button" class="action-btn" data-profile-action="exams">Add Marks</button>
-          <button type="button" class="action-btn" data-profile-action="attendance">Mark Attendance</button>
-          <button type="button" class="action-btn" data-profile-action="print">Print Report</button>
-        </div>
+
+      <div style="display:flex; flex-wrap:wrap; gap:8px; background:linear-gradient(135deg, #f8fafc, #f1f5f9); padding:12px; border-radius:16px; border:1px solid #e2e8f0; align-items:center; justify-content:center; box-shadow:inset 0 2px 4px rgba(0,0,0,0.01);">
+        <button type="button" class="btn btn-primary" data-profile-action="edit" style="border-radius:10px; font-size:0.75rem; padding:8px 14px;">✏️ Edit</button>
+        <button type="button" class="btn dark" data-profile-action="fees" style="border-radius:10px; font-size:0.75rem; padding:8px 14px;">💳 Add Fee</button>
+        <button type="button" class="btn dark" data-profile-action="exams" style="border-radius:10px; font-size:0.75rem; padding:8px 14px;">📝 Add Marks</button>
+        <button type="button" class="btn dark" data-profile-action="attendance" style="border-radius:10px; font-size:0.75rem; padding:8px 14px;">📅 Mark Attendance</button>
+        <button type="button" class="btn" data-profile-action="print" style="background:#fff; border:1px solid #cbd5e1; color:#0f172a; border-radius:10px; font-size:0.75rem; padding:8px 14px;">🖨️ Print Report</button>
       </div>
     `;
     // Wire actions (profile tab only).
@@ -970,14 +1203,28 @@ function renderStudentProfile() {
       .join("");
 
     refs.studentProfileContent.innerHTML = `
-      <div class="panel" style="margin-bottom:12px;">
-        <h3 style="margin-bottom:8px;">Academic / Exams Summary</h3>
-        <div><b>Total Obtained:</b> ${totalObtained}</div>
-        <div><b>Total Max:</b> ${totalMax}</div>
-        <div><b>Percentage:</b> ${pct}%</div>
-        <div><b>Result:</b> ${resultStatus}</div>
+      <div style="background:linear-gradient(135deg, #1e3a8a, #312e81); border-radius:16px; padding:16px; color:#fff; margin-bottom:16px; box-shadow:0 8px 20px rgba(30,58,138,0.2);">
+        <h3 style="margin-bottom:12px; font-size:1rem; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px;">Academic Summary</h3>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(100px, 1fr)); gap:12px;">
+          <div>
+            <div style="font-size:0.65rem; color:#93c5fd; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:3px;">Total Obtained</div>
+            <div style="font-size:1.2rem; font-weight:800;">${totalObtained}</div>
+          </div>
+          <div>
+            <div style="font-size:0.65rem; color:#93c5fd; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:3px;">Total Max</div>
+            <div style="font-size:1.2rem; font-weight:800;">${totalMax}</div>
+          </div>
+          <div>
+            <div style="font-size:0.65rem; color:#93c5fd; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:3px;">Percentage</div>
+            <div style="font-size:1.2rem; font-weight:800;">${pct}%</div>
+          </div>
+          <div>
+            <div style="font-size:0.65rem; color:#93c5fd; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:3px;">Result</div>
+            <div style="font-size:1.2rem; font-weight:800; ${resultStatus === 'Pass' ? 'color:#4ade80;' : 'color:#f87171;'}">${resultStatus}</div>
+          </div>
+        </div>
       </div>
-      ${examCards || `<div class="muted">No exam records found.</div>`}
+      ${examCards || `<div style="text-align:center; padding:40px; color:#64748b; background:#f8fafc; border-radius:12px; border:1px dashed #cbd5e1;">No exam records found.</div>`}
     `;
     return;
   }
@@ -1063,13 +1310,24 @@ function renderStudentProfile() {
       }).join("");
 
     refs.studentProfileContent.innerHTML = `
-      <div class="panel" style="margin-bottom:12px;">
-        <h3 style="margin-bottom:8px;">Fee Details</h3>
-        <div><b>Total Fees:</b> ${totalFee}</div>
-        <div><b>Paid Amount:</b> ${paidAmount}</div>
-        <div><b>Due Amount:</b> ${dueAmount}</div>
+      <div style="background:linear-gradient(135deg, #059669, #047857); border-radius:16px; padding:16px; color:#fff; margin-bottom:16px; box-shadow:0 8px 20px rgba(5,150,105,0.2);">
+        <h3 style="margin-bottom:12px; font-size:1rem; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px;">Fee Summary</h3>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(100px, 1fr)); gap:12px;">
+          <div>
+            <div style="font-size:0.65rem; color:#a7f3d0; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:3px;">Total Fees</div>
+            <div style="font-size:1.2rem; font-weight:800;">₹ ${totalFee.toLocaleString("en-IN")}</div>
+          </div>
+          <div>
+            <div style="font-size:0.65rem; color:#a7f3d0; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:3px;">Paid Amount</div>
+            <div style="font-size:1.2rem; font-weight:800;">₹ ${paidAmount.toLocaleString("en-IN")}</div>
+          </div>
+          <div>
+            <div style="font-size:0.65rem; color:#a7f3d0; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:3px;">Due Amount</div>
+            <div style="font-size:1.2rem; font-weight:800; ${dueAmount > 0 ? 'color:#fca5a5;' : 'color:#fff;'}">₹ ${dueAmount.toLocaleString("en-IN")}</div>
+          </div>
+        </div>
       </div>
-      ${history || `<div class="muted">No fee records found.</div>`}
+      ${history || `<div style="text-align:center; padding:40px; color:#64748b; background:#f8fafc; border-radius:12px; border:1px dashed #cbd5e1;">No fee records found.</div>`}
     `;
     return;
   }
@@ -1097,14 +1355,28 @@ function renderStudentProfile() {
       .join("");
 
     refs.studentProfileContent.innerHTML = `
-      <div class="panel" style="margin-bottom:12px;">
-        <h3 style="margin-bottom:8px;">Attendance</h3>
-        <div><b>Total Days:</b> ${totalDays}</div>
-        <div><b>Present:</b> ${presentUnique.length}</div>
-        <div><b>Absent:</b> ${absentUnique.length}</div>
-        <div><b>Attendance %:</b> ${pct}%</div>
+      <div style="background:linear-gradient(135deg, #6d28d9, #4c1d95); border-radius:16px; padding:16px; color:#fff; margin-bottom:16px; box-shadow:0 8px 20px rgba(109,40,217,0.2);">
+        <h3 style="margin-bottom:12px; font-size:1rem; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:8px;">Attendance Summary</h3>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(90px, 1fr)); gap:12px;">
+          <div>
+            <div style="font-size:0.65rem; color:#ddd6fe; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:3px;">Total Days</div>
+            <div style="font-size:1.2rem; font-weight:800;">${totalDays}</div>
+          </div>
+          <div>
+            <div style="font-size:0.65rem; color:#ddd6fe; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:3px;">Present</div>
+            <div style="font-size:1.2rem; font-weight:800; color:#4ade80;">${presentUnique.length}</div>
+          </div>
+          <div>
+            <div style="font-size:0.65rem; color:#ddd6fe; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:3px;">Absent</div>
+            <div style="font-size:1.2rem; font-weight:800; color:#f87171;">${absentUnique.length}</div>
+          </div>
+          <div>
+            <div style="font-size:0.65rem; color:#ddd6fe; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:3px;">Percentage</div>
+            <div style="font-size:1.2rem; font-weight:800;">${pct}%</div>
+          </div>
+        </div>
       </div>
-      ${monthRows || `<div class="muted">No attendance records found.</div>`}
+      ${monthRows || `<div style="text-align:center; padding:40px; color:#64748b; background:#f8fafc; border-radius:12px; border:1px dashed #cbd5e1;">No attendance records found.</div>`}
     `;
     return;
   }
@@ -1124,12 +1396,40 @@ function startEditStudentById(studentId) {
     inputs.forEach((el) => {
       const name = el.name || el.getAttribute("name");
       if (!name) return;
-      if (["photo", "aadhar", "tc", "reportCard"].includes(name)) return; // can't set file inputs
+      if (["photo", "aadhar", "tc", "reportCard", "fatherAadhar", "motherAadhar"].includes(name)) return; // can't set file inputs
       if (el.tagName === "SELECT") el.value = student[name] ?? el.value;
       else el.value = student[name] ?? "";
     });
   }
   // Put focus to first form input for convenience.
+  const first = refs.dynamicForm.querySelector("input,select,textarea");
+  first?.focus?.();
+}
+
+function startGenericEditById(moduleName, recordId) {
+  editRecordId = Number(recordId);
+  currentModule = moduleName;
+  refs.searchInput.value = "";
+  renderAll();
+  const store = getStore();
+  const records = store[moduleName] || [];
+  const record = records.find(r => Number(r.id) === Number(recordId));
+  if (!record) return;
+  if (refs.dynamicForm) {
+    const inputs = refs.dynamicForm.querySelectorAll("input,select,textarea");
+    inputs.forEach((el) => {
+      const name = el.name || el.getAttribute("name");
+      if (!name) return;
+      if (el.type === "file") return;
+      if (el.tagName === "SELECT") el.value = record[name] ?? el.value;
+      else el.value = record[name] ?? "";
+    });
+  }
+  // Update the submit button text to show "Update"
+  const submitBtn = refs.dynamicForm.querySelector("button[type='submit']");
+  if (submitBtn) submitBtn.textContent = '✏️ Update Record';
+  // Scroll form into view
+  refs.dynamicForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const first = refs.dynamicForm.querySelector("input,select,textarea");
   first?.focus?.();
 }
@@ -1293,6 +1593,10 @@ async function addRecord(moduleName, formData) {
     const total = asNum(record.totalFee);
     const paid = asNum(record.paidAmount);
     const balance = total - paid;
+    // Auto-fill paymentDate if missing or empty to ensure it shows on dashboard
+    if (!record.paymentDate || String(record.paymentDate).trim() === "") {
+      record.paymentDate = todayStr();
+    }
     // Only set balance/status if not already correctly set by form submit handler
     if (!record.balance || record.balance === "0") {
       record.balance = String(Math.max(0, balance));
@@ -1315,14 +1619,73 @@ async function removeRecord(moduleName, id) {
   await loadStore();
 }
 
+// Global Image Viewer Helpers
+window.openImageViewer = function(src, title) {
+  const viewer = document.getElementById("imageViewer");
+  const img = document.getElementById("imageViewerImg");
+  const titleEl = document.getElementById("imageViewerTitle");
+  if (!viewer || !img || !titleEl) return;
+  
+  img.src = src;
+  titleEl.textContent = title;
+  viewer.classList.remove("hidden");
+  document.body.style.overflow = "hidden"; // Prevent background scroll
+};
+
+window.closeImageViewer = function() {
+  const viewer = document.getElementById("imageViewer");
+  if (!viewer) return;
+  viewer.classList.add("hidden");
+  document.body.style.overflow = ""; // Restore scroll
+};
+
+window.currentFeeFilter = window.currentFeeFilter || 'all';
+
 function getDashboardStats(store) {
+  const fees = store.fees || [];
+  
+  // Use robust local date logic instead of UTC to avoid timezone mismatch
+  const now = new Date();
+  const today = [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-');
+  const curMonth = today.slice(0, 7);
+  const curYear = today.slice(0, 4);
+
+  let allTimeTotal = 0;
+  const filteredTotal = fees.reduce((sum, f) => {
+    // Normalize any date format to YYYY-MM-DD for consistent filtering
+    const date = normalizeToISO(f.paymentDate);
+    const amount = asNum(f.paidAmount);
+    allTimeTotal += amount;
+    
+    if (window.currentFeeFilter === 'all') return sum + amount;
+
+    // Day filter: Match normalized date
+    if (window.currentFeeFilter === 'day' && date === today) return sum + amount;
+    
+    // Month/Year filter: Match with prefix
+    if (window.currentFeeFilter === 'month' && (date.startsWith(curMonth) || date === "")) return sum + amount;
+    if (window.currentFeeFilter === 'year' && (date.startsWith(curYear) || date === "")) return sum + amount;
+    
+    return sum;
+  }, 0);
+
+  const lastThreePayments = fees.slice(0, 3).map(f => ({
+    name: f.studentName || "Unknown",
+    amount: asNum(f.paidAmount),
+    date: displayDate(f.paymentDate) || "No Date"
+  }));
+
   return {
+    "Today's System Date": displayDate(today),
     "Total Students": (store.students || []).length,
     "Total Teachers": (store.teachers || []).length,
     "Total Classes": (store.classes || []).length,
     "Student Present Today": (store.attendance || []).filter(x => String(x.status).toLowerCase() === "present").length,
     "Teacher Present Today": (store.teacherAttendance || []).filter(x => String(x.status).toLowerCase() === "present").length,
     "Pending Fee Accounts": (store.fees || []).filter(x => String(x.status).toLowerCase() !== "paid").length,
+    "Total Payment Received": "₹" + filteredTotal.toLocaleString("en-IN"),
+    "Lifetime Collection": "₹" + allTimeTotal.toLocaleString("en-IN"),
+    "LastThree": lastThreePayments,
     "Books Issued": (store.library || []).filter(x => String(x.status).toLowerCase() === "issued").length,
     "Hostel Active": (store.hostel || []).filter(x => String(x.status).toLowerCase() === "active").length,
     "System Active Users": (store.users || []).filter(x => String(x.status).toLowerCase() === "active").length
@@ -1371,17 +1734,60 @@ function renderStatsCards() {
     const icon = statIcons[k] || "⭐";
     const trend = v > 0 ? { arrow: "↑", text: "+5%" } : { arrow: "↓", text: "-2%" };
 
-    card.innerHTML = `
-      <div class="stat-top">
-        <h4>${k}</h4>
-        <div class="stat-icon-bubble">${icon}</div>
-      </div>
-      <div class="stat-value">${v}</div>
-      <div class="stat-trend ${trend.arrow === "↑" ? "pos" : "neg"}">
-        <span class="arrow">${trend.arrow}</span>
-        <span class="pct">${trend.text}</span>
-      </div>
-    `;
+    if (k === "Total Payment Received") {
+      card.style.background = "linear-gradient(135deg, #f0fdf4, #ffffff)";
+      card.style.border = "1px solid #bbf7d0";
+      card.style.minHeight = "240px";
+      const recentHtml = stats.LastThree.map(p => `
+        <div style="display:flex; justify-content:space-between; font-size:0.68rem; padding:4px 0; border-bottom:1px solid #f0fdf4; color:#374151;">
+          <span style="font-weight:600;">${p.name.split(' ')[0]}</span>
+          <span style="color:#64748b;">${p.date}</span>
+          <span style="font-weight:700; color:#16a34a;">₹${p.amount}</span>
+        </div>
+      `).join('');
+
+      card.innerHTML = `
+        <div class="stat-top">
+          <h4 style="color:#166534;">${k}</h4>
+          <div class="stat-icon-bubble" style="background:#dcfce7; color:#16a34a;">💰</div>
+        </div>
+        <div class="stat-value" style="color:#15803d; font-size:1.8rem;">${v}</div>
+        <div style="font-size:0.72rem; color:#16a34a; font-weight:600; margin-top:2px; display:flex; justify-content:space-between;">
+          <span>Overall: ${stats["Lifetime Collection"]}</span>
+          <span style="opacity:0.6; font-weight:400;">Today: ${stats["Today's System Date"]}</span>
+        </div>
+        
+        <div style="margin-top:10px; background:rgba(22,163,74,0.03); border-radius:8px; padding:8px;">
+          <div style="font-size:0.6rem; text-transform:uppercase; color:#15803d; font-weight:800; margin-bottom:4px; letter-spacing:0.02em;">Recent Activity</div>
+          ${recentHtml || '<div style="font-size:0.65rem; color:#94a3b8;">No recent payments</div>'}
+        </div>
+
+        <div style="margin-top:12px; display:flex; gap:4px; background:#f0f4f8; padding:3px; border-radius:8px; width:fit-content;">
+          ${['day', 'month', 'year', 'all'].map(f => `
+            <button class="fee-filter-btn ${window.currentFeeFilter === f ? 'active' : ''}" 
+                    onclick="window.currentFeeFilter='${f}'; renderStatsCards()"
+                    style="border:none; padding:4px 10px; border-radius:6px; font-size:0.65rem; font-weight:700; cursor:pointer; text-transform:uppercase; transition:all 0.2s;
+                           ${window.currentFeeFilter === f ? 'background:#16a34a; color:#fff; box-shadow:0 2px 4px rgba(22,163,74,0.2);' : 'background:transparent; color:#64748b;'}">
+              ${f}
+            </button>
+          `).join('')}
+        </div>
+      `;
+    } else if (k === "Lifetime Collection" || k === "LastThree" || k === "Today's System Date") {
+      return; // Skip rendering these as separate cards
+    } else {
+      card.innerHTML = `
+        <div class="stat-top">
+          <h4>${k}</h4>
+          <div class="stat-icon-bubble">${icon}</div>
+        </div>
+        <div class="stat-value">${v}</div>
+        <div class="stat-trend ${trend.arrow === "↑" ? "pos" : "neg"}">
+          <span class="arrow">${trend.arrow}</span>
+          <span class="pct">${trend.text}</span>
+        </div>
+      `;
+    }
     card.className = "stat-card";
     refs.statsCards.appendChild(card);
   });
@@ -1535,10 +1941,35 @@ function populateEnrollStudentSelect() {
 function renderModuleTools() {
   refs.printDocBtn.disabled = !printableModules.has(currentModule);
 
+  if (refs.classFilter) {
+    if (currentModule === "students") {
+      refs.classFilter.classList.remove("hidden");
+      const store = getStore();
+      const currentVal = refs.classFilter.value;
+      refs.classFilter.innerHTML = '<option value="">All Classes</option>';
+      const classOptions = Array.from(new Set((store.classes || []).map((x) => [x.className, x.section].filter(Boolean).join("-")).filter(Boolean)));
+      classOptions.forEach(opt => {
+        const option = document.createElement("option");
+        option.value = opt;
+        option.textContent = opt;
+        refs.classFilter.appendChild(option);
+      });
+      if (classOptions.includes(currentVal)) {
+        refs.classFilter.value = currentVal;
+      }
+    } else {
+      refs.classFilter.classList.add("hidden");
+    }
+  }
+
   // Students and teachers don't get export CSV/PDF buttons for sensitive modules
   const canExport = userIsAdmin() || userIsStaffOrAbove() || String(currentUser?.role || "").toLowerCase() === "teacher";
   if (refs.exportCsvBtn) refs.exportCsvBtn.style.display = canExport ? "" : "none";
   if (refs.exportPdfBtn) refs.exportPdfBtn.style.display = canExport ? "" : "none";
+  if (refs.importDataBtn) {
+    const canImport = currentModule !== "dashboard" && canCurrentUserWrite(currentModule);
+    refs.importDataBtn.classList.toggle("hidden", !canImport);
+  }
   if (refs.print4in1Btn) refs.print4in1Btn.classList.toggle("hidden", currentModule !== "fees");
 
   // Face panel only for users who can write attendance
@@ -1637,7 +2068,26 @@ function downloadBlob(filename, content, type) {
 function exportCurrentCsv() {
   const rows = getCurrentList();
   if (!rows.length) return window.alert("No records to export.");
-  const columns = currentModule === "dashboard" ? ["Metric", "Value"] : moduleConfig[currentModule].columns;
+  
+  const skipFiles = ["photo", "aadhar", "tc", "reportCard", "fatherAadhar", "motherAadhar", "id", "facePhoto"];
+  let columns;
+  if (currentModule === "dashboard") {
+    columns = ["Metric", "Value"];
+  } else if (currentModule === "fees") {
+    // Custom fee columns: include fee types, individual fee fields, and book/dress data
+    columns = [
+      "studentName", "className", "rollNo", "fatherName", "term",
+      "feeTypes", "monthlyFee",
+      "tuitionFee", "admissionFee", "computerFee", "developmentFee",
+      "labFee", "sportsFee", "libraryFee", "examFee", "lateFee", "otherFee",
+      "totalFee", "paidAmount", "balance",
+      "status", "paymentDate", "paymentMethod", "onlineAmount", "cashAmount",
+      "selectedBookIds"
+    ];
+  } else {
+    columns = moduleConfig[currentModule].fields.filter(f => !skipFiles.includes(f));
+  }
+  
   const csv = toCsv(rows, columns);
   downloadBlob(`${currentModule}-${todayStr()}.csv`, csv, "text/csv;charset=utf-8");
 }
@@ -1647,7 +2097,7 @@ function exportCurrentPdf() {
   if (!rows.length) return window.alert("No records to export.");
 
   if (currentModule === "fees") {
-    const feeColumns = ["Student Name", "Class", "Roll No", "Term", "Fee Details", "Total Fee", "Paid Amount", "Balance", "Status"];
+    const feeColumns = ["Student Name", "Class", "Roll No", "Term", "Fee Details", "Total", "Paid", "Balance", "Date", "Method", "Status"];
     const body = rows.map(f => {
       let details = "";
       if (f.monthlyFeeLabel && parseFloat(f.monthlyFee) > 0) {
@@ -1673,33 +2123,26 @@ function exportCurrentPdf() {
         }
       });
       
-      try {
-        const ids = JSON.parse(f.selectedBookIds || "[]");
-        if (ids.length) {
-          const allBDItems = [...(typeof bdBooks !== "undefined" ? bdBooks : []), ...(typeof bdDresses !== "undefined" ? bdDresses : [])];
-          const itemsText = ids.map(id => {
-            const item = allBDItems.find(r => String(r.id) === String(id));
-            return item ? `${item.itemName} (Rs. ${item.price})` : null;
-          }).filter(Boolean).join(", ");
-          if (itemsText) details += `Books/Dress: ${itemsText}\n`;
-        }
-      } catch(e) {}
-      
-      return [f.studentName || "", f.className || "", f.rollNo || "", f.term || "", details.trim() || "-", f.totalFee || "0", f.paidAmount || "0", f.balance || "0", f.status || ""];
+      return [
+        f.studentName || "", f.className || "", f.rollNo || "", f.term || "", details.trim() || "-", 
+        f.totalFee || "0", f.paidAmount || "0", f.balance || "0", f.paymentDate || "", f.paymentMethod || "", f.status || ""
+      ];
     });
 
     const doc = new window.jspdf.jsPDF('landscape');
     doc.text(`Fees Report`, 14, 14);
-    doc.autoTable({ head: [feeColumns], body, startY: 22, styles: { cellPadding: 2, fontSize: 8 }, columnStyles: { 4: { cellWidth: 80 } } });
+    doc.autoTable({ head: [feeColumns], body, startY: 22, styles: { cellPadding: 2, fontSize: 7 }, columnStyles: { 4: { cellWidth: 70 } } });
     doc.save(`fees-${todayStr()}.pdf`);
     return;
   }
 
-  const columns = currentModule === "dashboard" ? ["Metric", "Value"] : moduleConfig[currentModule].columns;
+  const skipFiles = ["photo", "aadhar", "tc", "reportCard", "fatherAadhar", "motherAadhar", "id"];
+  const columns = currentModule === "dashboard" ? ["Metric", "Value"] : moduleConfig[currentModule].fields.filter(f => !skipFiles.includes(f));
+  
   const body = rows.map(row => columns.map(c => row[c] ?? ""));
-  const doc = new window.jspdf.jsPDF();
+  const doc = new window.jspdf.jsPDF('landscape');
   doc.text(`${moduleConfig[currentModule].title} Report`, 14, 14);
-  doc.autoTable({ head: [columns.map(toLabel)], body, startY: 22 });
+  doc.autoTable({ head: [columns.map(toLabel)], body, startY: 22, styles: { fontSize: 7, cellPadding: 2 } });
   doc.save(`${currentModule}-${todayStr()}.pdf`);
 }
 
@@ -1749,7 +2192,15 @@ function printFeeReceipt(f) {
           </tr>
           <tr>
             <td style="padding:5px 0;color:#64748b;">Payment Method</td>
-            <td style="padding:5px 0;">${f.paymentMethod || "-"}</td>
+            <td style="padding:5px 0;">
+              ${f.paymentMethod || "-"}
+              ${f.paymentMethod === "Online + Cash" ? `
+                <div style="font-size:12px;color:#64748b;margin-top:4px;">
+                  Online: ₹${(parseFloat(f.onlineAmount)||0).toLocaleString("en-IN")} | 
+                  Cash: ₹${(parseFloat(f.cashAmount)||0).toLocaleString("en-IN")}
+                </div>
+              ` : ""}
+            </td>
           </tr>
         </table>
       </div>
@@ -1896,6 +2347,7 @@ function printDocumentByModule() {
       { key: "sportsFee", label: "Sports Fee", icon: "⚽" },
       { key: "libraryFee", label: "Library Fee", icon: "📖" },
       { key: "examFee", label: "Exam Fee", icon: "📝" },
+      { key: "lateFee", label: "Late Fee", icon: "⏳" },
       { key: "otherFee", label: "Other Fee", icon: "➕" },
     ];
     html = `
@@ -1924,9 +2376,24 @@ function printDocumentByModule() {
           feeDetails += `<div class="row">Fee Types: ${labels}</div>`;
         }
       }
+
+      // ── Add Books & Dress items breakdown ──
+      try {
+        const ids = JSON.parse(f.selectedBookIds || "[]");
+        if (ids.length) {
+          const allBDItems = [...(typeof bdBooks !== "undefined" ? bdBooks : []), ...(typeof bdDresses !== "undefined" ? bdDresses : [])];
+          ids.map(id => allBDItems.find(r => String(r.id) === String(id)))
+             .filter(Boolean)
+             .sort((a,b) => (a.itemType||"").localeCompare(b.itemType||"") || (a.itemName||"").localeCompare(b.itemName||""))
+             .forEach(item => {
+               const p = parseFloat(item.price) || 0;
+               feeDetails += `<div class="row" style="color:#1e40af;">${item.itemType === "Book" ? "📚" : "👕"} ${item.itemName}: <strong>₹${p.toLocaleString("en-IN")}</strong></div>`;
+             });
+        }
+      } catch(e) {}
       return `<div class="box" style="page-break-inside:avoid;">
         <h2 style="color:#1e3a8a;margin-bottom:8px;">Fee Receipt &mdash; RCP-${f.id}</h2>
-        <div class="row"><strong>Student:</strong> ${f.studentName || "-"}</div>
+        <div class="row"><strong>Student:</strong> ${f.studentName || "-"} &nbsp;|&nbsp; <strong>Father:</strong> ${f.fatherName || "-"}</div>
         <div class="row"><strong>Class:</strong> ${f.className || "-"} &nbsp;|&nbsp; <strong>Roll No:</strong> ${f.rollNo || "-"}</div>
         <div class="row"><strong>Term:</strong> ${f.term || "-"} &nbsp;|&nbsp; <strong>Payment Date:</strong> ${f.paymentDate || "-"}</div>
         <div style="margin:8px 0;padding:8px;background:#f0f4ff;border-radius:6px;border-left:3px solid #1e3a8a;">
@@ -1934,7 +2401,7 @@ function printDocumentByModule() {
           ${feeDetails || '<div class="row" style="color:#94a3b8;">No fee breakdown recorded.</div>'}
         </div>
         <div class="row"><strong>Total Fee:</strong> ₹${totalFee.toLocaleString("en-IN")} &nbsp;|&nbsp; <strong>Paid:</strong> ₹${paidAmount.toLocaleString("en-IN")} &nbsp;|&nbsp; <strong>Balance:</strong> ₹${balance.toLocaleString("en-IN")}</div>
-        <div class="row"><strong>Method:</strong> ${f.paymentMethod || "-"} &nbsp;|&nbsp; <strong>Status:</strong> <span style="color:${statusColor};font-weight:700;">${f.status || "Pending"}</span></div>
+        <div class="row"><strong>Method:</strong> ${f.paymentMethod || "-"}${f.paymentMethod === "Online + Cash" ? ` (Online: ₹${(parseFloat(f.onlineAmount)||0).toLocaleString("en-IN")}, Cash: ₹${(parseFloat(f.cashAmount)||0).toLocaleString("en-IN")})` : ""} &nbsp;|&nbsp; <strong>Status:</strong> <span style="color:${statusColor};font-weight:700;">${f.status || "Pending"}</span></div>
       </div>`;
     }).join("");
   }
@@ -1949,13 +2416,37 @@ function printDocumentByModule() {
 
 
 async function ensureFaceModelsLoaded() {
-  if (faceModelsReady || !window.faceapi) return faceModelsReady;
+  if (faceModelsReady && human) return true;
+  if (!window.Human) return false;
+
   try {
-    await Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL),
-      faceapi.nets.faceLandmark68Net.loadFromUri(FACE_MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODEL_URL)
-    ]);
+    refs.faceStatusText.textContent = "Loading AI models...";
+    
+    const config = {
+      modelBasePath: HUMAN_MODELS_URL,
+      backend: 'webgl',
+      filter: { enabled: false },
+      face: {
+        enabled: true,
+        detector: { rotation: false, maxDetected: 5, return: true },
+        mesh: { enabled: false },
+        iris: { enabled: false },
+        description: { enabled: true },
+        emotion: { enabled: false },
+        antispoof: { enabled: false },
+        liveness: { enabled: false }
+      },
+      body: { enabled: false },
+      hand: { enabled: false },
+      object: { enabled: false },
+      gesture: { enabled: false },
+    };
+
+    const HumanClass = window.Human.default || window.Human.Human || window.Human;
+    human = new HumanClass(config);
+    await human.load();
+    await human.warmup();
+    
     faceModelsReady = true;
     refs.faceStatusText.textContent = "Face models loaded.";
   } catch (err) {
@@ -1964,105 +2455,251 @@ async function ensureFaceModelsLoaded() {
   return faceModelsReady;
 }
 
+let ipCamRafId = null;
+let ipCamMode = false;
+let ipCamDetectTimer = null; // throttled detection for IP cam
+let ipCamLastDetections = []; // cached detection results
+let ipCamDetecting = false;  // guard against concurrent detections
+
+// Toggle IP camera URL input when camera source changes
+if (refs.cameraSourceSelect) {
+  refs.cameraSourceSelect.addEventListener('change', () => {
+    const isIp = refs.cameraSourceSelect.value === 'ip';
+    if (refs.ipCameraControls) refs.ipCameraControls.style.display = isIp ? 'flex' : 'none';
+  });
+}
+
 async function startCamera() {
-  if (!navigator.mediaDevices?.getUserMedia) return window.alert("Camera API not available.");
-  try {
-    faceStream = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
-      audio: false
-    });
-    refs.faceVideo.srcObject = faceStream;
-    refs.faceStatusText.textContent = "Camera started. Loading AI models…";
-    // Pre-load models in background so recognition is instant
+  const source = refs.cameraSourceSelect?.value || 'local';
+
+  // Stop any existing stream / loops
+  if (faceStream) { faceStream.getTracks().forEach(t => t.stop()); faceStream = null; }
+  if (ipCamRafId) { cancelAnimationFrame(ipCamRafId); ipCamRafId = null; }
+  if (ipCamDetectTimer) { clearTimeout(ipCamDetectTimer); ipCamDetectTimer = null; }
+  if (aiBBoxAnimFrame) { cancelAnimationFrame(aiBBoxAnimFrame); aiBBoxAnimFrame = null; }
+  ipCamLastDetections = [];
+  ipCamDetecting = false;
+
+  if (source === 'ip') {
+    const url = (refs.ipCameraUrl?.value || '').trim();
+    if (!url) { window.alert('Please enter the IP camera URL (e.g. http://192.168.1.100:8080/video)'); return; }
+    ipCamMode = true;
+    // Show IP cam wrapper, hide local cam wrapper
+    if (refs.localCamWrapper) refs.localCamWrapper.style.display = 'none';
+    refs.ipCamWrapper.style.display = 'block';
+    refs.faceStatusText.textContent = 'IP Camera connecting…';
+
+    refs.ipCameraImg.onerror = () => {
+      refs.faceStatusText.textContent = '⚠️ Could not load IP camera. Check URL and network.';
+    };
+
+    // MJPEG or snapshot?
+    const isSnapshot = /\.(jpg|jpeg|png|bmp)(\?|$)/i.test(url);
+    if (isSnapshot) {
+      const refreshSnap = () => { if (!ipCamMode) return; refs.ipCameraImg.src = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now(); setTimeout(refreshSnap, 300); };
+      refs.ipCameraImg.src = url;
+      setTimeout(refreshSnap, 350);
+    } else {
+      refs.ipCameraImg.src = url; // MJPEG — browser streams it natively
+    }
+
+    // Sync overlay canvas size to img when it loads
+    refs.ipCameraImg.onload = () => {
+      refs.faceStatusText.textContent = '✅ IP Camera connected!';
+      const oc = refs.ipOverlayCanvas;
+      oc.width  = refs.ipCameraImg.naturalWidth  || 640;
+      oc.height = refs.ipCameraImg.naturalHeight || 480;
+    };
+
+    // Load models in background — non-blocking
     ensureFaceModelsLoaded().then(() => {
-      refs.faceStatusText.textContent = "✅ Ready — AI models loaded. Face will be detected automatically.";
-      startBBoxOverlay();
+      refs.faceStatusText.textContent = '✅ IP Camera ready — tap Capture Face or enable Auto.';
+      startIpCamOverlay();
     });
-  } catch (err) {
-    refs.faceStatusText.textContent = `Camera access failed: ${err.message}`;
+
+  } else {
+    // ── Local webcam ──────────────────
+    ipCamMode = false;
+    if (refs.ipCamWrapper) refs.ipCamWrapper.style.display = 'none';
+    if (refs.localCamWrapper) refs.localCamWrapper.style.display = 'block';
+    // Canvas is now always positioned inside localCamWrapper in HTML
+    refs.faceCanvas.style.display = '';
+    if (!navigator.mediaDevices?.getUserMedia) return window.alert('Camera API not available.');
+    try {
+      faceStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+        audio: false
+      });
+      refs.faceVideo.srcObject = faceStream;
+      refs.faceStatusText.textContent = 'Camera started. Loading AI models…';
+      ensureFaceModelsLoaded().then(() => {
+        refs.faceStatusText.textContent = '✅ Ready — AI models loaded.';
+        startBBoxOverlay();
+      });
+    } catch (err) {
+      refs.faceStatusText.textContent = `Camera access failed: ${err.message}`;
+    }
   }
+}
+
+// ── IP Cam Overlay: TWO separate loops ───────────────────────────
+// Layer 1 (rAF, 60fps): redraws bounding boxes from CACHED results — lightweight
+// Layer 2 (setTimeout, 800ms): grabs a frame + runs detectAllFaces — throttled
+function startIpCamOverlay() {
+  const canvas = refs.ipOverlayCanvas; // dedicated transparent overlay canvas
+  if (!canvas) return;
+  // Sync canvas pixel dimensions to img display size
+  const syncSize = () => {
+    if (refs.ipCameraImg.naturalWidth > 0) {
+      canvas.width  = refs.ipCameraImg.naturalWidth;
+      canvas.height = refs.ipCameraImg.naturalHeight;
+    } else {
+      canvas.width = 640; canvas.height = 480;
+    }
+  };
+  syncSize();
+  const ctx = canvas.getContext('2d', { alpha: true, willReadFrequently: false });
+
+  // Layer 1 (rAF ~60fps): clear canvas and redraw cached bounding box overlays only
+  const redrawOverlay = () => {
+    if (!ipCamMode) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const scaleX = canvas.width  / (refs.ipCameraImg.naturalWidth  || canvas.width);
+    const scaleY = canvas.height / (refs.ipCameraImg.naturalHeight || canvas.height);
+    const targetType = refs.faceTargetType?.value || 'students';
+    const minConf = parseFloat(refs.autoMinConfidence?.value || '0.50');
+    ipCamLastDetections.forEach(det => {
+      const b = det.box; // Absolute pixel bounding box [x,y,w,h]
+      const rawX = b[0], rawY = b[1], rawW = b[2], rawH = b[3];
+      // Since det.box in human is [x,y,width,height] natively in pixels for the drawn source
+      const box = { x: rawX * scaleX, y: rawY * scaleY, width: rawW * scaleX, height: rawH * scaleY };
+      const desc = det.embedding;
+      const match = findBestFaceMatch(desc, targetType, minConf);
+      const score = match ? match.score : 0;
+      const name  = match ? match.name : 'Unknown';
+      const color = match ? (score >= 0.65 ? '#10b981' : score >= 0.55 ? '#f59e0b' : '#f97316') : '#ef4444';
+      ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+      const label = match ? `${name} ${(score*100).toFixed(0)}%` : 'Unknown';
+      ctx.font = 'bold 12px sans-serif';
+      const tw = ctx.measureText(label).width + 12;
+      const ly = box.y > 24 ? box.y - 22 : box.y + box.height + 4;
+      ctx.fillStyle = color; ctx.fillRect(box.x, ly, tw, 20);
+      ctx.fillStyle = '#fff'; ctx.fillText(label, box.x + 6, ly + 14);
+    });
+    ipCamRafId = requestAnimationFrame(redrawOverlay);
+  };
+  ipCamRafId = requestAnimationFrame(redrawOverlay);
+
+  // Layer 2 (throttled 800ms): capture img frame → run detection → update cache
+  const offscreen = new OffscreenCanvas(640, 480);
+  const offCtx = offscreen.getContext('2d');
+  const runDetection = async () => {
+    if (!ipCamMode) return;
+    if (!ipCamDetecting) {
+      ipCamDetecting = true;
+      try {
+        const frameSrc = await getDetectSource(); // fetches via server proxy
+        if (frameSrc) {
+          const result = await human.detect(frameSrc);
+          ipCamLastDetections = result.face || [];
+        }
+      } catch(e) { console.warn('IP cam detection error:', e.message); }
+      ipCamDetecting = false;
+    }
+    ipCamDetectTimer = setTimeout(runDetection, 1200); // every 1.2s (proxy has network latency)
+  };
+  ipCamDetectTimer = setTimeout(runDetection, 1200);
 }
 
 async function captureFace() {
   const ready = await ensureFaceModelsLoaded();
   if (!ready) return;
-  if (!refs.faceVideo.srcObject) return window.alert("Start camera first.");
+  if (!ipCamMode && !refs.faceVideo.srcObject) return window.alert("Start camera first.");
+  if (ipCamMode && !refs.ipCameraImg.src) return window.alert("Start IP camera first.");
   refs.faceStatusText.textContent = "Detecting face…";
-  const detection = await faceapi
-    .detectSingleFace(refs.faceVideo, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.4 }))
-    .withFaceLandmarks()
-    .withFaceDescriptor();
+  
+  // Use the helper to get correct detection source
+  const detectSource = await getDetectSource();
+  if (!detectSource) {
+    refs.faceStatusText.textContent = "❌ Could not get camera frame. Check IP camera connection.";
+    return;
+  }
+  
+  // Run detection on-demand (no background loop)
+  const result = await human.detect(detectSource);
+  let detection = result.face && result.face.length > 0 ? result.face[0] : null;
+  
   if (!detection) {
     refs.faceStatusText.textContent = "❌ No face detected. Keep face centered in good lighting and try again.";
     return;
   }
-  latestDescriptor = Array.from(detection.descriptor);
-  const ctx = refs.faceCanvas.getContext("2d");
-  refs.faceCanvas.width = refs.faceVideo.videoWidth || 640;
-  refs.faceCanvas.height = refs.faceVideo.videoHeight || 480;
-  ctx.drawImage(refs.faceVideo, 0, 0, refs.faceCanvas.width, refs.faceCanvas.height);
-  // Draw bounding box on captured frame
-  const box = detection.detection.box;
+  latestDescriptor = detection.embedding;
+  
+  // Draw bounding box on the correct canvas
+  const overlayCanvas = ipCamMode ? refs.ipOverlayCanvas : refs.faceCanvas;
+  const ctx = overlayCanvas.getContext("2d");
+  if (!ipCamMode) {
+    // For local cam: refresh canvas from video
+    refs.faceCanvas.width = refs.faceVideo.videoWidth || 640;
+    refs.faceCanvas.height = refs.faceVideo.videoHeight || 480;
+    ctx.drawImage(refs.faceVideo, 0, 0, refs.faceCanvas.width, refs.faceCanvas.height);
+  } else {
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+  }
+  const b = detection.box;
+  const rawX = b[0], rawY = b[1], rawW = b[2], rawH = b[3];
+  let boxX = rawX, boxY = rawY, boxW = rawW, boxH = rawH;
+
+  // If using IP cam overlay, we might need to scale
+  if (ipCamMode) {
+    const scaleX = overlayCanvas.width / (refs.ipCameraImg.naturalWidth || overlayCanvas.width);
+    const scaleY = overlayCanvas.height / (refs.ipCameraImg.naturalHeight || overlayCanvas.height);
+    boxX *= scaleX; boxY *= scaleY; boxW *= scaleX; boxH *= scaleY;
+  }
+
   ctx.strokeStyle = "#22c55e";
   ctx.lineWidth = 3;
-  ctx.strokeRect(box.x, box.y, box.width, box.height);
+  ctx.strokeRect(boxX, boxY, boxW, boxH);
   ctx.fillStyle = "rgba(34,197,94,0.15)";
-  ctx.fillRect(box.x, box.y, box.width, box.height);
+  ctx.fillRect(boxX, boxY, boxW, boxH);
   refs.faceStatusText.textContent = "✅ Face captured! Click Mark Attendance or enroll.";
 }
 
-function cosineSimilarity(a, b) {
-  let dot = 0; let na = 0; let nb = 0;
-  for (let i = 0; i < a.length; i += 1) {
-    dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i];
-  }
-  return dot / (Math.sqrt(na) * Math.sqrt(nb));
-}
-
-function euclideanDistance(a, b) {
-  let sum = 0;
-  for (let i = 0; i < a.length; i++) sum += (a[i] - b[i]) ** 2;
-  return Math.sqrt(sum);
-}
-
 function descriptorSimilarity(a, b) {
-  // Combine cosine similarity and euclidean distance for better accuracy
-  const cos = cosineSimilarity(a, b);
-  const euc = euclideanDistance(a, b);
-  // Euclidean distance for 128-d face vectors: <0.6 = same person typically
-  const eucScore = Math.max(0, 1 - euc / 0.9);
-  return (cos * 0.6) + (eucScore * 0.4);
+  if (!a || !b || !human) return 0;
+  // Human provides an optimized match calculation yielding similarity score
+  return human.match.similarity(a, b);
 }
 
-function findBestFaceMatch(descriptor, targetType, minScore = 0.72) {
+function findBestFaceMatch(descriptor, targetType, minScore = 0.50) {
   const faceStore = getFaceStore();
   const scoped = Object.entries(faceStore).filter(([key]) => key.startsWith(`${targetType}|`));
   if (!scoped.length) return null;
-  let best = null;
+  const scored = [];
   scoped.forEach(([key, val]) => {
-    // Support multiple descriptors per person (stored as descriptors array or single descriptor)
-    const descriptors = val.descriptors || (val.descriptor ? [val.descriptor] : []);
-    let topScore = 0;
-    for (const d of descriptors) {
-      const score = descriptorSimilarity(descriptor, d);
-      if (score > topScore) topScore = score;
-    }
-    if (!best || topScore > best.score) best = { key, ...val, score: topScore };
+    // Support averaged descriptors (from multi-sample enrollment)
+    const stored = val.avgDescriptor || val.descriptor;
+    if (!stored || !stored.length) return;
+    const score = descriptorSimilarity(descriptor, stored);
+    scored.push({ key, ...val, score });
   });
-  return best && best.score >= minScore ? best : null;
+  scored.sort((a, b) => b.score - a.score);
+  const best = scored[0];
+  if (!best || best.score < minScore) return null;
+  // MARGIN CHECK: best must be significantly ahead of second-best to avoid confusion
+  const secondBest = scored[1];
+  if (secondBest && best.score - secondBest.score < 0.02) return null; // too ambiguous
+  return best;
 }
 
 function getTopFaceMatches(descriptor, targetType, limit = 3) {
   const faceStore = getFaceStore();
   const scoped = Object.entries(faceStore).filter(([key]) => key.startsWith(`${targetType}|`));
   const scored = scoped.map(([key, val]) => {
-    const descriptors = val.descriptors || (val.descriptor ? [val.descriptor] : []);
-    let topScore = 0;
-    for (const d of descriptors) {
-      const s = descriptorSimilarity(descriptor, d);
-      if (s > topScore) topScore = s;
-    }
-    return { key, name: val.name, tag: val.tag, score: topScore };
+    const stored = val.avgDescriptor || val.descriptor;
+    const score = stored?.length ? descriptorSimilarity(descriptor, stored) : 0;
+    return { key, name: val.name, tag: val.tag, score };
   });
   scored.sort((a, b) => b.score - a.score);
   return scored.slice(0, limit);
@@ -2149,10 +2786,52 @@ function findExistingAttendanceRecord(store, studentName, className, date = toda
   });
 }
 
+// Returns the correct HTMLCanvasElement for face-api detection
+// For IP cam: fetches a frame via server proxy to avoid cross-origin taint
+async function getDetectSource() {
+  if (ipCamMode) {
+    const ipUrl = (refs.ipCameraUrl?.value || '').trim();
+    if (!ipUrl) return null;
+    try {
+      const resp = await fetch(`/api/camera-snapshot?url=${encodeURIComponent(ipUrl)}`);
+      if (!resp.ok) return null;
+      const blob = await resp.blob();
+      const bmp = await createImageBitmap(blob);
+      const tmp = document.createElement('canvas');
+      tmp.width = bmp.width;
+      tmp.height = bmp.height;
+      tmp.getContext('2d').drawImage(bmp, 0, 0);
+      return tmp;
+    } catch (e) {
+      console.warn('IP cam proxy fetch failed:', e.message);
+      return null;
+    }
+  }
+  return refs.faceVideo;
+}
+
+// Capture a JPEG snapshot from the current camera source
+async function snapshotFromSource(w = 220, q = 0.68) {
+  if (ipCamMode) {
+    const src = await getDetectSource();
+    if (!src) return '';
+    const tmp = document.createElement('canvas');
+    const ratio = src.height / src.width;
+    tmp.width = w;
+    tmp.height = Math.round(w * ratio);
+    tmp.getContext('2d').drawImage(src, 0, 0, tmp.width, tmp.height);
+    return tmp.toDataURL('image/jpeg', q);
+  }
+  return videoFrameToResizedDataUrl(refs.faceVideo, w, q);
+}
+
 async function autoCaptureTick() {
   if (!refs.autoCaptureToggle.checked) return;
   if (autoCaptureBusy) return;
-  if (!refs.faceVideo?.srcObject) return;
+  // Guard: need either local video stream or IP cam image
+  const localReady = !ipCamMode && refs.faceVideo?.srcObject;
+  const ipReady    =  ipCamMode && refs.ipCameraImg?.naturalWidth > 0;
+  if (!localReady && !ipReady) return;
 
   try {
     const ready = await ensureFaceModelsLoaded();
@@ -2166,18 +2845,24 @@ async function autoCaptureTick() {
       return;
     }
 
-    const minConf = Math.max(0.4, Math.min(0.99, Number(refs.autoMinConfidence?.value) || 0.72));
-    const stableCount = Math.max(1, Math.min(10, Number(refs.autoStableCount?.value) || 2));
+    const minConf = Math.max(0.40, Math.min(0.99, Number(refs.autoMinConfidence?.value) || 0.50));
+    const stableCount = Math.max(1, Math.min(10, Number(refs.autoStableCount?.value) || 1));
 
     // Recognize the face from the current camera frame.
-    const detection = await faceapi
-      .detectSingleFace(refs.faceVideo, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.35 }))
-      .withFaceLandmarks()
-      .withFaceDescriptor();
+    let detection = null;
+    if (ipCamMode && ipCamLastDetections && ipCamLastDetections.length > 0) {
+      // Reuse cached IP cam detection to avoid GPU contention
+      detection = ipCamLastDetections[0];
+    } else {
+      const src = await getDetectSource();
+      if (!src) return;
+      const result = await human.detect(src);
+      detection = result.face && result.face.length > 0 ? result.face[0] : null;
+    }
 
     if (!detection) return;
 
-    const descriptor = Array.from(detection.descriptor);
+    const descriptor = detection.embedding;
     latestDescriptor = descriptor;
 
     const topMatches = getTopFaceMatches(descriptor, targetType, 3);
@@ -2235,7 +2920,7 @@ async function autoCaptureTick() {
     if (autoLastAutoMarkKey === matchKey && (now - autoLastAutoMarkAt) < cooldownMs) return;
 
     autoCaptureBusy = true;
-    const snap = videoFrameToResizedDataUrl(refs.faceVideo, 220, 0.68);
+    const snap = await snapshotFromSource(220, 0.68);
     const existing = findExistingAttendanceRecord(store, recognizedName, resolvedClassName, today);
     const nowTime = timeStr();
 
@@ -2292,18 +2977,24 @@ async function autoBatchCaptureTick() {
   if (autoCaptureBusy) return;
   autoCaptureBusy = true;
 
-  const minConf = Math.max(0.4, Math.min(0.99, Number(refs.autoMinConfidence?.value) || 0.72));
-  const cooldownMs = 6000; // avoid repeated updates while same faces remain in frame
-  const margin = 0.02; // bestScore - secondBestScore must be >= margin (lowered for speed)
+  const minConf = Math.max(0.40, Math.min(0.99, Number(refs.autoMinConfidence?.value) || 0.50));
+  const cooldownMs = 6000;
+  const margin = 0.02;
   const maxMarksPerTick = 50;
 
   try {
-    const detections = await faceapi
-      .detectAllFaces(refs.faceVideo, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.35 }))
-      .withFaceLandmarks()
-      .withFaceDescriptors();
+    let detections = [];
+    if (ipCamMode && ipCamLastDetections && ipCamLastDetections.length > 0) {
+      // Reuse cached IP cam detection to avoid GPU contention
+      detections = ipCamLastDetections;
+    } else {
+      const batchSrc = await getDetectSource();
+      if (!batchSrc) { refs.faceStatusText.textContent = 'AI Batch: Camera not available'; return; }
+      const result = await human.detect(batchSrc);
+      detections = result.face || [];
+    }
 
-    if (!detections || !detections.length) {
+    if (!detections.length) {
       refs.faceStatusText.textContent = "AI Batch: No faces found";
       return;
     }
@@ -2329,7 +3020,7 @@ async function autoBatchCaptureTick() {
     for (const det of detections) {
       if (marked.length >= maxMarksPerTick) break;
 
-      const descriptor = Array.from(det.descriptor);
+      const descriptor = Array.from(det.embedding);
       const topMatches = getTopFaceMatches(descriptor, "students", 3);
       const best = findBestFaceMatch(descriptor, "students", minConf);
       const recognizedName = best?.name;
@@ -2360,7 +3051,7 @@ async function autoBatchCaptureTick() {
       if (now - lastAt < cooldownMs) continue;
 
       const existing = findExistingAttendanceRecord(localStore, recognizedName, resolvedClassName, today);
-      const snap = videoFrameToResizedDataUrl(refs.faceVideo, 220, 0.68);
+      const snap = await snapshotFromSource(220, 0.68);
 
       if (existing?.id) {
         const update = { facePhoto: snap, remarks: "Auto face-recognized" };
@@ -2428,7 +3119,7 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
 
   // Special handling for student files (file -> resized base64 string).
   for (const field of moduleConfig[currentModule].fields) {
-    if (currentModule === "students" && ["photo", "aadhar", "tc", "reportCard"].includes(field)) {
+    if (currentModule === "students" && ["photo", "aadhar", "tc", "reportCard", "fatherAadhar", "motherAadhar"].includes(field)) {
       const file = form.get(field);
       if (file && file.size > 0) {
         const maxDim = field === "photo" ? 240 : 360;
@@ -2474,11 +3165,13 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
       "library":         "libraryFee",
       "exam fee":        "examFee",
       "exam":            "examFee",
+      "late fee":        "lateFee",
+      "late fine":       "lateFee",
       "activity fee":    "otherFee",
       "activity":        "otherFee",
     };
     // Reset individual fee type fields first
-    ["tuitionFee","admissionFee","computerFee","developmentFee","labFee","sportsFee","libraryFee","examFee","otherFee"].forEach(k => { payload[k] = ""; });
+    ["tuitionFee","admissionFee","computerFee","developmentFee","labFee","sportsFee","libraryFee","examFee","lateFee","otherFee"].forEach(k => { payload[k] = ""; });
     // Map each checked fee type label → its matching field, accumulate amounts per field
     const feeAccum = {};
     checkedFeeBoxes.forEach(cb => {
@@ -2515,7 +3208,14 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
   if (isEditingStudent) {
     await api(`/api/modules/students/${editStudentId}`, { method: "PUT", body: JSON.stringify(payload) });
     editStudentId = null;
-    await loadStore(); // refresh store so the table shows the updated student record
+    await loadStore();
+  } else if (editRecordId != null) {
+    await api(`/api/modules/${currentModule}/${editRecordId}`, { method: "PUT", body: JSON.stringify(payload) });
+    editRecordId = null;
+    await loadStore();
+    // Reset submit button text
+    const submitBtn = refs.dynamicForm.querySelector("button[type='submit']");
+    if (submitBtn) submitBtn.textContent = '➕ Add Record';
   } else {
     await addRecord(currentModule, payload);
   }
@@ -2534,8 +3234,151 @@ refs.dynamicForm.addEventListener("submit", async (e) => {
 });
 
 refs.searchInput.addEventListener("input", renderTable);
+if (refs.classFilter) {
+  refs.classFilter.addEventListener("change", renderTable);
+}
 refs.exportCsvBtn.addEventListener("click", exportCurrentCsv);
+if(refs.importDataBtn) refs.importDataBtn.addEventListener("click", () => refs.importFile?.click());
+if(refs.importFile) refs.importFile.addEventListener("change", handleImportFile);
 refs.exportPdfBtn.addEventListener("click", exportCurrentPdf);
+
+async function handleImportFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const validExts = [".csv", ".xls", ".xlsx"];
+  const isValid = validExts.some(ext => file.name.toLowerCase().endsWith(ext));
+  if (!isValid) {
+    window.alert("Invalid file format. Please upload a .csv, .xls, or .xlsx file.");
+    e.target.value = "";
+    return;
+  }
+
+  try {
+    const data = await file.arrayBuffer();
+    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    // raw data array
+    const json = XLSX.utils.sheet_to_json(worksheet, { defval: "", raw: false });
+    
+    if (!json.length) {
+      window.alert("The uploaded file is empty.");
+      e.target.value = "";
+      return;
+    }
+
+    // Map rows to system fields
+    const config = moduleConfig[currentModule];
+    const systemFields = config.fields; // target keys
+    
+    // Validate that the uploaded file matches the current module
+    const rawHeaders = Object.keys(json[0] || {});
+    const normalizedHeaders = rawHeaders.map(h => h.toLowerCase().replace(/\s+/g, ''));
+    let matchCount = 0;
+    
+    systemFields.forEach(field => {
+      const lowerField = field.toLowerCase();
+      if (rawHeaders.includes(field) || normalizedHeaders.includes(lowerField)) {
+        matchCount++;
+      }
+    });
+    
+    // Require at least a decent overlap of columns (minimum 3 fields, or 50% if the module has fewer fields)
+    const requiredMatches = Math.min(3, Math.floor(systemFields.length * 0.4));
+    if (matchCount < requiredMatches) {
+      window.alert(`Validation failed: The imported file doesn't match the ${config.title} module format.\nPlease ensure you are importing into the correct module.`);
+      e.target.value = "";
+      return;
+    }
+    
+    let successCount = 0;
+    
+    if (!window.confirm(`Found ${json.length} records to import into ${config.title}. Proceed?`)) {
+      e.target.value = "";
+      return;
+    }
+    
+    showToast("Importing records... This may take a moment.");
+    
+    for (const row of json) {
+      const payload = {};
+      const lowerRow = {};
+      // Normalize imported row keys to lowercase and remove spaces for flexible matching
+      for (const [k, v] of Object.entries(row)) {
+        lowerRow[k.toLowerCase().replace(/\s+/g, '')] = v;
+      }
+      
+      let validRow = false; // Add if there is at least one matched field with value
+      
+      systemFields.forEach(field => {
+        const lowerField = field.toLowerCase();
+        // Check for exact match or normalized match
+        if (row[field] !== undefined) {
+          payload[field] = String(row[field] || "");
+          if (payload[field]) validRow = true;
+        } else if (lowerRow[lowerField] !== undefined) {
+          payload[field] = String(lowerRow[lowerField] || "");
+          if (payload[field]) validRow = true;
+        } else {
+          payload[field] = "";
+        }
+      });
+
+      // For fees module, also import extra fields not in moduleConfig.fields
+      if (currentModule === "fees") {
+        const extraFeeFields = [
+          "feeTypes", "monthlyFee", "monthlyFeeLabel",
+          "tuitionFee", "admissionFee", "computerFee", "developmentFee",
+          "labFee", "sportsFee", "libraryFee", "examFee", "lateFee", "otherFee",
+          "selectedBookIds"
+        ];
+        extraFeeFields.forEach(field => {
+          const lowerField = field.toLowerCase();
+          if (row[field] !== undefined && row[field] !== "") {
+            payload[field] = String(row[field]);
+          } else if (lowerRow[lowerField] !== undefined && lowerRow[lowerField] !== "") {
+            payload[field] = String(lowerRow[lowerField]);
+          }
+        });
+      }
+
+      // Fix Excel serial date numbers in date fields
+      ["paymentDate", "date", "issueDate", "returnDate", "checkInDate"].forEach(df => {
+        if (payload[df] && !isNaN(Number(payload[df])) && Number(payload[df]) > 10000) {
+          // Excel serial date → convert to DD-MM-YYYY
+          const serial = Number(payload[df]);
+          const epoch = new Date((serial - 25569) * 86400 * 1000);
+          const dd = String(epoch.getDate()).padStart(2, '0');
+          const mm = String(epoch.getMonth() + 1).padStart(2, '0');
+          const yyyy = epoch.getFullYear();
+          payload[df] = `${dd}-${mm}-${yyyy}`;
+        }
+      });
+      
+      // Auto-assign status
+      if (!payload.status && currentModule === "students") {
+        payload.status = "Active";
+      }
+      
+      // Submit row
+      if (validRow) {
+        await addRecord(currentModule, payload);
+        successCount++;
+      }
+    }
+    
+    await loadStore();
+    renderAll();
+    window.alert(`Successfully imported ${successCount} records.`);
+  } catch (err) {
+    console.error(err);
+    window.alert("Error importing file: " + err.message);
+  } finally {
+    e.target.value = ""; // Reset input
+  }
+}
+
 refs.printDocBtn.addEventListener("click", printDocumentByModule);
 
 // 4-in-1 Print Logic
@@ -2554,6 +3397,7 @@ if (executePrint4in1SlipBtn) {
 }
 
 function openPrint4in1Modal() {
+  if (typeof window.loadBD === "function") window.loadBD();
   const store = getStore();
   const fees = store.fees || [];
   // Sort fees by ID descending so newest are on top
@@ -2581,7 +3425,8 @@ function closePrint4in1Modal() {
   }
 }
 
-function executePrint4in1() {
+async function executePrint4in1() {
+  if (typeof window.loadBD === "function") await window.loadBD();
   const store = getStore();
   const fees = store.fees || [];
   const getHtml = (idStr) => {
@@ -2625,7 +3470,8 @@ function executePrint4in1() {
   closePrint4in1Modal();
 }
 
-function executePrint4in1Slip() {
+async function executePrint4in1Slip() {
+  if (typeof window.loadBD === "function") await window.loadBD();
   const store = getStore();
   const fees = store.fees || [];
   const getHtml = (idStr) => {
@@ -2690,6 +3536,7 @@ function buildSingleSlipHtmlForGrid(f) {
     { key: "sportsFee",      label: "Sports Fee",      icon: "⚽" },
     { key: "libraryFee",     label: "Library Fee",     icon: "📖" },
     { key: "examFee",        label: "Exam Fee",        icon: "📝" },
+    { key: "lateFee",        label: "Late Fee",        icon: "⏰" },
     { key: "otherFee",       label: "Other Fee",       icon: "➕" }
   ];
   SLIP_FEE_TYPES.forEach(({ key, label, icon }, idx) => {
@@ -2730,21 +3577,24 @@ function buildSingleSlipHtmlForGrid(f) {
   try {
     const ids = JSON.parse(f.selectedBookIds || "[]");
     if (ids.length) {
-      const allBDItems = [...(typeof bdBooks !== "undefined" ? bdBooks : []), ...(typeof bdDresses !== "undefined" ? bdDresses : [])];
-      ids.map(id => allBDItems.find(r => String(r.id) === String(id))).filter(Boolean).forEach((item, idx) => {
-        const price = parseFloat(item.price) || 0;
-        itemsTotal += price;
-        const bg = idx % 2 === 0 ? "#f0f4ff" : "#fff";
-        feeRows += `<tr style="background:${bg};"><td style="padding:4px 6px;border-bottom:1px solid #e5e7eb;font-size:10px;color:#374151;">${item.itemType === "Book" ? "📚" : "👕"} ${item.itemName}</td>
-          <td style="padding:4px 6px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:10px;font-weight:600;">₹ ${price.toLocaleString("en-IN")}</td></tr>`;
-      });
+      const allBDItems = getStore().booksAndDress || [];
+      ids.map(id => allBDItems.find(r => String(r.id) === String(id)))
+         .filter(Boolean)
+         .sort((a,b) => (a.itemType||"").localeCompare(b.itemType||"") || (a.itemName||"").localeCompare(b.itemName||""))
+         .forEach((item, idx) => {
+          const price = parseFloat(item.price) || 0;
+          itemsTotal += price;
+          const bg = idx % 2 === 0 ? "#f0f4ff" : "#fff";
+          feeRows += `<tr style="background:${bg};"><td style="padding:4px 6px;border-bottom:1px solid #e5e7eb;font-size:10px;color:#374151;">${item.itemType === "Book" ? "📚" : "👕"} ${item.itemName}</td>
+            <td style="padding:4px 6px;border-bottom:1px solid #e5e7eb;text-align:right;font-size:10px;font-weight:600;">₹ ${price.toLocaleString("en-IN")}</td></tr>`;
+        });
     }
   } catch(e) {}
 
   return `
     <div style="height:100%;display:flex;flex-direction:column;font-family:Arial,sans-serif;font-size:10px;border:1px solid #1e3a8a;border-radius:6px;box-sizing:border-box;">
       <div style="border-bottom:2px solid #1e3a8a;padding:5px;text-align:center;">
-        <div style="font-size:12px;font-weight:900;color:#1e3a8a;letter-spacing:0.5px;text-transform:uppercase;">🏫 ${schoolName}</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:6px;"><img src="logo.png" style="height:20px;object-fit:contain;" alt="Logo" /><div style="font-size:12px;font-weight:900;color:#1e3a8a;letter-spacing:0.5px;text-transform:uppercase;">${schoolName}</div></div>
         <div style="margin-top:2px;display:inline-block;background:#1e3a8a;color:#fff;padding:2px 10px;font-size:8px;font-weight:700;text-transform:uppercase;">FEE SLIP</div>
       </div>
       <div style="display:flex;justify-content:space-between;padding:3px 6px;background:#eef2ff;border-bottom:1px solid #c7d2fe;font-size:9px;color:#1e3a8a;">
@@ -2825,6 +3675,7 @@ function buildSingleFeeHtmlForGrid(f) {
     { key: "sportsFee", label: "Sports" },
     { key: "libraryFee", label: "Library" },
     { key: "examFee", label: "Exam" },
+    { key: "lateFee", label: "Late Fee" },
     { key: "otherFee", label: "Other" }
   ];
   let feeBreakdown = "";
@@ -2838,10 +3689,28 @@ function buildSingleFeeHtmlForGrid(f) {
     if (labels) feeBreakdown += `<div style="font-size:11px;color:#64748b;margin-bottom:4px;line-height:1.4;">Types: ${labels}</div>`;
   }
 
+  // ── Add Books & Dress items breakdown ──
+  try {
+    const ids = JSON.parse(f.selectedBookIds || "[]");
+    if (ids.length) {
+      const allBDItems = getStore().booksAndDress || [];
+      ids.map(id => allBDItems.find(r => String(r.id) === String(id)))
+         .filter(Boolean)
+         .sort((a,b) => (a.itemType||"").localeCompare(b.itemType||"") || (a.itemName||"").localeCompare(b.itemName||""))
+         .forEach(item => {
+        const p = parseFloat(item.price) || 0;
+        feeBreakdown += `<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #e2e8f0;padding:3px 0;color:#1e40af;">
+          <span>${item.itemType === "Book" ? "📚" : "👕"} ${item.itemName}</span>
+          <strong>₹${p.toLocaleString("en-IN")}</strong>
+        </div>`;
+      });
+    }
+  } catch(e) {}
+
   return `
     <div style="font-family:Arial,sans-serif;border:2px solid #1e3a8a;border-radius:10px;overflow:hidden;font-size:12px;display:flex;flex-direction:column;height:100%;box-sizing:border-box;">
       <div style="background:#1e3a8a;color:#fff;padding:12px;text-align:center;flex-shrink:0;">
-        <div style="font-size:18px;font-weight:900;letter-spacing:1px;">${schoolName}</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:10px;"><img src="logo.png" style="height:32px;object-fit:contain;" alt="Logo" /><div style="font-size:18px;font-weight:900;letter-spacing:1px;">${schoolName}</div></div>
         <div style="font-size:11px;opacity:0.9;margin-top:2px;">Fee Payment Receipt</div>
       </div>
       <div style="display:flex;justify-content:space-between;padding:8px 12px;background:#f0f4ff;border-bottom:1px solid #c7d2fe;font-size:12px;color:#1e3a8a;flex-shrink:0;">
@@ -2852,6 +3721,8 @@ function buildSingleFeeHtmlForGrid(f) {
         <div style="display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin-bottom:10px;">
           <span style="color:#64748b;">Student</span>
           <span style="font-weight:700;text-align:right;">${f.studentName || "-"}</span>
+          <span style="color:#64748b;">Father</span>
+          <span style="font-weight:600;text-align:right;">${f.fatherName || "-"}</span>
           <span style="color:#64748b;">Class/Roll</span>
           <span style="font-weight:600;text-align:right;">${f.className || "-"} (${f.rollNo || "-"})</span>
           <span style="color:#64748b;">Term</span>
@@ -2875,7 +3746,10 @@ function buildSingleFeeHtmlForGrid(f) {
         </div>
       </div>
       <div style="padding:8px 12px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid #e2e8f0;flex-shrink:0;background:#fff;">
-        <div style="font-size:10px;color:#64748b;max-width:50%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.paymentMethod || "N/A"}</div>
+        <div style="font-size:9px;color:#64748b;max-width:60%;overflow:hidden;text-overflow:ellipsis;">
+          ${f.paymentMethod || "N/A"}
+          ${f.paymentMethod === "Online + Cash" ? `<div style="font-size:8px;">O: ₹${(parseFloat(f.onlineAmount)||0).toLocaleString("en-IN")} | C: ₹${(parseFloat(f.cashAmount)||0).toLocaleString("en-IN")}</div>` : ""}
+        </div>
         <div style="background:${statusColor};color:#fff;padding:4px 14px;border-radius:12px;font-size:12px;font-weight:700;">${f.status || "Pending"}</div>
       </div>
     </div>`;
@@ -3075,11 +3949,37 @@ refs.assistantCloseBtn?.addEventListener("click", () => {
   refs.assistantPanel.classList.add("hidden");
 });
 
-refs.assistantSendBtn?.addEventListener("click", () => {
+refs.assistantSendBtn?.addEventListener("click", async () => {
   const txt = refs.assistantInput.value.trim();
   if (!txt) return;
   refs.assistantInput.value = "";
-  assistantAppend(`You asked: ${txt}\n\n${assistantRespond(txt)}`);
+  
+  refs.assistantOutput.innerHTML += `<div style="margin-bottom:8px;text-align:right;"><div style="font-weight:700;color:#1e3a8a;">You</div><div style="white-space:pre-wrap;color:#334155;">${escapeHtml(txt)}</div></div>`;
+  refs.assistantOutput.scrollTop = refs.assistantOutput.scrollHeight;
+
+  const thinkingId = "think-" + Date.now();
+  refs.assistantOutput.innerHTML += `<div id="${thinkingId}" style="margin-bottom:8px;font-style:italic;color:#64748b;">EduCore AI is thinking...</div>`;
+  refs.assistantOutput.scrollTop = refs.assistantOutput.scrollHeight;
+
+  try {
+    const store = getStore();
+    const context = `Current module: ${currentModule}. Students count: ${store.students?.length||0}. Classes count: ${store.classes?.length||0}.`;
+    const res = await api("/api/chat", {
+      method: "POST",
+      body: JSON.stringify({ prompt: txt, context })
+    });
+    
+    const thinkingEl = document.getElementById(thinkingId);
+    if (thinkingEl) thinkingEl.remove();
+
+    assistantAppend(res.reply || res.error || "No response received.");
+  } catch (err) {
+    const thinkingEl = document.getElementById(thinkingId);
+    if (thinkingEl) thinkingEl.remove();
+    assistantAppend(`❌ Connection error: ${err.message}`);
+  }
+  
+  refs.assistantOutput.scrollTop = refs.assistantOutput.scrollHeight;
 });
 
 refs.assistantInput?.addEventListener("keydown", (e) => {
@@ -3336,410 +4236,907 @@ function generateIdCardsHTML(store) {
   if (!students.length) return '<p style="padding:32px;text-align:center;color:#64748b;font-family:sans-serif;">No students found. Add students first.</p>';
 
   const schoolName  = 'Tapowan Public School';
-  const schoolAddr  = 'Sector 12, Model Town, Delhi – 110009';
-  const schoolPhone = '+91-11-2345-6789';
-  const schoolEmail = 'info@tapowanschool.edu.in';
-  const curYear     = new Date().getFullYear();
-  const session     = `${curYear}–${String(curYear + 1).slice(2)}`;
-
-  // Color palettes for different classes
-  const classColors = [
-    { bg: 'linear-gradient(135deg,#1e3a8a,#3b82f6)', accent: '#93c5fd', badge: '#1d4ed8' },
-    { bg: 'linear-gradient(135deg,#065f46,#10b981)', accent: '#6ee7b7', badge: '#047857' },
-    { bg: 'linear-gradient(135deg,#7c2d12,#f97316)', accent: '#fed7aa', badge: '#c2410c' },
-    { bg: 'linear-gradient(135deg,#581c87,#a855f7)', accent: '#d8b4fe', badge: '#7e22ce' },
-    { bg: 'linear-gradient(135deg,#831843,#ec4899)', accent: '#fbcfe8', badge: '#be185d' },
-    { bg: 'linear-gradient(135deg,#0c4a6e,#0ea5e9)', accent: '#bae6fd', badge: '#0369a1' },
-    { bg: 'linear-gradient(135deg,#1c1917,#78716c)', accent: '#d6d3d1', badge: '#57534e' },
-    { bg: 'linear-gradient(135deg,#14532d,#22c55e)', accent: '#bbf7d0', badge: '#15803d' },
-  ];
-
-  function getClassColor(className) {
-    const num = parseInt((className || '0').replace(/[^0-9]/g,'')) || 0;
-    return classColors[num % classColors.length];
-  }
-
-  // Decorative SVG background pattern
-  const patternSvg = `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`;
+  const schoolAddr  = 'Prem Nagar, Tapin North';
+  const schoolDist  = 'Ramgarh(JH)';
+  const schoolPhone = '8757744973';
 
   const frontCards = students.map((s, idx) => {
     const initials   = (s.fullName || 'ST').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
-    const cardId     = s.admissionNo ? `TPS-${s.admissionNo}` : `TPS-${String(s.id || idx+1).padStart(4,'0')}`;
-    const { classPart, sectionPart } = splitClassName(s.className || '');
-    const classDisplay  = [classPart, sectionPart].filter(Boolean).join(' – ');
-    const color      = getClassColor(classPart);
-
+    const cardId     = s.admissionNo || String(s.id || idx+1).padStart(4,'0');
+    const parentName = escapeHtml(s.parentName || s.fatherName || '—');
     const photoHtml = s.photo
       ? `<img src="${s.photo}" alt="Photo" style="width:100%;height:100%;object-fit:cover;" />`
-      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,rgba(255,255,255,0.15),rgba(255,255,255,0.05));color:#fff;font-size:1.9rem;font-weight:900;letter-spacing:0.02em;">${initials}</div>`;
+      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#e2e8f0;color:#64748b;font-size:2rem;font-weight:900;">${initials}</div>`;
 
     return `
     <div class="id-card-wrap">
-      <!-- FRONT -->
-      <div class="id-card front" style="background:${color.bg};">
-        <!-- Decorative background pattern -->
-        <div style="position:absolute;inset:0;background-image:${patternSvg};pointer-events:none;z-index:0;"></div>
-        <!-- Decorative circles -->
-        <div style="position:absolute;top:-40px;right:-40px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,0.05);pointer-events:none;z-index:0;"></div>
-        <div style="position:absolute;bottom:-50px;left:-30px;width:160px;height:160px;border-radius:50%;background:rgba(255,255,255,0.04);pointer-events:none;z-index:0;"></div>
-
-        <!-- Header band -->
-        <div class="card-header" style="z-index:1;position:relative;">
-          <div class="school-logo">🏫</div>
-          <div class="school-info">
-            <div class="school-name">${escapeHtml(schoolName)}</div>
-            <div class="card-subtitle">STUDENT IDENTITY CARD</div>
+      <div class="id-card front">
+        <div class="top-header">
+          <div class="logo-box">
+             <img src="logo.png" style="width:100%;height:100%;object-fit:contain;" alt="Logo" />
           </div>
-          <div class="card-id-badge">${escapeHtml(cardId)}</div>
-        </div>
-
-        <!-- Body -->
-        <div class="card-body" style="z-index:1;position:relative;">
-          <!-- Photo -->
-          <div class="photo-frame">
-            ${photoHtml}
-          </div>
-
-          <!-- Info -->
-          <div class="card-info">
-            <div class="student-name">${escapeHtml(s.fullName || 'Student Name')}</div>
-            <div class="class-badge" style="background:${color.badge};">
-              Class ${escapeHtml(classDisplay || '—')}
-            </div>
-
-            <div class="info-grid">
-              <div class="info-row">
-                <span class="info-label">Roll No</span>
-                <span class="info-val" style="color:${color.accent};">${escapeHtml(s.rollNo || '—')}</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">DOB</span>
-                <span class="info-val">${escapeHtml(s.dob || '—')}</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">Gender</span>
-                <span class="info-val">${escapeHtml(s.gender || '—')}</span>
-              </div>
-              <div class="info-row">
-                <span class="info-label">Parent</span>
-                <span class="info-val">${escapeHtml(s.parentName || '—')}</span>
-              </div>
-            </div>
+          <div class="school-details">
+             <div class="s-title">${escapeHtml(schoolName).toUpperCase()}</div>
+             <div class="s-addr">${escapeHtml(schoolAddr)}</div>
+             <div class="s-addr">${escapeHtml(schoolDist)}</div>
+             <div class="s-phone">Phone:${escapeHtml(schoolPhone)}</div>
           </div>
         </div>
-
-        <!-- Footer -->
-        <div class="card-footer" style="z-index:1;position:relative;">
-          <div class="validity">Session: ${session}</div>
-          <div class="barcode-strip">
-            <div class="bar"></div><div class="bar w2"></div><div class="bar"></div><div class="bar w3"></div>
-            <div class="bar w2"></div><div class="bar"></div><div class="bar w2"></div><div class="bar"></div>
-            <div class="bar w3"></div><div class="bar"></div><div class="bar w2"></div><div class="bar"></div>
-            <span class="bar-text">${escapeHtml(cardId)}</span>
-          </div>
+        <div class="photo-container">
+           <div class="photo-box">
+             ${photoHtml}
+           </div>
+           <div class="student-name-label">
+             ${escapeHtml(s.fullName || '—').toUpperCase()}
+           </div>
         </div>
-      </div>
-
-      <!-- BACK -->
-      <div class="id-card back">
-        <!-- Magnetic stripe -->
-        <div class="mag-stripe"></div>
-
-        <!-- School seal area -->
-        <div class="back-header">
-          <div class="back-seal">🏫</div>
-          <div>
-            <div class="back-school-name">${escapeHtml(schoolName)}</div>
-            <div class="back-school-addr">${escapeHtml(schoolAddr)}</div>
-          </div>
-        </div>
-
-        <!-- Contact -->
-        <div class="back-contacts">
-          <div class="back-contact-row">📞 ${escapeHtml(schoolPhone)}</div>
-          <div class="back-contact-row">✉️ ${escapeHtml(schoolEmail)}</div>
-        </div>
-
-        <!-- Emergency -->
-        <div class="back-info-section">
-          <div class="back-section-title">EMERGENCY CONTACT</div>
-          <div class="back-field">
-            <span class="back-field-label">Name:</span>
-            <span class="back-field-val">${escapeHtml(s.parentName || '—')}</span>
-          </div>
-          <div class="back-field">
-            <span class="back-field-label">Phone:</span>
-            <span class="back-field-val">${escapeHtml(s.phone || '—')}</span>
-          </div>
-          <div class="back-field">
-            <span class="back-field-label">Address:</span>
-            <span class="back-field-val">${escapeHtml((s.address || '—').slice(0,40))}${(s.address||'').length>40?'…':''}</span>
-          </div>
-        </div>
-
-        <!-- Signature -->
-        <div class="signature-row">
-          <div class="sig-box">
-            <div class="sig-line"></div>
-            <div class="sig-label">Student Signature</div>
-          </div>
-          <div class="sig-box">
-            <div class="sig-line"></div>
-            <div class="sig-label">Principal</div>
-          </div>
-        </div>
-
-        <!-- Footer note -->
-        <div class="back-footer">
-          If found, please return to: ${escapeHtml(schoolName)}, ${escapeHtml(schoolAddr)}
+        <div class="details-grid">
+           <table class="d-table">
+             <tr><td class="lbl">Adm. No</td><td class="sep">:</td><td class="val">${escapeHtml(cardId)}</td></tr>
+             <tr><td class="lbl">Class</td><td class="sep">:</td><td class="val">${escapeHtml(s.className || '—')} &nbsp;&nbsp;&nbsp; <b>Roll:</b> ${escapeHtml(s.rollNo || '—')}</td></tr>
+             <tr><td class="lbl">D.O.B</td><td class="sep">:</td><td class="val">${escapeHtml(s.dob || '—')}</td></tr>
+             <tr><td class="lbl">Father</td><td class="sep">:</td><td class="val">${parentName}</td></tr>
+             <tr><td class="lbl">Mother</td><td class="sep">:</td><td class="val">${escapeHtml(s.motherName || '—')}</td></tr>
+             <tr><td class="lbl" style="vertical-align:top;">Address</td><td class="sep" style="vertical-align:top;">:</td><td class="val" style="line-height:1.15;">${escapeHtml(s.address || '—')}</td></tr>
+             <tr><td class="lbl">Phone</td><td class="sep">:</td><td class="val">${escapeHtml(s.phone || '—')}</td></tr>
+           </table>
         </div>
       </div>
     </div>`;
   }).join('');
 
-  // CSS injected into the print page
   const css = `
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap');
-
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap');
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-    body{
-      font-family:'Plus Jakarta Sans',sans-serif;
-      background:#e8edf5;
-      padding:40px 24px;
-      color:#0f172a;
-    }
-    h1.page-title{
-      text-align:center;font-size:1.6rem;font-weight:900;
-      color:#1e3a8a;letter-spacing:-0.02em;margin-bottom:4px;
-    }
-    p.page-sub{
-      text-align:center;color:#64748b;font-size:0.85rem;
-      margin-bottom:36px;
-    }
 
-    /* Card grid */
-    .cards-grid{
-      display:flex;flex-wrap:wrap;gap:32px;justify-content:center;
-    }
+    /* ============ 20 COLOR PALETTES ============ */
+    .clr-1  { --c-bg:#fff; --c-bord:#0ea5e9; --t-bg:#1e3a8a; --t-color:#dbeafe; --t-bord:#0284c7; --t-title:#fff; --lbl-col:#1e40af; --val-col:#000; --name-col:#1e3a8a; }
+    .clr-2  { --c-bg:#fff; --c-bord:#065f46; --t-bg:#064e3b; --t-color:#fef3c7; --t-bord:#d97706; --t-title:#fcd34d; --lbl-col:#064e3b; --val-col:#111; --name-col:#065f46; }
+    .clr-3  { --c-bg:#fdf2f8; --c-bord:#be185d; --t-bg:#be185d; --t-color:#fff; --t-bord:#831843; --t-title:#fff; --lbl-col:#9d174d; --val-col:#111; --name-col:#9d174d; }
+    .clr-4  { --c-bg:#1e293b; --c-bord:#475569; --t-bg:#0f172a; --t-color:#cbd5e1; --t-bord:#334155; --t-title:#38bdf8; --lbl-col:#94a3b8; --val-col:#f8fafc; --name-col:#38bdf8; }
+    .clr-5  { --c-bg:#f5f3ff; --c-bord:#7c3aed; --t-bg:linear-gradient(135deg,#7c3aed,#4c1d95); --t-color:#ede9fe; --t-bord:#4c1d95; --t-title:#fff; --lbl-col:#5b21b6; --val-col:#111; --name-col:#6d28d9; }
+    .clr-6  { --c-bg:#fff; --c-bord:#f97316; --t-bg:#334155; --t-color:#f8fafc; --t-bord:#ea580c; --t-title:#fdba74; --lbl-col:#475569; --val-col:#0f172a; --name-col:#ea580c; }
+    .clr-7  { --c-bg:#fffbeb; --c-bord:#f59e0b; --t-bg:linear-gradient(135deg,#ea580c,#f59e0b); --t-color:#fff; --t-bord:#b45309; --t-title:#fff; --lbl-col:#b45309; --val-col:#451a03; --name-col:#d97706; }
+    .clr-8  { --c-bg:#f0fdfa; --c-bord:#0d9488; --t-bg:#115e59; --t-color:#ccfbf1; --t-bord:#0f766e; --t-title:#5eead4; --lbl-col:#0f766e; --val-col:#134e4a; --name-col:#0d9488; }
+    .clr-9  { --c-bg:#fef2f2; --c-bord:#dc2626; --t-bg:#991b1b; --t-color:#fef2f2; --t-bord:#7f1d1d; --t-title:#fca5a5; --lbl-col:#991b1b; --val-col:#1c1917; --name-col:#dc2626; }
+    .clr-10 { --c-bg:#fff; --c-bord:#2563eb; --t-bg:linear-gradient(135deg,#1e40af,#3b82f6); --t-color:#dbeafe; --t-bord:#1e3a8a; --t-title:#fff; --lbl-col:#1e40af; --val-col:#0f172a; --name-col:#2563eb; }
+    .clr-11 { --c-bg:#faf5ff; --c-bord:#9333ea; --t-bg:linear-gradient(135deg,#7e22ce,#a855f7); --t-color:#f3e8ff; --t-bord:#6b21a8; --t-title:#fff; --lbl-col:#7e22ce; --val-col:#1c1917; --name-col:#9333ea; }
+    .clr-12 { --c-bg:#f0fdf4; --c-bord:#16a34a; --t-bg:#14532d; --t-color:#dcfce7; --t-bord:#166534; --t-title:#86efac; --lbl-col:#14532d; --val-col:#0f172a; --name-col:#16a34a; }
+    .clr-13 { --c-bg:#fffbeb; --c-bord:#ca8a04; --t-bg:linear-gradient(135deg,#78350f,#b45309); --t-color:#fef3c7; --t-bord:#92400e; --t-title:#fde68a; --lbl-col:#78350f; --val-col:#1c1917; --name-col:#b45309; }
+    .clr-14 { --c-bg:#0f172a; --c-bord:#6366f1; --t-bg:linear-gradient(135deg,#312e81,#4f46e5); --t-color:#c7d2fe; --t-bord:#3730a3; --t-title:#a5b4fc; --lbl-col:#818cf8; --val-col:#e2e8f0; --name-col:#a5b4fc; }
+    .clr-15 { --c-bg:#fff1f2; --c-bord:#e11d48; --t-bg:linear-gradient(135deg,#be123c,#f43f5e); --t-color:#fff; --t-bord:#9f1239; --t-title:#fff; --lbl-col:#be123c; --val-col:#1c1917; --name-col:#e11d48; }
+    .clr-16 { --c-bg:#ecfdf5; --c-bord:#059669; --t-bg:linear-gradient(135deg,#047857,#10b981); --t-color:#d1fae5; --t-bord:#065f46; --t-title:#fff; --lbl-col:#047857; --val-col:#0f172a; --name-col:#059669; }
+    .clr-17 { --c-bg:#fdf4ff; --c-bord:#c026d3; --t-bg:linear-gradient(135deg,#a21caf,#d946ef); --t-color:#fae8ff; --t-bord:#86198f; --t-title:#fff; --lbl-col:#a21caf; --val-col:#1c1917; --name-col:#c026d3; }
+    .clr-18 { --c-bg:#f8fafc; --c-bord:#334155; --t-bg:#0f172a; --t-color:#e2e8f0; --t-bord:#1e293b; --t-title:#f8fafc; --lbl-col:#64748b; --val-col:#0f172a; --name-col:#334155; }
+    .clr-19 { --c-bg:#fff7ed; --c-bord:#ea580c; --t-bg:linear-gradient(135deg,#c2410c,#ea580c); --t-color:#fff; --t-bord:#9a3412; --t-title:#fff; --lbl-col:#c2410c; --val-col:#1c1917; --name-col:#ea580c; }
+    .clr-20 { --c-bg:#f0f9ff; --c-bord:#0284c7; --t-bg:#0c4a6e; --t-color:#e0f2fe; --t-bord:#075985; --t-title:#7dd3fc; --lbl-col:#0369a1; --val-col:#0c4a6e; --name-col:#0284c7; }
 
-    /* Each front+back pair */
-    .id-card-wrap{
-      display:flex;flex-direction:column;gap:12px;align-items:center;
-      page-break-inside:avoid;break-inside:avoid;
-    }
+    /* ============ 108 DESIGN LAYOUTS ============ */
+    .dsg-1 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-1 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-1 .school-details{padding-left:46px;}
 
-    /* Card base — CR80 standard ratio 85.6×54mm */
-    .id-card{
-      width:340px;height:215px;
-      border-radius:16px;
-      overflow:hidden;
-      position:relative;
-      box-shadow:0 12px 40px rgba(0,0,0,0.22),0 0 0 1px rgba(0,0,0,0.06);
-      flex-shrink:0;
-    }
+    .dsg-2 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:36px;text-align:center;border:none;border-radius:0 0 50% 50%/0 0 100% 100%;box-shadow:0 4px 10px rgba(0,0,0,.15);}
+    .dsg-2 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-2 .school-details{padding-left:46px;}
+    .dsg-2 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-2 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
 
-    /* ─── FRONT ─── */
-    .front{color:#fff;}
+    .dsg-3 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 75%,0 100%);}
+    .dsg-3 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-3 .school-details{padding-left:46px;}
+    .dsg-3 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
 
-    .card-header{
-      display:flex;align-items:center;gap:10px;
-      padding:10px 14px 9px;
-      background:rgba(0,0,0,0.28);
-      border-bottom:1px solid rgba(255,255,255,0.12);
-    }
-    .school-logo{font-size:1.5rem;flex-shrink:0;}
-    .school-info{flex:1;min-width:0;}
-    .school-name{
-      font-size:0.78rem;font-weight:800;letter-spacing:0.01em;
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    }
-    .card-subtitle{
-      font-size:0.52rem;letter-spacing:0.14em;
-      text-transform:uppercase;opacity:0.65;margin-top:1px;
-    }
-    .card-id-badge{
-      background:rgba(255,255,255,0.18);
-      padding:3px 8px;border-radius:6px;
-      font-size:0.58rem;font-weight:700;letter-spacing:0.04em;
-      white-space:nowrap;border:1px solid rgba(255,255,255,0.15);
-    }
+    .dsg-4 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 100%,0 75%);}
+    .dsg-4 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-4 .school-details{padding-left:46px;}
+    .dsg-4 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
 
-    .card-body{
-      display:flex;gap:14px;padding:12px 14px 10px;align-items:flex-start;flex:1;
-    }
+    .dsg-5 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 80%,50% 100%,0 80%);}
+    .dsg-5 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-5 .school-details{padding-left:46px;}
+    .dsg-5 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
 
-    /* Photo */
-    .photo-frame{
-      width:76px;height:90px;
-      border-radius:10px;
-      overflow:hidden;
-      flex-shrink:0;
-      border:2.5px solid rgba(255,255,255,0.35);
-      box-shadow:0 4px 14px rgba(0,0,0,0.3);
-      background:rgba(255,255,255,0.08);
-    }
+    .dsg-6 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:28px;text-align:center;border:none;border-radius:0 0 40% 60%/0 0 80% 60%;}
+    .dsg-6 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-6 .school-details{padding-left:46px;}
+    .dsg-6 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
 
-    /* Info */
-    .card-info{flex:1;min-width:0;}
-    .student-name{
-      font-size:0.95rem;font-weight:800;line-height:1.15;
-      margin-bottom:5px;
-      text-shadow:0 1px 4px rgba(0,0,0,0.3);
-    }
-    .class-badge{
-      display:inline-block;
-      padding:2px 10px;border-radius:20px;
-      font-size:0.62rem;font-weight:700;letter-spacing:0.06em;
-      text-transform:uppercase;
-      color:#fff;
-      margin-bottom:8px;
-      box-shadow:0 2px 8px rgba(0,0,0,0.2);
-    }
-    .info-grid{display:flex;flex-direction:column;gap:3px;}
-    .info-row{display:flex;align-items:baseline;gap:0;}
-    .info-label{
-      font-size:0.6rem;font-weight:600;
-      text-transform:uppercase;letter-spacing:0.06em;
-      opacity:0.55;min-width:46px;flex-shrink:0;
-    }
-    .info-val{font-size:0.68rem;font-weight:600;}
+    .dsg-7 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:28px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 85%,85% 100%,15% 100%,0 85%);}
+    .dsg-7 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-7 .school-details{padding-left:46px;}
+    .dsg-7 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
 
-    /* Footer */
-    .card-footer{
-      padding:6px 14px;
-      background:rgba(0,0,0,0.3);
-      display:flex;align-items:center;justify-content:space-between;
-      border-top:1px solid rgba(255,255,255,0.08);
-    }
-    .validity{font-size:0.58rem;opacity:0.6;font-weight:600;letter-spacing:0.04em;}
+    .dsg-8 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 70%,50% 100%,0 70%);}
+    .dsg-8 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-8 .school-details{padding-left:46px;}
+    .dsg-8 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
 
-    /* Barcode strip */
-    .barcode-strip{
-      display:flex;align-items:flex-end;gap:2px;height:24px;
-      position:relative;
-    }
-    .bar{height:18px;width:2px;background:rgba(255,255,255,0.55);border-radius:1px;}
-    .bar.w2{width:3px;}
-    .bar.w3{width:4px;}
-    .bar-text{
-      font-size:0.46rem;font-weight:700;letter-spacing:0.08em;
-      opacity:0.5;margin-left:4px;align-self:flex-end;
-    }
+    .dsg-9 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:28px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 80%,70% 80%,70% 100%,30% 100%,30% 80%,0 80%);}
+    .dsg-9 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-9 .school-details{padding-left:46px;}
+    .dsg-9 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
 
-    /* ─── BACK ─── */
-    .back{
-      background:linear-gradient(160deg,#f8faff 0%,#fff 50%,#f1f5ff 100%);
-      color:#0f172a;
-      display:flex;flex-direction:column;
-    }
-    .mag-stripe{
-      height:36px;width:100%;
-      background:linear-gradient(180deg,#1e293b,#334155,#1e293b);
-      flex-shrink:0;
-    }
-    .back-header{
-      display:flex;align-items:center;gap:10px;
-      padding:10px 14px 8px;
-      border-bottom:1px solid #e2e8f0;
-    }
-    .back-seal{
-      width:36px;height:36px;
-      border-radius:50%;
-      background:linear-gradient(135deg,#1e3a8a,#3b82f6);
-      display:flex;align-items:center;justify-content:center;
-      font-size:1rem;flex-shrink:0;
-      box-shadow:0 2px 8px rgba(37,99,235,0.35);
-    }
-    .back-school-name{font-size:0.72rem;font-weight:800;color:#1e3a8a;}
-    .back-school-addr{font-size:0.58rem;color:#64748b;margin-top:1px;}
+    .dsg-10 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:8px 6px;text-align:center;border-bottom:5px solid var(--t-bord);}
+    .dsg-10 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-10 .school-details{padding-left:46px;}
 
-    .back-contacts{
-      padding:5px 14px;
-      display:flex;gap:12px;
-      border-bottom:1px solid #f1f5f9;
-    }
-    .back-contact-row{font-size:0.58rem;color:#475569;font-weight:500;}
+    .dsg-11 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:20px;text-align:center;border:none;border-radius:0 0 20px 20px;box-shadow:0 3px 8px rgba(0,0,0,.1);}
+    .dsg-11 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-11 .school-details{padding-left:46px;}
 
-    .back-info-section{padding:6px 14px 4px;}
-    .back-section-title{
-      font-size:0.5rem;font-weight:800;letter-spacing:0.12em;
-      text-transform:uppercase;color:#94a3b8;margin-bottom:4px;
-    }
-    .back-field{display:flex;gap:4px;align-items:baseline;margin-bottom:2px;}
-    .back-field-label{
-      font-size:0.58rem;font-weight:700;color:#64748b;
-      min-width:46px;flex-shrink:0;
-    }
-    .back-field-val{font-size:0.62rem;color:#0f172a;font-weight:500;}
+    .dsg-12 .top-header{background:var(--c-bg);color:var(--lbl-col);position:relative;padding:6px;text-align:center;border-bottom:1px dashed var(--c-bord);}
+    .dsg-12 .logo-box{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:44px;height:32px;background:transparent;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;box-shadow:none;} 
+    .dsg-12 .school-details{padding-left:0;padding-top:36px;}
+    .dsg-12 .s-title{color:var(--name-col);}
+    .dsg-12 .s-addr,.dsg-12 .s-phone{color:var(--lbl-col);}
 
-    .signature-row{
-      margin:6px 14px 0;
-      display:flex;gap:16px;
-    }
-    .sig-box{flex:1;}
-    .sig-line{
-      height:1px;background:#cbd5e1;
-      margin-bottom:3px;
-    }
-    .sig-label{font-size:0.5rem;color:#94a3b8;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;}
+    .dsg-13 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:26px;text-align:center;border:none;clip-path:polygon(5% 0,95% 0,100% 100%,0 100%);}
+    .dsg-13 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-13 .school-details{padding-left:46px;}
+    .dsg-13 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
 
-    .back-footer{
-      margin-top:auto;padding:5px 14px;
-      font-size:0.5rem;color:#94a3b8;
-      border-top:1px solid #f1f5f9;
-      line-height:1.4;
-    }
+    .dsg-14 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-14 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-14 .school-details{padding-left:46px;}
+    .dsg-14 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
 
-    /* ─── PRINT ─── */
-    @media print{
-      body{background:#fff;padding:10mm;}
-      .id-card{box-shadow:0 0 0 1px #cbd5e1;}
-      .cards-grid{gap:16px;}
-      .id-card-wrap{gap:8px;}
-      @page{margin:10mm;}
+    .dsg-15 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:36px;text-align:center;border:none;border-radius:0 0 50% 50%/0 0 100% 100%;box-shadow:0 4px 10px rgba(0,0,0,.15);}
+    .dsg-15 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-15 .school-details{padding-left:46px;}
+    .dsg-15 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-15 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-15 .student-name-label{background:var(--t-bg);color:var(--t-title)!important;padding:3px 12px!important;border-radius:4px;font-size:11px!important;}
+
+    .dsg-16 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 75%,0 100%);}
+    .dsg-16 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-16 .school-details{padding-left:46px;}
+    .dsg-16 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-16 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+
+    .dsg-17 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 100%,0 75%);}
+    .dsg-17 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-17 .school-details{padding-left:46px;}
+    .dsg-17 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-17 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+
+    .dsg-18 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 80%,50% 100%,0 80%);}
+    .dsg-18 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-18 .school-details{padding-left:46px;}
+    .dsg-18 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-18 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+
+    .dsg-19 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:28px;text-align:center;border:none;border-radius:0 0 40% 60%/0 0 80% 60%;}
+    .dsg-19 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-19 .school-details{padding-left:46px;}
+    .dsg-19 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-19 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+
+    .dsg-20 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:28px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 85%,85% 100%,15% 100%,0 85%);}
+    .dsg-20 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-20 .school-details{padding-left:46px;}
+    .dsg-20 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-20 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+
+    .dsg-21 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 70%,50% 100%,0 70%);}
+    .dsg-21 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-21 .school-details{padding-left:46px;}
+    .dsg-21 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-21 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+
+    .dsg-22 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:28px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 80%,70% 80%,70% 100%,30% 100%,30% 80%,0 80%);}
+    .dsg-22 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-22 .school-details{padding-left:46px;}
+    .dsg-22 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-22 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+
+    .dsg-23 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:8px 6px;text-align:center;border-bottom:5px solid var(--t-bord);}
+    .dsg-23 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-23 .school-details{padding-left:46px;}
+    .dsg-23 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+
+    .dsg-24 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:20px;text-align:center;border:none;border-radius:0 0 20px 20px;box-shadow:0 3px 8px rgba(0,0,0,.1);}
+    .dsg-24 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-24 .school-details{padding-left:46px;}
+    .dsg-24 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+
+    .dsg-25 .top-header{background:var(--c-bg);color:var(--lbl-col);position:relative;padding:6px;text-align:center;border-bottom:1px dashed var(--c-bord);}
+    .dsg-25 .logo-box{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:44px;height:32px;background:transparent;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;box-shadow:none;} 
+    .dsg-25 .school-details{padding-left:0;padding-top:36px;}
+    .dsg-25 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-25 .s-title{color:var(--name-col);}
+    .dsg-25 .s-addr,.dsg-25 .s-phone{color:var(--lbl-col);}
+
+    .dsg-26 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:26px;text-align:center;border:none;clip-path:polygon(5% 0,95% 0,100% 100%,0 100%);}
+    .dsg-26 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-26 .school-details{padding-left:46px;}
+    .dsg-26 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-26 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+
+    .dsg-27 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-27 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-27 .school-details{padding-left:46px;}
+    .dsg-27 .photo-box{border-radius:12px!important;}
+
+    .dsg-28 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:36px;text-align:center;border:none;border-radius:0 0 50% 50%/0 0 100% 100%;box-shadow:0 4px 10px rgba(0,0,0,.15);}
+    .dsg-28 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-28 .school-details{padding-left:46px;}
+    .dsg-28 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-28 .photo-box{border-radius:12px!important;}
+
+    .dsg-29 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 75%,0 100%);}
+    .dsg-29 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-29 .school-details{padding-left:46px;}
+    .dsg-29 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-29 .photo-box{border-radius:12px!important;}
+
+    .dsg-30 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 100%,0 75%);}
+    .dsg-30 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-30 .school-details{padding-left:46px;}
+    .dsg-30 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-30 .photo-box{border-radius:12px!important;}
+
+    .dsg-31 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 80%,50% 100%,0 80%);}
+    .dsg-31 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-31 .school-details{padding-left:46px;}
+    .dsg-31 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-31 .photo-box{border-radius:12px!important;}
+
+    .dsg-32 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:28px;text-align:center;border:none;border-radius:0 0 40% 60%/0 0 80% 60%;}
+    .dsg-32 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-32 .school-details{padding-left:46px;}
+    .dsg-32 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-32 .photo-box{border-radius:12px!important;}
+
+    .dsg-33 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:28px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 85%,85% 100%,15% 100%,0 85%);}
+    .dsg-33 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-33 .school-details{padding-left:46px;}
+    .dsg-33 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-33 .photo-box{border-radius:12px!important;}
+
+    .dsg-34 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 70%,50% 100%,0 70%);}
+    .dsg-34 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-34 .school-details{padding-left:46px;}
+    .dsg-34 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-34 .photo-box{border-radius:12px!important;}
+
+    .dsg-35 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:28px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 80%,70% 80%,70% 100%,30% 100%,30% 80%,0 80%);}
+    .dsg-35 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-35 .school-details{padding-left:46px;}
+    .dsg-35 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-35 .photo-box{border-radius:12px!important;}
+
+    .dsg-36 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:8px 6px;text-align:center;border-bottom:5px solid var(--t-bord);}
+    .dsg-36 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-36 .school-details{padding-left:46px;}
+    .dsg-36 .photo-box{border-radius:12px!important;}
+
+    .dsg-37 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:20px;text-align:center;border:none;border-radius:0 0 20px 20px;box-shadow:0 3px 8px rgba(0,0,0,.1);}
+    .dsg-37 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-37 .school-details{padding-left:46px;}
+    .dsg-37 .photo-box{border-radius:12px!important;}
+
+    .dsg-38 .top-header{background:var(--c-bg);color:var(--lbl-col);position:relative;padding:6px;text-align:center;border-bottom:1px dashed var(--c-bord);}
+    .dsg-38 .logo-box{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:44px;height:32px;background:transparent;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;box-shadow:none;} 
+    .dsg-38 .school-details{padding-left:0;padding-top:36px;}
+    .dsg-38 .photo-box{border-radius:12px!important;}
+    .dsg-38 .s-title{color:var(--name-col);}
+    .dsg-38 .s-addr,.dsg-38 .s-phone{color:var(--lbl-col);}
+
+    .dsg-39 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:26px;text-align:center;border:none;clip-path:polygon(5% 0,95% 0,100% 100%,0 100%);}
+    .dsg-39 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-39 .school-details{padding-left:46px;}
+    .dsg-39 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-39 .photo-box{border-radius:12px!important;}
+
+    .dsg-40 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-40 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-40 .school-details{padding-left:46px;}
+    .dsg-40 .id-card{border:3px double var(--c-bord)!important;}
+
+    .dsg-41 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:36px;text-align:center;border:none;border-radius:0 0 50% 50%/0 0 100% 100%;box-shadow:0 4px 10px rgba(0,0,0,.15);}
+    .dsg-41 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-41 .school-details{padding-left:46px;}
+    .dsg-41 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-41 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-41 .id-card{border:3px double var(--c-bord)!important;}
+
+    .dsg-42 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 75%,0 100%);}
+    .dsg-42 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-42 .school-details{padding-left:46px;}
+    .dsg-42 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-42 .photo-box{border-radius:12px!important;}
+    .dsg-42 .id-card{border:3px double var(--c-bord)!important;}
+
+    .dsg-43 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-43 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-43 .school-details{padding-left:46px;}
+    .dsg-43 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-43 .id-card{border:3px double var(--c-bord)!important;}
+
+    .dsg-44 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 80%,50% 100%,0 80%);}
+    .dsg-44 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-44 .school-details{padding-left:46px;}
+    .dsg-44 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-44 .id-card{border:3px double var(--c-bord)!important;}
+
+    .dsg-45 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:28px;text-align:center;border:none;border-radius:0 0 40% 60%/0 0 80% 60%;}
+    .dsg-45 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-45 .school-details{padding-left:46px;}
+    .dsg-45 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-45 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-45 .id-card{border:3px double var(--c-bord)!important;}
+
+    .dsg-46 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:8px 6px;text-align:center;border-bottom:5px solid var(--t-bord);}
+    .dsg-46 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-46 .school-details{padding-left:46px;}
+    .dsg-46 .photo-box{border-radius:12px!important;}
+    .dsg-46 .id-card{border:3px double var(--c-bord)!important;}
+
+    .dsg-47 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:20px;text-align:center;border:none;border-radius:0 0 20px 20px;box-shadow:0 3px 8px rgba(0,0,0,.1);}
+    .dsg-47 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-47 .school-details{padding-left:46px;}
+    .dsg-47 .id-card{border:3px double var(--c-bord)!important;}
+
+    .dsg-48 .top-header{background:var(--c-bg);color:var(--lbl-col);position:relative;padding:6px;text-align:center;border-bottom:1px dashed var(--c-bord);}
+    .dsg-48 .logo-box{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:44px;height:32px;background:transparent;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;box-shadow:none;} 
+    .dsg-48 .school-details{padding-left:0;padding-top:36px;}
+    .dsg-48 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-48 .id-card{border:3px double var(--c-bord)!important;}
+    .dsg-48 .s-title{color:var(--name-col);}
+    .dsg-48 .s-addr,.dsg-48 .s-phone{color:var(--lbl-col);}
+
+    .dsg-49 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-49 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-49 .school-details{padding-left:46px;}
+    .dsg-49 .id-card{border:3px dashed var(--c-bord)!important;}
+
+    .dsg-50 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:36px;text-align:center;border:none;border-radius:0 0 50% 50%/0 0 100% 100%;box-shadow:0 4px 10px rgba(0,0,0,.15);}
+    .dsg-50 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-50 .school-details{padding-left:46px;}
+    .dsg-50 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-50 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-50 .id-card{border:3px dashed var(--c-bord)!important;}
+
+    .dsg-51 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-51 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-51 .school-details{padding-left:46px;}
+    .dsg-51 .photo-box{border-radius:12px!important;}
+    .dsg-51 .id-card{border:3px dashed var(--c-bord)!important;}
+
+    .dsg-52 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 100%,0 75%);}
+    .dsg-52 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-52 .school-details{padding-left:46px;}
+    .dsg-52 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-52 .id-card{border:3px dashed var(--c-bord)!important;}
+
+    .dsg-53 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:28px;text-align:center;border:none;border-radius:0 0 40% 60%/0 0 80% 60%;}
+    .dsg-53 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-53 .school-details{padding-left:46px;}
+    .dsg-53 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-53 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-53 .id-card{border:3px dashed var(--c-bord)!important;}
+
+    .dsg-54 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 70%,50% 100%,0 70%);}
+    .dsg-54 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-54 .school-details{padding-left:46px;}
+    .dsg-54 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-54 .photo-box{border-radius:12px!important;}
+    .dsg-54 .id-card{border:3px dashed var(--c-bord)!important;}
+
+    .dsg-55 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:8px 6px;text-align:center;border-bottom:5px solid var(--t-bord);}
+    .dsg-55 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-55 .school-details{padding-left:46px;}
+    .dsg-55 .id-card{border:3px dashed var(--c-bord)!important;}
+
+    .dsg-56 .top-header{background:var(--c-bg);color:var(--lbl-col);position:relative;padding:6px;text-align:center;border-bottom:1px dashed var(--c-bord);}
+    .dsg-56 .logo-box{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:44px;height:32px;background:transparent;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;box-shadow:none;} 
+    .dsg-56 .school-details{padding-left:0;padding-top:36px;}
+    .dsg-56 .id-card{border:3px dashed var(--c-bord)!important;}
+    .dsg-56 .s-title{color:var(--name-col);}
+    .dsg-56 .s-addr,.dsg-56 .s-phone{color:var(--lbl-col);}
+
+    .dsg-57 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-57 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-57 .school-details{padding-left:46px;}
+    .dsg-57 .id-card{border-left:12px solid var(--c-bord)!important;border-radius:0!important;}
+
+    .dsg-58 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-58 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-58 .school-details{padding-left:46px;}
+    .dsg-58 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-58 .id-card{border-left:12px solid var(--c-bord)!important;border-radius:0!important;}
+
+    .dsg-59 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-59 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-59 .school-details{padding-left:46px;}
+    .dsg-59 .photo-box{border-radius:12px!important;}
+    .dsg-59 .id-card{border-left:12px solid var(--c-bord)!important;border-radius:0!important;}
+
+    .dsg-60 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:8px 6px;text-align:center;border-bottom:5px solid var(--t-bord);}
+    .dsg-60 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-60 .school-details{padding-left:46px;}
+    .dsg-60 .id-card{border-left:12px solid var(--c-bord)!important;border-radius:0!important;}
+
+    .dsg-61 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:8px 6px;text-align:center;border-bottom:5px solid var(--t-bord);}
+    .dsg-61 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-61 .school-details{padding-left:46px;}
+    .dsg-61 .photo-box{border-radius:12px!important;}
+    .dsg-61 .id-card{border-left:12px solid var(--c-bord)!important;border-radius:0!important;}
+
+    .dsg-62 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-62 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-62 .school-details{padding-left:46px;}
+    .dsg-62 .id-card{border-left:12px solid var(--c-bord)!important;border-radius:0!important;}
+
+    .dsg-63 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-63 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-63 .school-details{padding-left:46px;}
+    .dsg-63 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-63 .id-card{border-left:12px solid var(--c-bord)!important;border-radius:0!important;}
+    .dsg-63 .student-name-label{background:var(--t-bg);color:var(--t-title)!important;padding:3px 12px!important;border-radius:4px;font-size:11px!important;}
+
+    .dsg-64 .top-header{background:var(--c-bg);color:var(--lbl-col);position:relative;padding:6px;text-align:center;border-bottom:1px dashed var(--c-bord);}
+    .dsg-64 .logo-box{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:44px;height:32px;background:transparent;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;box-shadow:none;} 
+    .dsg-64 .school-details{padding-left:0;padding-top:36px;}
+    .dsg-64 .id-card{border-left:12px solid var(--c-bord)!important;border-radius:0!important;}
+    .dsg-64 .s-title{color:var(--name-col);}
+    .dsg-64 .s-addr,.dsg-64 .s-phone{color:var(--lbl-col);}
+
+    .dsg-65 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-65 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-65 .school-details{padding-left:46px;}
+    .dsg-65 .id-card{border:1px solid #e2e8f0!important;border-top:6px solid var(--c-bord)!important;border-radius:0 0 12px 12px!important;}
+
+    .dsg-66 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-66 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-66 .school-details{padding-left:46px;}
+    .dsg-66 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-66 .id-card{border:1px solid #e2e8f0!important;border-top:6px solid var(--c-bord)!important;border-radius:0 0 12px 12px!important;}
+
+    .dsg-67 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-67 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-67 .school-details{padding-left:46px;}
+    .dsg-67 .photo-box{border-radius:12px!important;}
+    .dsg-67 .id-card{border:1px solid #e2e8f0!important;border-top:6px solid var(--c-bord)!important;border-radius:0 0 12px 12px!important;}
+
+    .dsg-68 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-68 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-68 .school-details{padding-left:46px;}
+    .dsg-68 .id-card{border:1px solid #e2e8f0!important;border-top:6px solid var(--c-bord)!important;border-radius:0 0 12px 12px!important;}
+
+    .dsg-69 .top-header{background:var(--c-bg);color:var(--lbl-col);position:relative;padding:6px;text-align:center;border-bottom:1px dashed var(--c-bord);}
+    .dsg-69 .logo-box{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:44px;height:32px;background:transparent;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;box-shadow:none;} 
+    .dsg-69 .school-details{padding-left:0;padding-top:36px;}
+    .dsg-69 .id-card{border:1px solid #e2e8f0!important;border-top:6px solid var(--c-bord)!important;border-radius:0 0 12px 12px!important;}
+    .dsg-69 .s-title{color:var(--name-col);}
+    .dsg-69 .s-addr,.dsg-69 .s-phone{color:var(--lbl-col);}
+
+    .dsg-70 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-70 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-70 .school-details{padding-left:46px;}
+    .dsg-70 .photo-box{box-shadow:0 6px 16px rgba(0,0,0,.18)!important;border-radius:8px!important;}
+    .dsg-70 .id-card{border:1px solid #e2e8f0!important;border-top:6px solid var(--c-bord)!important;border-radius:0 0 12px 12px!important;}
+
+    .dsg-71 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-71 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-71 .school-details{padding-left:46px;}
+    .dsg-71 .photo-box{border:3px double var(--c-bord)!important;}
+    .dsg-71 .id-card{border:1px solid #e2e8f0!important;border-top:6px solid var(--c-bord)!important;border-radius:0 0 12px 12px!important;}
+
+    .dsg-72 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-72 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-72 .school-details{padding-left:46px;}
+    .dsg-72 .id-card{border:1px solid #e2e8f0!important;border-top:6px solid var(--c-bord)!important;border-radius:0 0 12px 12px!important;}
+    .dsg-72 .student-name-label{background:var(--t-bg);color:var(--t-title)!important;padding:3px 12px!important;border-radius:4px;font-size:11px!important;}
+
+    .dsg-73 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-73 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-73 .school-details{padding-left:46px;}
+    .dsg-73 .id-card{border:1px solid #e2e8f0!important;border-bottom:6px solid var(--c-bord)!important;border-radius:12px 12px 0 0!important;}
+
+    .dsg-74 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-74 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-74 .school-details{padding-left:46px;}
+    .dsg-74 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-74 .id-card{border:1px solid #e2e8f0!important;border-bottom:6px solid var(--c-bord)!important;border-radius:12px 12px 0 0!important;}
+
+    .dsg-75 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-75 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-75 .school-details{padding-left:46px;}
+    .dsg-75 .photo-box{border-radius:12px!important;}
+    .dsg-75 .id-card{border:1px solid #e2e8f0!important;border-bottom:6px solid var(--c-bord)!important;border-radius:12px 12px 0 0!important;}
+
+    .dsg-76 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-76 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-76 .school-details{padding-left:46px;}
+    .dsg-76 .id-card{border:1px solid #e2e8f0!important;border-bottom:6px solid var(--c-bord)!important;border-radius:12px 12px 0 0!important;}
+
+    .dsg-77 .top-header{background:var(--c-bg);color:var(--lbl-col);position:relative;padding:6px;text-align:center;border-bottom:1px dashed var(--c-bord);}
+    .dsg-77 .logo-box{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:44px;height:32px;background:transparent;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;box-shadow:none;} 
+    .dsg-77 .school-details{padding-left:0;padding-top:36px;}
+    .dsg-77 .id-card{border:1px solid #e2e8f0!important;border-bottom:6px solid var(--c-bord)!important;border-radius:12px 12px 0 0!important;}
+    .dsg-77 .s-title{color:var(--name-col);}
+    .dsg-77 .s-addr,.dsg-77 .s-phone{color:var(--lbl-col);}
+
+    .dsg-78 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-78 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-78 .school-details{padding-left:46px;}
+    .dsg-78 .photo-box{box-shadow:0 6px 16px rgba(0,0,0,.18)!important;border-radius:8px!important;}
+    .dsg-78 .id-card{border:1px solid #e2e8f0!important;border-bottom:6px solid var(--c-bord)!important;border-radius:12px 12px 0 0!important;}
+
+    .dsg-79 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-79 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-79 .school-details{padding-left:46px;}
+    .dsg-79 .id-card{border-radius:0!important;}
+
+    .dsg-80 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:8px 6px;text-align:center;border-bottom:5px solid var(--t-bord);}
+    .dsg-80 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-80 .school-details{padding-left:46px;}
+    .dsg-80 .id-card{border-radius:0!important;}
+
+    .dsg-81 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-81 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-81 .school-details{padding-left:46px;}
+    .dsg-81 .photo-box{transform:rotate(3deg);box-shadow:-2px 2px 0 var(--c-bord);}
+    .dsg-81 .id-card{border-radius:0!important;}
+
+    .dsg-82 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-82 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-82 .school-details{padding-left:46px;}
+    .dsg-82 .photo-box{transform:rotate(-3deg);box-shadow:2px 2px 0 var(--c-bord);}
+    .dsg-82 .id-card{border-radius:0!important;}
+
+    .dsg-83 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 75%,0 100%);}
+    .dsg-83 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-83 .school-details{padding-left:46px;}
+    .dsg-83 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-83 .id-card{border-radius:0!important;}
+
+    .dsg-84 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:30px;text-align:center;border:none;clip-path:polygon(0 0,100% 0,100% 100%,0 75%);}
+    .dsg-84 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-84 .school-details{padding-left:46px;}
+    .dsg-84 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-84 .id-card{border-radius:0!important;}
+
+    .dsg-85 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-85 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-85 .school-details{padding-left:46px;}
+    .dsg-85 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-85 .id-card{border-radius:24px!important;}
+
+    .dsg-86 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-86 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-86 .school-details{padding-left:46px;}
+    .dsg-86 .photo-box{border-radius:12px!important;}
+    .dsg-86 .id-card{border-radius:24px!important;}
+
+    .dsg-87 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-87 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-87 .school-details{padding-left:46px;}
+    .dsg-87 .id-card{border-radius:24px!important;}
+
+    .dsg-88 .top-header{background:var(--c-bg);color:var(--lbl-col);position:relative;padding:6px;text-align:center;border-bottom:1px dashed var(--c-bord);}
+    .dsg-88 .logo-box{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:44px;height:32px;background:transparent;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;box-shadow:none;} 
+    .dsg-88 .school-details{padding-left:0;padding-top:36px;}
+    .dsg-88 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-88 .id-card{border-radius:24px!important;}
+    .dsg-88 .s-title{color:var(--name-col);}
+    .dsg-88 .s-addr,.dsg-88 .s-phone{color:var(--lbl-col);}
+
+    .dsg-89 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-89 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-89 .school-details{padding-left:46px;}
+    .dsg-89 .id-card{border:2px solid var(--c-bord)!important;outline:2px solid var(--c-bord);outline-offset:3px;}
+
+    .dsg-90 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-90 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-90 .school-details{padding-left:46px;}
+    .dsg-90 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-90 .id-card{border:2px solid var(--c-bord)!important;outline:2px solid var(--c-bord);outline-offset:3px;}
+
+    .dsg-91 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-91 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-91 .school-details{padding-left:46px;}
+    .dsg-91 .photo-box{border-radius:12px!important;}
+    .dsg-91 .id-card{border:2px solid var(--c-bord)!important;outline:2px solid var(--c-bord);outline-offset:3px;}
+
+    .dsg-92 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:8px 6px;text-align:center;border-bottom:5px solid var(--t-bord);}
+    .dsg-92 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-92 .school-details{padding-left:46px;}
+    .dsg-92 .id-card{border:2px solid var(--c-bord)!important;outline:2px solid var(--c-bord);outline-offset:3px;}
+
+    .dsg-93 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-93 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-93 .school-details{padding-left:46px;}
+    .dsg-93 .id-card{border:2px solid var(--c-bord)!important;outline:2px solid var(--c-bord);outline-offset:3px;}
+
+    .dsg-94 .top-header{background:var(--c-bg);color:var(--lbl-col);position:relative;padding:6px;text-align:center;border-bottom:1px dashed var(--c-bord);}
+    .dsg-94 .logo-box{position:absolute;top:6px;left:50%;transform:translateX(-50%);width:44px;height:32px;background:transparent;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;box-shadow:none;} 
+    .dsg-94 .school-details{padding-left:0;padding-top:36px;}
+    .dsg-94 .id-card{border:2px solid var(--c-bord)!important;outline:2px solid var(--c-bord);outline-offset:3px;}
+    .dsg-94 .s-title{color:var(--name-col);}
+    .dsg-94 .s-addr,.dsg-94 .s-phone{color:var(--lbl-col);}
+
+    .dsg-95 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-95 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-95 .school-details{padding-left:46px;}
+    .dsg-95 .id-card{border:4px ridge var(--c-bord)!important;}
+
+    .dsg-96 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-96 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-96 .school-details{padding-left:46px;}
+    .dsg-96 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-96 .id-card{border:4px ridge var(--c-bord)!important;}
+
+    .dsg-97 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-97 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-97 .school-details{padding-left:46px;}
+    .dsg-97 .id-card{border:4px groove var(--c-bord)!important;}
+
+    .dsg-98 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-98 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-98 .school-details{padding-left:46px;}
+    .dsg-98 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-98 .id-card{border:4px groove var(--c-bord)!important;}
+
+    .dsg-99 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-99 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-99 .school-details{padding-left:46px;}
+    .dsg-99 .id-card{border-left:8px solid var(--c-bord)!important;border-right:8px solid var(--c-bord)!important;border-top:1px solid #e2e8f0!important;border-bottom:1px solid #e2e8f0!important;border-radius:0!important;}
+
+    .dsg-100 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-100 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-100 .school-details{padding-left:46px;}
+    .dsg-100 .photo-box{border-radius:50%!important;width:75px!important;height:75px!important;overflow:hidden;}
+    .dsg-100 .id-card{border-left:8px solid var(--c-bord)!important;border-right:8px solid var(--c-bord)!important;border-top:1px solid #e2e8f0!important;border-bottom:1px solid #e2e8f0!important;border-radius:0!important;}
+
+    .dsg-101 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-101 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-101 .school-details{padding-left:46px;}
+    .dsg-101 .photo-box{border-radius:12px!important;}
+    .dsg-101 .id-card{border-left:8px solid var(--c-bord)!important;border-right:8px solid var(--c-bord)!important;border-top:1px solid #e2e8f0!important;border-bottom:1px solid #e2e8f0!important;border-radius:0!important;}
+
+    .dsg-102 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:8px 6px;text-align:center;border-bottom:5px solid var(--t-bord);}
+    .dsg-102 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-102 .school-details{padding-left:46px;}
+    .dsg-102 .id-card{border-left:8px solid var(--c-bord)!important;border-right:8px solid var(--c-bord)!important;border-top:1px solid #e2e8f0!important;border-bottom:1px solid #e2e8f0!important;border-radius:0!important;}
+
+    .dsg-103 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-103 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-103 .school-details{padding-left:46px;}
+    .dsg-103 .id-card{border-left:8px solid var(--c-bord)!important;border-right:8px solid var(--c-bord)!important;border-top:1px solid #e2e8f0!important;border-bottom:1px solid #e2e8f0!important;border-radius:0!important;}
+
+    .dsg-104 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-104 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-104 .school-details{padding-left:46px;}
+    .dsg-104 .photo-box{transform:rotate(3deg);box-shadow:-2px 2px 0 var(--c-bord);}
+    .dsg-104 .id-card{border-left:8px solid var(--c-bord)!important;border-right:8px solid var(--c-bord)!important;border-top:1px solid #e2e8f0!important;border-bottom:1px solid #e2e8f0!important;border-radius:0!important;}
+
+    .dsg-105 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-105 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-105 .school-details{padding-left:46px;}
+    .dsg-105 .photo-box{clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);width:80px!important;height:80px!important;border:none!important;}
+
+    .dsg-106 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:36px;text-align:center;border:none;border-radius:0 0 50% 50%/0 0 100% 100%;box-shadow:0 4px 10px rgba(0,0,0,.15);}
+    .dsg-106 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-106 .school-details{padding-left:46px;}
+    .dsg-106 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-106 .photo-box{clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);width:80px!important;height:80px!important;border:none!important;}
+
+    .dsg-107 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;text-align:center;border-bottom:3px solid var(--t-bord);}
+    .dsg-107 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-107 .school-details{padding-left:46px;}
+    .dsg-107 .photo-box{clip-path:polygon(30% 0%,70% 0%,100% 30%,100% 70%,70% 100%,30% 100%,0% 70%,0% 30%);width:78px!important;height:78px!important;border:none!important;}
+
+    .dsg-108 .top-header{background:var(--t-bg);color:var(--t-color);position:relative;padding:6px;padding-bottom:36px;text-align:center;border:none;border-radius:0 0 50% 50%/0 0 100% 100%;box-shadow:0 4px 10px rgba(0,0,0,.15);}
+    .dsg-108 .logo-box{position:absolute;top:6px;left:6px;width:48px;height:36px;background:#fff;border-radius:6px;padding:2px;display:flex;align-items:center;justify-content:center;} 
+    .dsg-108 .school-details{padding-left:46px;}
+    .dsg-108 .photo-container{margin-top:-28px!important;position:relative;z-index:10;}
+    .dsg-108 .photo-box{clip-path:polygon(30% 0%,70% 0%,100% 30%,100% 70%,70% 100%,30% 100%,0% 70%,0% 30%);width:78px!important;height:78px!important;border:none!important;}
+
+    /* ============ BASE CARD STYLES ============ */
+    body { font-family: 'Roboto', sans-serif; background: #e8edf5; padding: 40px 24px; color: #000; }
+    .cards-grid { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+    .id-card-wrap { display: flex; page-break-inside: avoid; break-inside: avoid; }
+    .id-card { width: 240px; height: 380px; background: var(--c-bg); border: 4px solid var(--c-bord); border-radius: 12px; position: relative; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.15); flex-shrink: 0; transition: all 0.3s; }
+    .s-title { font-size: 13.5px; font-weight: 900; color: var(--t-title); letter-spacing: 0.3px; line-height: 1.1; margin-bottom: 2px; }
+    .s-addr { font-size: 8.5px; font-weight: 700; color: var(--t-color); opacity: 0.9; line-height: 1.1; }
+    .s-phone { font-size: 9.5px; font-weight: 900; color: var(--t-color); margin-top: 2px; }
+    .photo-container { display: flex; flex-direction: column; align-items: center; margin-top: 6px; }
+    .photo-box { width: 75px; height: 90px; border: 3px solid var(--c-bord); padding: 2px; background: #fff; }
+    .student-name-label { margin-top: 5px; font-size: 14px; font-weight: 900; color: var(--name-col); letter-spacing: 0.3px; text-align: center; padding: 0 10px; }
+    .details-grid { padding: 0 16px; margin-top: 6px; }
+    .d-table { width: 100%; border-collapse: collapse; font-size: 11px; font-weight: 700; color: #000; }
+    .d-table td { padding: 1px 0; }
+    .d-table td.lbl { width: 55px; color: var(--lbl-col); vertical-align: top; font-weight: 800; }
+    .d-table td.sep { width: 10px; text-align: center; vertical-align: top; color: var(--lbl-col); }
+    .d-table td.val { color: var(--val-col); vertical-align: top; line-height: 1.2; word-break: break-word; }
+
+    @media print {
+      body { background: transparent; padding: 0mm; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      .id-card { box-shadow: none; }
+      .cards-grid { gap: 8px; zoom: 0.90; }
+      .id-card-wrap { gap: 0; }
+      @page { margin: 6mm; }
     }
   `;
 
   const printBarCss = `
-    .print-bar{
-      position:sticky;top:0;z-index:999;
-      background:rgba(30,58,138,0.95);
-      backdrop-filter:blur(8px);
-      padding:10px 32px;
-      display:flex;align-items:center;justify-content:space-between;
-      box-shadow:0 2px 12px rgba(0,0,0,0.15);
-      margin:-40px -24px 32px;
-    }
-    .print-bar-title{color:#fff;font-weight:700;font-size:0.95rem;}
-    .print-bar-sub{color:rgba(255,255,255,0.6);font-size:0.75rem;margin-top:1px;}
-    .print-btn{
-      background:linear-gradient(135deg,#3b82f6,#1d4ed8);
-      color:#fff;border:none;
-      padding:9px 22px;border-radius:10px;
-      font-weight:700;font-size:0.85rem;cursor:pointer;
-      box-shadow:0 3px 12px rgba(59,130,246,0.4);
-      transition:transform 0.15s,box-shadow 0.15s;
-    }
-    .print-btn:hover{transform:translateY(-2px);box-shadow:0 5px 18px rgba(59,130,246,0.5);}
-    @media print{.print-bar{display:none;}}
+    .print-bar { position: sticky; top: 0; z-index: 999; background: rgba(30,58,138,0.95); backdrop-filter: blur(8px); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; color: #fff; margin: -40px -24px 32px; flex-wrap: wrap; gap: 8px; }
+    .print-btn { background: #10b981; color: #fff; border: none; padding: 9px 22px; border-radius: 10px; font-weight: 700; cursor: pointer; }
+    .ctrl-select { background: #fff; color: #1e3a8a; border: none; padding: 5px 8px; border-radius: 6px; font-weight: 600; outline: none; cursor: pointer; font-size: 0.8rem; max-width: 220px; }
+    .ctrl-label { font-weight: 600; font-size: 0.8rem; margin-left: 10px; }
+    @media print { .print-bar { display: none; } }
   `;
 
   return `<!DOCTYPE html><html><head>
     <meta charset="UTF-8"/>
     <title>Student ID Cards — ${schoolName}</title>
     <style>${css}${printBarCss}</style>
-  </head><body>
+  </head><body id="printBody" class="dsg-1 clr-1">
     <div class="print-bar">
-      <div>
-        <div class="print-bar-title">🏫 ${schoolName} — Student ID Cards</div>
-        <div class="print-bar-sub">Session ${session} · ${students.length} card${students.length!==1?'s':''} · Ready to print</div>
+      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
+        <span style="font-size:1rem; margin-right:10px;"><b>🏫 ${schoolName}</b></span>
+
+        <label class="ctrl-label">📐 Design:</label>
+        <select id="designSelect" class="ctrl-select" onchange="applyTheme()">
+          <option value="dsg-1">1. Flat • Square</option>
+          <option value="dsg-2">2. Curve • Circle</option>
+          <option value="dsg-3">3. Diagonal→ • Square</option>
+          <option value="dsg-4">4. ←Diagonal • Square</option>
+          <option value="dsg-5">5. Chevron • Square</option>
+          <option value="dsg-6">6. Wave • Square</option>
+          <option value="dsg-7">7. Notch • Square</option>
+          <option value="dsg-8">8. Arrow • Square</option>
+          <option value="dsg-9">9. Step • Square</option>
+          <option value="dsg-10">10. Thick • Square</option>
+          <option value="dsg-11">11. Rounded • Square</option>
+          <option value="dsg-12">12. Minimal • Square • CtrLogo</option>
+          <option value="dsg-13">13. Trapez • Square</option>
+          <option value="dsg-14">14. Flat • Circle</option>
+          <option value="dsg-15">15. Curve • Circle</option>
+          <option value="dsg-16">16. Diagonal→ • Circle</option>
+          <option value="dsg-17">17. ←Diagonal • Circle</option>
+          <option value="dsg-18">18. Chevron • Circle</option>
+          <option value="dsg-19">19. Wave • Circle</option>
+          <option value="dsg-20">20. Notch • Circle</option>
+          <option value="dsg-21">21. Arrow • Circle</option>
+          <option value="dsg-22">22. Step • Circle</option>
+          <option value="dsg-23">23. Thick • Circle</option>
+          <option value="dsg-24">24. Rounded • Circle</option>
+          <option value="dsg-25">25. Minimal • Circle • CtrLogo</option>
+          <option value="dsg-26">26. Trapez • Circle</option>
+          <option value="dsg-27">27. Flat • Rounded</option>
+          <option value="dsg-28">28. Curve • Rounded</option>
+          <option value="dsg-29">29. Diagonal→ • Rounded</option>
+          <option value="dsg-30">30. ←Diagonal • Rounded</option>
+          <option value="dsg-31">31. Chevron • Rounded</option>
+          <option value="dsg-32">32. Wave • Rounded</option>
+          <option value="dsg-33">33. Notch • Rounded</option>
+          <option value="dsg-34">34. Arrow • Rounded</option>
+          <option value="dsg-35">35. Step • Rounded</option>
+          <option value="dsg-36">36. Thick • Rounded</option>
+          <option value="dsg-37">37. Rounded • Rounded</option>
+          <option value="dsg-38">38. Minimal • Rounded • CtrLogo</option>
+          <option value="dsg-39">39. Trapez • Rounded</option>
+          <option value="dsg-40">40. Flat • Square • DblBord</option>
+          <option value="dsg-41">41. Curve • Circle • DblBord</option>
+          <option value="dsg-42">42. Diagonal→ • Rounded • DblBord</option>
+          <option value="dsg-43">43. Flat • Circle • DblBord</option>
+          <option value="dsg-44">44. Chevron • Square • DblBord</option>
+          <option value="dsg-45">45. Wave • Circle • DblBord</option>
+          <option value="dsg-46">46. Thick • Rounded • DblBord</option>
+          <option value="dsg-47">47. Rounded • Square • DblBord</option>
+          <option value="dsg-48">48. Minimal • Circle • DblBord • CtrLogo</option>
+          <option value="dsg-49">49. Flat • Square • Dashed</option>
+          <option value="dsg-50">50. Curve • Circle • Dashed</option>
+          <option value="dsg-51">51. Flat • Rounded • Dashed</option>
+          <option value="dsg-52">52. ←Diagonal • Square • Dashed</option>
+          <option value="dsg-53">53. Wave • Circle • Dashed</option>
+          <option value="dsg-54">54. Arrow • Rounded • Dashed</option>
+          <option value="dsg-55">55. Thick • Square • Dashed</option>
+          <option value="dsg-56">56. Minimal • Square • Dashed • CtrLogo</option>
+          <option value="dsg-57">57. Flat • Square • LeftBar</option>
+          <option value="dsg-58">58. Flat • Circle • LeftBar</option>
+          <option value="dsg-59">59. Flat • Rounded • LeftBar</option>
+          <option value="dsg-60">60. Thick • Square • LeftBar</option>
+          <option value="dsg-61">61. Thick • Rounded • LeftBar</option>
+          <option value="dsg-62">62. Flat • Square • LeftBar</option>
+          <option value="dsg-63">63. Flat • Circle • LeftBar</option>
+          <option value="dsg-64">64. Minimal • Square • LeftBar • CtrLogo</option>
+          <option value="dsg-65">65. Flat • Square • TopBar</option>
+          <option value="dsg-66">66. Flat • Circle • TopBar</option>
+          <option value="dsg-67">67. Flat • Rounded • TopBar</option>
+          <option value="dsg-68">68. Flat • Square • TopBar</option>
+          <option value="dsg-69">69. Minimal • Square • TopBar • CtrLogo</option>
+          <option value="dsg-70">70. Flat • Shadow • TopBar</option>
+          <option value="dsg-71">71. Flat • Double • TopBar</option>
+          <option value="dsg-72">72. Flat • Square • TopBar</option>
+          <option value="dsg-73">73. Flat • Square • BotBar</option>
+          <option value="dsg-74">74. Flat • Circle • BotBar</option>
+          <option value="dsg-75">75. Flat • Rounded • BotBar</option>
+          <option value="dsg-76">76. Flat • Square • BotBar</option>
+          <option value="dsg-77">77. Minimal • Square • BotBar • CtrLogo</option>
+          <option value="dsg-78">78. Flat • Shadow • BotBar</option>
+          <option value="dsg-79">79. Flat • Square • Sharp</option>
+          <option value="dsg-80">80. Thick • Square • Sharp</option>
+          <option value="dsg-81">81. Flat • Tilt+ • Sharp</option>
+          <option value="dsg-82">82. Flat • Tilt- • Sharp</option>
+          <option value="dsg-83">83. Diagonal→ • Square • Sharp</option>
+          <option value="dsg-84">84. ←Diagonal • Square • Sharp</option>
+          <option value="dsg-85">85. Flat • Circle • Pill</option>
+          <option value="dsg-86">86. Flat • Rounded • Pill</option>
+          <option value="dsg-87">87. Flat • Square • Pill</option>
+          <option value="dsg-88">88. Minimal • Circle • Pill • CtrLogo</option>
+          <option value="dsg-89">89. Flat • Square • Outline</option>
+          <option value="dsg-90">90. Flat • Circle • Outline</option>
+          <option value="dsg-91">91. Flat • Rounded • Outline</option>
+          <option value="dsg-92">92. Thick • Square • Outline</option>
+          <option value="dsg-93">93. Flat • Square • Outline</option>
+          <option value="dsg-94">94. Minimal • Square • Outline • CtrLogo</option>
+          <option value="dsg-95">95. Flat • Square • Ridge</option>
+          <option value="dsg-96">96. Flat • Circle • Ridge</option>
+          <option value="dsg-97">97. Flat • Square • Groove</option>
+          <option value="dsg-98">98. Flat • Circle • Groove</option>
+          <option value="dsg-99">99. Flat • Square • SideBars</option>
+          <option value="dsg-100">100. Flat • Circle • SideBars</option>
+          <option value="dsg-101">101. Flat • Rounded • SideBars</option>
+          <option value="dsg-102">102. Thick • Square • SideBars</option>
+          <option value="dsg-103">103. Flat • Square • SideBars</option>
+          <option value="dsg-104">104. Flat • Tilt+ • SideBars</option>
+          <option value="dsg-105">105. Flat • Hexagon</option>
+          <option value="dsg-106">106. Curve • Hexagon</option>
+          <option value="dsg-107">107. Flat • Octagon</option>
+          <option value="dsg-108">108. Curve • Octagon</option>
+        </select>
+
+        <label class="ctrl-label">🎨 Color:</label>
+        <select id="colorSelect" class="ctrl-select" onchange="applyTheme()">
+          <option value="clr-1">Royal Blue</option>
+          <option value="clr-2">Emerald & Gold</option>
+          <option value="clr-3">Ruby Pink</option>
+          <option value="clr-4">Midnight Dark</option>
+          <option value="clr-5">Purple Gradient</option>
+          <option value="clr-6">Slate & Orange</option>
+          <option value="clr-7">Sunset Vibrant</option>
+          <option value="clr-8">Teal Glass</option>
+          <option value="clr-9">Crimson Red</option>
+          <option value="clr-10">Ocean Blue</option>
+          <option value="clr-11">Royal Purple</option>
+          <option value="clr-12">Forest Green</option>
+          <option value="clr-13">Amber Brown</option>
+          <option value="clr-14">Indigo Night</option>
+          <option value="clr-15">Rose Pink</option>
+          <option value="clr-16">Mint Emerald</option>
+          <option value="clr-17">Magenta Fuchsia</option>
+          <option value="clr-18">Classic Charcoal</option>
+          <option value="clr-19">Deep Orange</option>
+          <option value="clr-20">Sky Cyan</option>
+        </select>
       </div>
-      <button class="print-btn" onclick="window.print()">🖨&nbsp; Print ID Cards</button>
+      <button class="print-btn" onclick="window.print()">🖨 Print IDs</button>
     </div>
     <div class="cards-grid">${frontCards}</div>
-    <script>window.onload=()=>{setTimeout(()=>window.print(),1500);}<\/script>
+    <script>
+      function applyTheme() {
+        var d = document.getElementById('designSelect').value;
+        var c = document.getElementById('colorSelect').value;
+        document.getElementById('printBody').className = d + ' ' + c;
+        localStorage.setItem('idDesign', d);
+        localStorage.setItem('idColor', c);
+      }
+      var savedD = localStorage.getItem('idDesign');
+      var savedC = localStorage.getItem('idColor');
+      if(savedD) { document.getElementById('designSelect').value = savedD; }
+      if(savedC) { document.getElementById('colorSelect').value = savedC; }
+      if(savedD || savedC) { applyTheme(); }
+    <\/script>
   </body></html>`;
 }
+
+
 
 
 
@@ -3839,190 +5236,76 @@ window.addEventListener('load', () => {
 //  7. Smart cooldown — per-person, not global
 //  8. Descriptors are averaged when multiple enrollments exist
 // ================================================================
-
-const AI_FACE_VERSION = 2;
+// Using Human AI for face detection
+const AI_FACE_VERSION = 3;          // 3 = Human Engine (1024D embeddings)
 const MULTI_SAMPLE_COUNT = 3;       // captures averaged per enrollment
-const LIVENESS_MOTION_THRESHOLD = 8; // pixel diff required to confirm live face
-const QUALITY_MIN_BOX_SIZE = 60;    // px — reject tiny detected boxes
-const QUALITY_MIN_BRIGHTNESS = 35;  // 0-255 — reject too-dark frames
-const ENSEMBLE_EUCLIDEAN_WEIGHT = 0.35; // blend cosine (65%) + euclidean (35%)
 
 // State
 let aiEnrollBuffer = [];      // accumulates descriptors during multi-sample enrollment
-let aiEnrollTarget = null;    // { name, tag } during multi-sample mode
 let aiEnrolling = false;
-let aiLastFrame = null;       // ImageData for liveness delta
-let aiLivenessOk = false;
-let aiAdaptiveThreshold = {}; // per-name adaptive threshold adjustments
 let aiBBoxAnimFrame = null;   // requestAnimationFrame handle for overlay
 
-// ── Euclidean distance (normalised to 0-1 similarity) ──────────
-function euclideanSimilarity(a, b) {
-  let sum = 0;
-  for (let i = 0; i < a.length; i++) sum += (a[i] - b[i]) ** 2;
-  const dist = Math.sqrt(sum);
-  // face-api 128-d descriptors: max dist ≈ 1.2, map to 0-1
-  return Math.max(0, 1 - dist / 1.2);
-}
+// ── Real-time bounding box + name overlay on canvas ─────────────
+// For LOCAL camera only: uses rAF for video frame draw + throttled detection
+let bboxDetectBusy = false;
+let bboxLastDetections = [];
+let bboxDetectTimer = null;
 
-// ── Ensemble score (cosine + euclidean blend) ───────────────────
-function ensembleScore(a, b) {
-  const cos  = cosineSimilarity(a, b);
-  const euc  = euclideanSimilarity(a, b);
-  return cos * (1 - ENSEMBLE_EUCLIDEAN_WEIGHT) + euc * ENSEMBLE_EUCLIDEAN_WEIGHT;
-}
-
-// ── Average multiple descriptors ───────────────────────────────
-function averageDescriptors(descs) {
-  if (!descs || !descs.length) return null;
-  const len = descs[0].length;
-  const avg = new Array(len).fill(0);
-  descs.forEach(d => { for (let i = 0; i < len; i++) avg[i] += d[i]; });
-  for (let i = 0; i < len; i++) avg[i] /= descs.length;
-  return avg;
-}
-
-// ── Frame quality gate ──────────────────────────────────────────
-function checkFrameQuality(video) {
-  const c = document.createElement('canvas');
-  c.width = 80; c.height = 60;
-  const ctx = c.getContext('2d');
-  ctx.drawImage(video, 0, 0, 80, 60);
-  const data = ctx.getImageData(0, 0, 80, 60).data;
-  let brightness = 0;
-  for (let i = 0; i < data.length; i += 4)
-    brightness += (data[i] * 0.299 + data[i+1] * 0.587 + data[i+2] * 0.114);
-  brightness /= (data.length / 4);
-  return { brightness, ok: brightness >= QUALITY_MIN_BRIGHTNESS };
-}
-
-// ── Liveness check (motion between frames) ─────────────────────
-function checkLiveness(video) {
-  const c = document.createElement('canvas');
-  c.width = 40; c.height = 30;
-  const ctx = c.getContext('2d');
-  ctx.drawImage(video, 0, 0, 40, 30);
-  const frame = ctx.getImageData(0, 0, 40, 30);
-
-  if (!aiLastFrame) {
-    aiLastFrame = frame;
-    return false;
-  }
-  let diff = 0;
-  for (let i = 0; i < frame.data.length; i += 4) {
-    diff += Math.abs(frame.data[i] - aiLastFrame.data[i])
-          + Math.abs(frame.data[i+1] - aiLastFrame.data[i+1])
-          + Math.abs(frame.data[i+2] - aiLastFrame.data[i+2]);
-  }
-  diff /= (frame.data.length / 4);
-  aiLastFrame = frame;
-  return diff >= LIVENESS_MOTION_THRESHOLD;
-}
-
-// ── Improved findBestFaceMatch using ensemble score ─────────────
-function findBestFaceMatchAI(descriptor, targetType, minScore) {
-  const faceStore = getFaceStore();
-  const scoped = Object.entries(faceStore).filter(([k]) => k.startsWith(targetType + '|'));
-  if (!scoped.length) return null;
-
-  let best = null;
-  scoped.forEach(([key, val]) => {
-    // support averaged multi-descriptor entries
-    const stored = val.avgDescriptor || val.descriptor || [];
-    if (!stored.length) return;
-    const score = ensembleScore(descriptor, stored);
-
-    // apply adaptive threshold offset (tightens if that person had false positives)
-    const adj = aiAdaptiveThreshold[val.name] || 0;
-    const effectiveMin = (minScore || 0.80) + adj;
-
-    if (!best || score > best.score) best = { key, ...val, score, effectiveMin };
-  });
-  return best && best.score >= (best.effectiveMin || minScore || 0.80) ? best : null;
-}
-
-// ── Real-time bounding box + name overlay on canvas ────────────
 async function startBBoxOverlay() {
   if (aiBBoxAnimFrame) cancelAnimationFrame(aiBBoxAnimFrame);
+  if (bboxDetectTimer) { clearTimeout(bboxDetectTimer); bboxDetectTimer = null; }
+  bboxLastDetections = [];
+  bboxDetectBusy = false;
+
+  if (ipCamMode) return; // IP cam uses startIpCamOverlay() instead
+
   const video  = refs.faceVideo;
   const canvas = refs.faceCanvas;
   if (!canvas || !video) return;
+  const ctx = canvas.getContext('2d', { willReadFrequently: false });
+  let canvasSized = false;
 
-  const ctx = canvas.getContext('2d');
-
-  async function drawFrame() {
-    if (!video.srcObject || !faceModelsReady) {
+  // Lightweight loop: just draw video frame to canvas at ~30fps. No AI here.
+  const drawFrame = () => {
+    if (ipCamMode || !video.srcObject) {
       aiBBoxAnimFrame = requestAnimationFrame(drawFrame);
       return;
     }
-    canvas.width  = video.videoWidth  || 640;
-    canvas.height = video.videoHeight || 360;
+    if (!canvasSized || canvas.width !== (video.videoWidth || 640)) {
+      canvas.width  = video.videoWidth  || 640;
+      canvas.height = video.videoHeight || 480;
+      canvasSized = true;
+    }
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    try {
-      const detections = await faceapi
-        .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.45 }))
-        .withFaceLandmarks()
-        .withFaceDescriptors();
-
+    // Draw any cached detection boxes (populated by on-demand detection)
+    bboxLastDetections.forEach(det => {
+      const b = det.box;
+      if (!b) return;
+      const box = { x: b[0], y: b[1], width: b[2], height: b[3] };
+      if (box.width < QUALITY_MIN_BOX_SIZE) return;
+      const desc = det.embedding;
+      if (!desc) return;
       const targetType = refs.faceTargetType?.value || 'students';
-      const minConf = parseFloat(refs.autoMinConfidence?.value || '0.82');
-
-      detections.forEach(det => {
-        const box = det.detection.box;
-        if (box.width < QUALITY_MIN_BOX_SIZE) return;
-
-        const desc = Array.from(det.descriptor);
-        const match = findBestFaceMatchAI(desc, targetType, minConf);
-        const score = match ? match.score : 0;
-        const name  = match ? match.name  : 'Unknown';
-
-        // Color: green=good, yellow=borderline, red=unknown
-        const color = match
-          ? (score >= 0.92 ? '#10b981' : score >= 0.84 ? '#f59e0b' : '#f97316')
-          : '#ef4444';
-
-        // Draw bounding box
-        ctx.strokeStyle = color;
-        ctx.lineWidth   = 2.5;
-        ctx.strokeRect(box.x, box.y, box.width, box.height);
-
-        // Corner accents
-        const cLen = 14;
-        ctx.lineWidth = 4;
-        // top-left
-        ctx.beginPath(); ctx.moveTo(box.x, box.y + cLen); ctx.lineTo(box.x, box.y); ctx.lineTo(box.x + cLen, box.y); ctx.stroke();
-        // top-right
-        ctx.beginPath(); ctx.moveTo(box.x + box.width - cLen, box.y); ctx.lineTo(box.x + box.width, box.y); ctx.lineTo(box.x + box.width, box.y + cLen); ctx.stroke();
-        // bottom-left
-        ctx.beginPath(); ctx.moveTo(box.x, box.y + box.height - cLen); ctx.lineTo(box.x, box.y + box.height); ctx.lineTo(box.x + cLen, box.y + box.height); ctx.stroke();
-        // bottom-right
-        ctx.beginPath(); ctx.moveTo(box.x + box.width - cLen, box.y + box.height); ctx.lineTo(box.x + box.width, box.y + box.height); ctx.lineTo(box.x + box.width, box.y + box.height - cLen); ctx.stroke();
-
-        // Label background
-        const label = match ? `${name}  ${(score * 100).toFixed(1)}%` : 'Unknown';
-        ctx.font = 'bold 13px Plus Jakarta Sans, sans-serif';
-        const tw = ctx.measureText(label).width + 16;
-        const lx = box.x, ly = box.y > 28 ? box.y - 26 : box.y + box.height + 4;
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.roundRect(lx, ly, tw, 22, 5);
-        ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.fillText(label, lx + 8, ly + 15);
-
-        // Confidence bar below box
-        const barY = box.y + box.height + (box.y > 28 ? 4 : 30);
-        ctx.fillStyle = 'rgba(0,0,0,0.4)';
-        ctx.beginPath(); ctx.roundRect(box.x, barY, box.width, 5, 2); ctx.fill();
-        ctx.fillStyle = color;
-        ctx.beginPath(); ctx.roundRect(box.x, barY, box.width * score, 5, 2); ctx.fill();
-      });
-    } catch(_) {}
-
+      const minConf = parseFloat(refs.autoMinConfidence?.value || '0.50');
+      const match = findBestFaceMatch(desc, targetType, minConf);
+      const score = match ? match.score : 0;
+      const name  = match ? match.name : 'Unknown';
+      const color = match ? (score >= 0.65 ? '#10b981' : score >= 0.55 ? '#f59e0b' : '#f97316') : '#ef4444';
+      ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+      ctx.strokeRect(box.x, box.y, box.width, box.height);
+      const label = match ? `${name}  ${(score*100).toFixed(1)}%` : 'Unknown';
+      ctx.font = 'bold 13px sans-serif';
+      const tw = ctx.measureText(label).width + 16;
+      const lx = box.x, ly = box.y > 28 ? box.y - 26 : box.y + box.height + 4;
+      ctx.fillStyle = color; ctx.beginPath(); ctx.roundRect(lx, ly, tw, 22, 5); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.fillText(label, lx+8, ly+15);
+    });
     aiBBoxAnimFrame = requestAnimationFrame(drawFrame);
-  }
-  drawFrame();
+  };
+  aiBBoxAnimFrame = requestAnimationFrame(drawFrame);
+  // NOTE: No background AI detection loop here. AI runs only on-demand
+  // (Capture Face, Enroll, Auto-Capture timer) to keep camera smooth.
 }
 
 // Stop overlay
@@ -4056,25 +5339,69 @@ async function captureEnrollSample() {
   const ready = await ensureFaceModelsLoaded();
   if (!ready) return showToast('Face models not loaded yet', 'error');
 
-  const { ok, brightness } = checkFrameQuality(refs.faceVideo);
-  if (!ok) return showToast(`Frame too dark (brightness ${brightness.toFixed(0)}). Improve lighting.`, 'warning');
+  // Pause background detection loops to avoid face-api.js contention
+  if (bboxDetectTimer) { clearTimeout(bboxDetectTimer); bboxDetectTimer = null; }
+  if (ipCamDetectTimer) { clearTimeout(ipCamDetectTimer); ipCamDetectTimer = null; }
 
-  const det = await faceapi
-    .detectSingleFace(refs.faceVideo, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
-    .withFaceLandmarks()
-    .withFaceDescriptor();
-
-  if (!det) return showToast('No face detected. Centre your face and retry.', 'warning');
-  if (det.detection.box.width < QUALITY_MIN_BOX_SIZE)
-    return showToast('Face too small. Move closer to the camera.', 'warning');
-
-  aiEnrollBuffer.push(Array.from(det.descriptor));
-  showToast(`Sample ${aiEnrollBuffer.length}/${MULTI_SAMPLE_COUNT} captured ✓`, 'success', 1800);
-  updateEnrollUI();
-
-  if (aiEnrollBuffer.length >= MULTI_SAMPLE_COUNT) {
-    await finaliseEnrollment();
+  // Use correct source: proxy for IP cam, video for local
+  let detectSource;
+  if (ipCamMode) {
+    detectSource = await getDetectSource(); // fetches via server proxy — no CORS issues
+    if (!detectSource) {
+      showToast('Could not get IP camera frame. Check connection.', 'error');
+      return;
+    }
+  } else {
+    detectSource = refs.faceVideo;
+    if (!refs.faceVideo.srcObject) {
+      showToast('Start camera first.', 'warning');
+      return;
+    }
   }
+
+  try {
+    // Run detection on-demand
+    const result = await human.detect(detectSource);
+    const det = result.face && result.face.length > 0 ? result.face[0] : null;
+
+    if (!det) {
+      showToast('No face detected. Make sure your face is centred and well-lit.', 'warning');
+      return;
+    }
+    
+    // Human absolute box check: [x,y,w,h]. Check box[2] for width.
+    const b = det.box;
+    if (b[2] < 40) {
+      showToast('Face too small — move closer to the camera.', 'warning');
+      return;
+    }
+
+    aiEnrollBuffer.push(det.embedding);
+    showToast(`Sample ${aiEnrollBuffer.length}/${MULTI_SAMPLE_COUNT} captured ✓`, 'success', 1800);
+    updateEnrollUI();
+
+    if (aiEnrollBuffer.length >= MULTI_SAMPLE_COUNT) {
+      await finaliseEnrollment();
+    }
+  } catch (err) {
+    console.error('Enrollment capture error:', err);
+    showToast('Detection error: ' + err.message, 'error');
+  } finally {
+    // Resume background detection only after full enrollment is done
+    setTimeout(() => {
+      if (!aiEnrolling) startBBoxOverlay();
+    }, 500);
+  }
+}
+
+// ── Average multiple 1024D descriptors ─────────────────────────
+function averageDescriptors(descs) {
+  if (!descs || !descs.length) return null;
+  const len = descs[0].length;
+  const avg = new Array(len).fill(0);
+  descs.forEach(d => { for (let i = 0; i < len; i++) avg[i] += d[i]; });
+  for (let i = 0; i < len; i++) avg[i] /= descs.length;
+  return avg;
 }
 
 async function finaliseEnrollment() {
@@ -4169,37 +5496,48 @@ function patchFaceAI() {
     nc.addEventListener('click', () => window.startCamera().catch(e => showToast(e.message, 'error')));
   }
 
-  // Patch autoCaptureTick to use AI ensemble matching
+  // Patch autoCaptureTick to use new AI engine (which simplifies the logic)
   const _origTick = window.autoCaptureTick || autoCaptureTick;
   window.autoCaptureTick = async function() {
     if (!refs.autoCaptureToggle?.checked) return;
     if (window.autoCaptureBusy) return;
-    if (!refs.faceVideo?.srcObject) return;
 
-    // Liveness gate
-    const live = checkLiveness(refs.faceVideo);
-    if (!live && !aiLivenessOk) {
-      if (refs.faceStatusText) refs.faceStatusText.textContent = 'Liveness check: please move slightly…';
-      return;
-    }
-    aiLivenessOk = true; // once confirmed live, allow subsequent frames
+    // Check camera is ready
+    const localReady = !ipCamMode && refs.faceVideo?.srcObject;
+    const ipReady    =  ipCamMode && refs.ipCameraImg?.naturalWidth > 0;
+    if (!localReady && !ipReady) return;
 
-    // Quality gate
-    const { ok, brightness } = checkFrameQuality(refs.faceVideo);
-    if (!ok) {
-      if (refs.faceStatusText) refs.faceStatusText.textContent = `⚠ Low light (${brightness.toFixed(0)}). Improve lighting for better accuracy.`;
-      return;
-    }
-
-    // Delegate to original which handles API calls, but intercept match scoring
-    const origFindBest = window.findBestFaceMatch;
-    window.findBestFaceMatch = findBestFaceMatchAI;
-    try {
-      await _origTick();
-    } finally {
-      window.findBestFaceMatch = origFindBest;
-    }
+    await _origTick();
   };
+
+  // ── IP cam freeze watchdog ─────────────────────────────────────
+  // MJPEG streams can freeze. Detect by checking if naturalWidth is still 0
+  // after a few seconds, and reload the src to unfreeze.
+  let ipWatchdogLastGoodTime = Date.now();
+  let ipWatchdogPrevSrc = '';
+  setInterval(() => {
+    if (!ipCamMode || !refs.ipCameraImg) return;
+    const src = refs.ipCameraImg.src;
+    if (!src || src === ipWatchdogPrevSrc) return;
+    ipWatchdogPrevSrc = src;
+
+    // Track if image is delivering frames
+    if (refs.ipCameraImg.naturalWidth > 0) {
+      ipWatchdogLastGoodTime = Date.now();
+    } else if (Date.now() - ipWatchdogLastGoodTime > 8000) {
+      // Frozen for 8s — reload
+      console.warn('[IPCam] Stream appears frozen, reloading...');
+      const url = refs.ipCameraUrl?.value?.trim();
+      if (url) {
+        const isSnapshot = /\.(jpg|jpeg|png|bmp)(\?|$)/i.test(url);
+        refs.ipCameraImg.src = isSnapshot
+          ? url + (url.includes('?') ? '&' : '?') + 't=' + Date.now()
+          : url + (url.includes('?') ? '&' : '?') + '_r=' + Date.now();
+        ipWatchdogLastGoodTime = Date.now();
+        if (refs.faceStatusText) refs.faceStatusText.textContent = '🔄 IP camera reconnecting…';
+      }
+    }
+  }, 3000);
 
   // Add AI status panel to face panel
   addAIStatusPanel();
@@ -4228,12 +5566,10 @@ function addAIStatusPanel() {
   panel.innerHTML = `
     <span style="display:flex;align-items:center;gap:6px;">
       <span style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block;"></span>
-      <strong style="color:#10b981">AI Engine v2</strong>
+      <strong style="color:#10b981">Human AI Engine</strong>
     </span>
-    <span>🎯 Ensemble scoring (cosine + euclidean)</span>
+    <span>🎯 High-precision similarity matching (1024D)</span>
     <span>📸 Multi-sample enrollment (${MULTI_SAMPLE_COUNT} poses)</span>
-    <span>✅ Liveness detection</span>
-    <span>🔦 Quality gate</span>
     <span id="aiEnrolledCount" style="margin-left:auto;background:rgba(16,185,129,0.15);padding:3px 10px;border-radius:12px;color:#10b981;font-weight:700;">
       ${Object.keys(getFaceStore()).length} enrolled
     </span>
@@ -5226,6 +6562,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       panel.style.cssText = "padding:24px;max-width:1200px;margin:0 auto;";
       if (main) main.appendChild(panel);
     }
+    panel.style.display = "block";
 
     panel.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
@@ -5384,6 +6721,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
                 <option value="Computer Fee">Computer Fee</option>
                 <option value="Library Fee">Library Fee</option>
                 <option value="Exam Fee">Exam Fee</option>
+                <option value="Late Fee">Late Fee</option>
                 <option value="Activity Fee">Activity Fee</option>
                 <option value="Other">Other</option>
               </select>
@@ -5541,6 +6879,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     document.getElementById("bd-class-filter")?.addEventListener("change", () => {
       renderBDTable();
       renderBDSummaryCards();
+      renderFSTable();
     });
     document.getElementById("bd-type-filter")?.addEventListener("change", renderBDTable);
 
@@ -5573,7 +6912,12 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     const empty = document.getElementById("fs-empty");
     if (!tbody) return;
 
-    const rows = [...feeStructures].sort((a, b) =>
+    const filterClass = document.getElementById("bd-class-filter")?.value || "";
+
+    let rows = [...feeStructures];
+    if (filterClass) rows = rows.filter(r => r.className === filterClass);
+
+    rows.sort((a, b) =>
       (a.className || "").localeCompare(b.className || "") ||
       (a.feeType || "").localeCompare(b.feeType || "")
     );
@@ -5759,6 +7103,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     { key: "sportsFee",      label: "Sports Fee",      icon: "⚽" },
     { key: "libraryFee",     label: "Library Fee",     icon: "📖" },
     { key: "examFee",        label: "Exam Fee",        icon: "📝" },
+    { key: "lateFee",        label: "Late Fee",        icon: "⏳" },
     { key: "otherFee",       label: "Other Fee",       icon: "➕" }
   ];
 
@@ -5864,12 +7209,15 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       const ids = JSON.parse(f.selectedBookIds || "[]");
       if (ids.length) {
         const allBDItems = [...(typeof bdBooks !== "undefined" ? bdBooks : []), ...(typeof bdDresses !== "undefined" ? bdDresses : [])];
-        ids.map(id => allBDItems.find(r => String(r.id) === String(id))).filter(Boolean).forEach(item => {
-          const price = parseFloat(item.price) || 0;
-          itemsTotal += price;
-          bdRows += `<tr><td style="padding:5px 8px;border:1px solid #e2e8f0;font-size:11px;color:#475569;">${item.itemType === "Book" ? "📚" : "👕"} ${item.itemName}</td>
-            <td style="padding:5px 8px;border:1px solid #e2e8f0;text-align:right;font-size:11px;font-weight:600;">₹ ${price.toLocaleString("en-IN")}</td></tr>`;
-        });
+        ids.map(id => allBDItems.find(r => String(r.id) === String(id)))
+           .filter(Boolean)
+           .sort((a,b) => (a.itemType||"").localeCompare(b.itemType||"") || (a.itemName||"").localeCompare(b.itemName||""))
+           .forEach(item => {
+             const price = parseFloat(item.price) || 0;
+             itemsTotal += price;
+             bdRows += `<tr><td style="padding:5px 8px;border:1px solid #e2e8f0;font-size:11px;color:#475569;">${item.itemType === "Book" ? "📚" : "👕"} ${item.itemName}</td>
+               <td style="padding:5px 8px;border:1px solid #e2e8f0;text-align:right;font-size:11px;font-weight:600;">₹ ${price.toLocaleString("en-IN")}</td></tr>`;
+           });
       }
     } catch(e) {}
 
@@ -5879,7 +7227,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       <div style="height:100%;display:flex;flex-direction:column;font-family:Arial,sans-serif;font-size:11px;">
         <!-- Header -->
         <div style="background:#1e3a8a;color:#fff;padding:7px 10px;text-align:center;">
-          <div style="font-size:13px;font-weight:900;letter-spacing:0.5px;">🏫 ${schoolName}</div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px;"><img src="logo.png" style="height:26px;width:auto;object-fit:contain;" alt="Logo" /><div style="font-size:13px;font-weight:900;letter-spacing:0.5px;">${schoolName}</div></div>
           <div style="font-size:9px;opacity:0.85;margin-top:1px;">FEE PAYMENT RECEIPT</div>
         </div>
         <!-- Meta bar -->
@@ -5893,20 +7241,20 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
             <tr>
               <td style="padding:2px 0;color:#64748b;width:38%;font-size:10px;">Student</td>
               <td style="padding:2px 0;font-weight:700;color:#0f172a;font-size:10px;">${f.studentName || "-"}</td>
-              <td style="padding:2px 0;color:#64748b;width:20%;font-size:10px;">Class</td>
-              <td style="padding:2px 0;font-weight:600;font-size:10px;">${f.className || "-"}</td>
+              <td style="padding:2px 0;color:#64748b;width:20%;font-size:10px;">Father</td>
+              <td style="padding:2px 0;font-weight:600;font-size:10px;">${f.fatherName || "-"}</td>
             </tr>
             <tr>
-              <td style="padding:2px 0;color:#64748b;font-size:10px;">Roll No</td>
-              <td style="padding:2px 0;font-size:10px;">${f.rollNo || "-"}</td>
+              <td style="padding:2px 0;color:#64748b;font-size:10px;">Class</td>
+              <td style="padding:2px 0;font-weight:600;font-size:10px;">${f.className || "-"}</td>
               <td style="padding:2px 0;color:#64748b;font-size:10px;">Term</td>
               <td style="padding:2px 0;font-size:10px;">${f.term || "-"}</td>
             </tr>
             <tr>
+              <td style="padding:2px 0;color:#64748b;font-size:10px;">Roll No</td>
+              <td style="padding:2px 0;font-size:10px;">${f.rollNo || "-"}</td>
               <td style="padding:2px 0;color:#64748b;font-size:10px;">Pay Date</td>
               <td style="padding:2px 0;font-size:10px;">${f.paymentDate || "-"}</td>
-              <td style="padding:2px 0;color:#64748b;font-size:10px;">Method</td>
-              <td style="padding:2px 0;font-size:10px;">${f.paymentMethod || "-"}</td>
             </tr>
           </table>
         </div>
@@ -5915,8 +7263,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
           <div style="font-weight:700;color:#1e3a8a;margin-bottom:4px;font-size:10px;">📋 Fee Details</div>
           <table style="width:100%;border-collapse:collapse;">
             ${noFeeData ? `<tr><td colspan="2" style="padding:6px 8px;color:#94a3b8;font-style:italic;text-align:center;font-size:10px;">No fee types selected</td></tr>` : feeTypeRows}
-            ${itemsTotal > 0 ? `<tr style="background:#f0f4ff;"><td style="padding:5px 8px;border:1px solid #e2e8f0;font-size:11px;color:#475569;">📦 Books &amp; Dress</td>
-              <td style="padding:5px 8px;border:1px solid #e2e8f0;text-align:right;font-size:11px;font-weight:600;">₹ ${itemsTotal.toLocaleString("en-IN")}</td></tr>` : ""}
+            ${bdRows}
           </table>
         </div>
         <!-- Totals -->
@@ -6007,7 +7354,10 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       const ids = JSON.parse(f.selectedBookIds || "[]");
       if (ids.length) {
         const allBDItems = [...(typeof bdBooks !== "undefined" ? bdBooks : []), ...(typeof bdDresses !== "undefined" ? bdDresses : [])];
-        ids.map(id => allBDItems.find(r => String(r.id) === String(id))).filter(Boolean).forEach((item, idx) => {
+        ids.map(id => allBDItems.find(r => String(r.id) === String(id)))
+           .filter(Boolean)
+           .sort((a,b) => (a.itemType||"").localeCompare(b.itemType||"") || (a.itemName||"").localeCompare(b.itemName||""))
+           .forEach((item, idx) => {
           const price = parseFloat(item.price) || 0;
           itemsTotal += price;
           const bg = idx % 2 === 0 ? "#f0f4ff" : "#fff";
@@ -6021,7 +7371,7 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       <div style="height:100%;display:flex;flex-direction:column;font-family:Arial,sans-serif;font-size:11px;">
         <!-- Header -->
         <div style="border-bottom:2px solid #1e3a8a;padding:7px 10px;text-align:center;">
-          <div style="font-size:13px;font-weight:900;color:#1e3a8a;letter-spacing:0.5px;text-transform:uppercase;">🏫 ${schoolName}</div>
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px;"><img src="logo.png" style="height:28px;width:auto;object-fit:contain;" alt="Logo" /><div style="font-size:13px;font-weight:900;color:#1e3a8a;letter-spacing:0.5px;text-transform:uppercase;">${schoolName}</div></div>
           <div style="font-size:8px;color:#6b7280;margin-top:1px;">Affiliated to CBSE &nbsp;|&nbsp; Excellence in Education</div>
           <div style="margin-top:3px;display:inline-block;background:#1e3a8a;color:#fff;padding:2px 12px;font-size:8px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;">FEE SLIP</div>
         </div>
@@ -6038,18 +7388,24 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
             <tr>
               <td style="color:#6b7280;width:28%;padding:2px 0;">Student Name</td>
               <td style="font-weight:700;color:#111827;padding:2px 0;border-bottom:1px dotted #d1d5db;width:38%;">${f.studentName || "-"}</td>
-              <td style="color:#6b7280;padding:2px 0 2px 6px;width:14%;">Class</td>
-              <td style="font-weight:700;padding:2px 0;border-bottom:1px dotted #d1d5db;">${f.className || "-"}</td>
+              <td style="color:#6b7280;padding:2px 0 2px 6px;width:14%;">Father</td>
+              <td style="font-weight:700;padding:2px 0;border-bottom:1px dotted #d1d5db;">${f.fatherName || "-"}</td>
             </tr>
             <tr>
-              <td style="color:#6b7280;padding:2px 0;">Roll No.</td>
+              <td style="color:#6b7280;padding:2px 0;">Class</td>
+              <td style="font-weight:700;color:#111827;padding:2px 0;border-bottom:1px dotted #d1d5db;width:38%;">${f.className || "-"}</td>
+              <td style="color:#6b7280;padding:2px 0 2px 6px;">Roll No.</td>
               <td style="font-weight:600;padding:2px 0;border-bottom:1px dotted #d1d5db;">${f.rollNo || "-"}</td>
-              <td style="color:#6b7280;padding:2px 0 2px 6px;">Pay Date</td>
-              <td style="font-weight:600;padding:2px 0;border-bottom:1px dotted #d1d5db;">${f.paymentDate || "-"}</td>
+            </tr>
+            <tr>
+              <td style="color:#6b7280;padding:2px 0;">Pay Date</td>
+              <td style="font-weight:600;padding:2px 0;border-bottom:1px dotted #d1d5db;width:38%;">${f.paymentDate || "-"}</td>
+              <td style="color:#6b7280;padding:2px 0 2px 6px;">Term</td>
+              <td style="font-weight:600;padding:2px 0;border-bottom:1px dotted #d1d5db;">${f.term || "-"}</td>
             </tr>
             <tr>
               <td style="color:#6b7280;padding:2px 0;">Method</td>
-              <td style="font-weight:600;padding:2px 0;border-bottom:1px dotted #d1d5db;">${f.paymentMethod || "-"}</td>
+              <td style="font-weight:600;padding:2px 0;border-bottom:1px dotted #d1d5db;width:38%;">${f.paymentMethod || "-"}</td>
               <td style="color:#6b7280;padding:2px 0 2px 6px;">Status</td>
               <td style="padding:2px 0;"><span style="background:${statusBg};color:${statusColor};font-weight:700;padding:1px 6px;border-radius:3px;font-size:9px;border:1px solid ${statusColor};">${f.status || "Pending"}</span></td>
             </tr>
@@ -6346,13 +7702,13 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
         }
       }
 
-      // ── 3. Inject BD info panel after the form ──
+      // ── 3. Inject BD info panel INSIDE the form (before actions) ──
       let info = document.getElementById("bd-fee-info");
       if (!info) {
         info = document.createElement("div");
         info.id = "bd-fee-info";
-        info.style.cssText = "background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;font-size:0.86rem;color:#1e40af;margin-top:10px;display:none;";
-        form.parentNode.insertBefore(info, form.nextSibling);
+        info.style.cssText = "background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;font-size:0.86rem;color:#1e40af;margin-top:10px;display:none;margin-bottom:15px;";
+        form.insertBefore(info, form.querySelector(".actions"));
       }
 
       const classField   = form.querySelector("[name='className']");
@@ -6404,6 +7760,15 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
       renderStatsCards(); 
     }
   }, 30000); // 30 seconds
+
+  // Expose BD data for global access (e.g. 4-in-1 print)
+  window.loadBD = loadBD;
+  Object.defineProperty(window, 'bdBooks', { get: () => bdBooks });
+  Object.defineProperty(window, 'bdDresses', { get: () => bdDresses });
+
+  // Auto-load data on startup
+  loadBD();
+  loadFS();
   
 })();
 
@@ -6697,6 +8062,9 @@ Thank you 🙏`;
   }
 
   window.renderWhatsAppModule = renderWhatsAppModule;
+  window.renderStatsCards = renderStatsCards;
+
+  // Removed misplaced global exposes of BD state
 
 })();
 
