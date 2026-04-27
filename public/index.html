@@ -5,18 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tapowan Public School — Management System</title>
   <meta name="description" content="Tapowan Public School management system for students, fees, attendance, exams, and more." />
-  <link rel="stylesheet" href="style.css?v=202604061230" />
+  
+  <!-- PWA Setup -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#1e293b" />
+  <link rel="apple-touch-icon" href="logo.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  
+  <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=202604260000" />
 </head>
 <body>
+
   <div id="authOverlay" class="auth-overlay">
+    <button id="closeAuthBtn" style="position:absolute; top:20px; right:20px; background:rgba(255,255,255,0.1); border:none; color:#fff; font-size:1.5rem; cursor:pointer; z-index:10; width:40px; height:40px; border-radius:50%; display:grid; place-items:center;">✕</button>
     <div class="auth-dots"></div>
     <div class="auth-card">
-      <div class="auth-logo">
-        <div class="auth-logo-icon" style="background:transparent; box-shadow:none;"><img src="logo.png" alt="TPS Logo" style="width:100%; height:100%; object-fit:contain;" /></div>
-        <div>
-          <h1>EduCore</h1>
-          <p>Tapowan Public School</p>
-        </div>
+      <div class="auth-logo" style="justify-content: center; margin-bottom: 20px; text-align: center;">
+        <img src="logo.png" alt="Tapowan Public School Logo" style="width: 220px; max-width: 100%; height: auto; object-fit: contain; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1)); border-radius: 8px;" />
       </div>
       <p id="authSubtitle">Sign in to continue</p>
       <div class="auth-switch">
@@ -42,6 +49,10 @@
           <input id="signupFullName" name="fullName" placeholder="Aatif Khan" required />
         </div>
         <div class="field">
+          <label for="signupAdmissionNo">Admission Number</label>
+          <input id="signupAdmissionNo" name="admissionNo" placeholder="E.g. TPS-1024" required />
+        </div>
+        <div class="field">
           <label for="signupUsername">Username</label>
           <input id="signupUsername" name="username" placeholder="aatif_user" required />
         </div>
@@ -55,6 +66,17 @@
         </div>
         <button type="submit">Create Account</button>
       </form>
+      <div style="margin-top: 15px; text-align: center;">
+        <button type="button" class="btn-back" style="font-size: 0.8rem; padding: 6px 12px; opacity: 0.8;" onclick="
+          const current = localStorage.getItem('API_BASE_URL') || '';
+          const url = prompt('Enter new Backend IP/URL (e.g. http://192.168.1.9:3000):', current);
+          if (url !== null) {
+            localStorage.setItem('API_BASE_URL', url.trim().replace(/\/$/, ''));
+            alert('API URL saved! Restarting app...');
+            window.location.reload();
+          }
+        ">⚙️ Server Settings</button>
+      </div>
     </div>
   </div>
 
@@ -154,7 +176,7 @@
               </div>
               <div style="display:flex;align-items:center;gap:8px;margin-left:6px;">
                 <span style="font-size:0.9rem;color:#cbd5e1;">Min Conf</span>
-                <input id="autoMinConfidence" type="number" value="0.50" min="0.3" max="0.99" step="0.01" style="width:92px;" />
+                <input id="autoMinConfidence" type="number" value="0.65" min="0.45" max="0.99" step="0.01" style="width:92px;" />
               </div>
               <div style="display:flex;align-items:center;gap:8px;margin-left:6px;">
                 <span style="font-size:0.9rem;color:#cbd5e1;">Stable</span>
@@ -178,6 +200,7 @@
             <img id="ipCameraImg" style="width:100%;display:block;border-radius:12px;background:#000;" alt="IP Camera Feed" />
             <canvas id="ipOverlayCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></canvas>
           </div>
+          <div id="liveLog" class="live-log"></div>
         </div>
         <div class="form-grid">
           <div class="field">
@@ -185,6 +208,7 @@
             <select id="faceTargetType">
               <option value="students">Students</option>
               <option value="teachers">Teachers</option>
+              <option value="all">All (Auto)</option>
             </select>
           </div>
           <div class="field hidden" id="faceEnrollStudentField">
@@ -233,6 +257,30 @@
       </section>
       </div><!-- /content-area -->
     </main>
+    
+    <!-- Mobile Bottom Navigation -->
+    <nav class="bottom-nav">
+      <button class="nav-item" data-target="dashboard" aria-label="Dashboard">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">Home</span>
+      </button>
+      <button class="nav-item" data-target="students" aria-label="Students">
+        <span class="nav-icon">🎓</span>
+        <span class="nav-label">Students</span>
+      </button>
+      <button class="nav-item" data-target="fees" aria-label="Fees">
+        <span class="nav-icon">💳</span>
+        <span class="nav-label">Fees</span>
+      </button>
+      <button class="nav-item" data-target="attendance" aria-label="Attendance">
+        <span class="nav-icon">📅</span>
+        <span class="nav-label">Attendance</span>
+      </button>
+      <button class="nav-item" id="bottomNavMoreBtn" aria-label="More Options">
+        <span class="nav-icon">☰</span>
+        <span class="nav-label">More</span>
+      </button>
+    </nav>
   </div>
 
   <!-- Student Profile Modal -->
@@ -248,6 +296,7 @@
     <div class="student-profile-tabs">
       <button class="student-profile-tab active" data-tab="profile">Profile</button>
       <button class="student-profile-tab" data-tab="fees">Fees</button>
+      <button class="student-profile-tab" data-tab="feeCard">Fee Card</button>
       <button class="student-profile-tab" data-tab="exams">Exams</button>
       <button class="student-profile-tab" data-tab="attendance">Attendance</button>
     </div>
@@ -263,7 +312,7 @@
       </div>
       <button id="print4in1CloseBtn" class="student-profile-close">✕ Close</button>
     </div>
-    <div class="student-profile-content" style="padding:15px; display:grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+    <div class="student-profile-content print-grid-4">
       <div class="field">
         <label>Top Left (Box 1)</label>
         <select id="box1Select"><option value="">Select Record</option></select>
@@ -305,10 +354,28 @@
 
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/human/dist/human.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script src="app.js?v=202604062145"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="app.js?v=20260426_03"></script>
+  
+  <!-- Register PWA Service Worker -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(registration => {
+            console.log('ServiceWorker registration successful with scope: ', registration.scope);
+          }, err => {
+            console.log('ServiceWorker registration failed: ', err);
+          });
+      });
+    }
+  </script>
+
+  <!-- Hidden buffer for taking snapshots of Slips/Receipts for WhatsApp -->
+  <div id="waSlipSnapshotBuffer" style="position:fixed; left:-5000px; top:0; width:600px; padding:20px; background:#fff; z-index:-1000; overflow:hidden;"></div>
 </body>
 </html>
 

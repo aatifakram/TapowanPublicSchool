@@ -5,14 +5,33 @@ const dbPath = path.join(__dirname, "school.db");
 const db = new Database(dbPath);
 
 const MODULES = {
-  students: ["admissionNo", "rollNo", "fullName", "className", "gender", "dob", "parentName", "motherName", "phone", "address", "photo", "status", "aadhar", "tc", "reportCard", "fatherAadhar", "motherAadhar"],
+  students: [
+    "admissionNo", "rollNo", "fullName", "className", "section", "gender", "dob", "age",
+    "aadhar", "category", "religion", "phone1", "phone2", "whatsapp", "email",
+    "village", "post", "district", "state", "pin", "address",
+    "fatherName", "motherName", "guardianName", "relation", "occupation", "incomeRange", "emergencyContact",
+    "session", "admissionDate", "prevSchool", "lastClassPassed", "tcReceived",
+    "photo", "birthCert", "aadharDoc", "tcDoc", "parentIdDoc",
+    "admissionFee", "monthlyFee", "transportFee", "discount",
+    "status", "remarks", "parentName", "phone", "tc", "reportCard", "fatherAadhar", "motherAadhar"
+  ],
+  admissions: [
+    "admissionNo", "rollNo", "fullName", "className", "section", "gender", "dob", "age",
+    "aadhar", "category", "religion", "phone1", "phone2", "whatsapp", "email",
+    "village", "post", "district", "state", "pin", "address",
+    "fatherName", "motherName", "guardianName", "relation", "occupation", "incomeRange", "emergencyContact",
+    "classApplyingFor", "session", "admissionDate", "prevSchool", "lastClassPassed", "tcReceived",
+    "photo", "birthCert", "aadharDoc", "tcDoc", "parentIdDoc",
+    "admissionFee", "monthlyFee", "transportFee", "discount",
+    "status", "remarks", "isDraft", "draftUserId", "parentName", "phone", "tc", "reportCard", "fatherAadhar", "motherAadhar"
+  ],
   teachers: ["employeeNo", "fullName", "department", "qualification", "phone", "email", "joinDate"],
   classes: ["className", "section", "classTeacher", "roomNo", "capacity"],
   subjects: ["subjectCode", "subjectName", "className", "teacher", "credits"],
   attendance: ["date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks", "facePhoto"],
-  teacherAttendance: ["date", "department", "teacherName", "status", "remarks"],
+  teacherAttendance: ["date", "department", "teacherName", "status", "arrivalTime", "departureTime", "remarks"],
   exams: ["examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"],
-  fees: ["studentName", "className", "rollNo", "fatherName", "term", "feeTypes", "tuitionFee", "admissionFee", "computerFee", "developmentFee", "labFee", "sportsFee", "libraryFee", "examFee", "otherFee", "lateFee", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod", "onlineAmount", "cashAmount", "monthlyFee", "monthlyFeeLabel", "selectedBookIds"],
+  fees: ["admissionNo", "studentName", "className", "rollNo", "fatherName", "term", "month", "creationDate", "feeTypes", "tuitionFee", "admissionFee", "computerFee", "developmentFee", "labFee", "sportsFee", "libraryFee", "examFee", "otherFee", "lateFee", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod", "onlineAmount", "cashAmount", "monthlyFee", "monthlyFeeLabel", "selectedBookIds", "dueMgmtAmount", "dueMgmtParticulars", "consolidatedFeeIds", "consolidatedDueMgmtIds"],
   library: ["bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"],
   transport: ["routeName", "vehicleNo", "driverName", "studentName", "pickupPoint", "monthlyFee"],
   hostel: ["hostelName", "roomNo", "studentName", "warden", "checkInDate", "bedNo", "status"],
@@ -26,7 +45,9 @@ const MODULES = {
   schoolExpenses: ["date", "head", "category", "amount", "mode", "description"],
   booksAndDress: ["className", "itemType", "itemName", "price", "term"],
   feeStructures: ["className", "feeType", "amount", "term", "description"],
-  whatsappAlerts: ["studentName", "className", "phone", "parentName", "balance", "term", "alertDate", "message", "status"]
+  whatsappAlerts: ["studentName", "className", "phone", "parentName", "balance", "term", "alertDate", "message", "status"],
+  dueManagement: ["admissionNo", "studentName", "className", "rollNo", "session", "particulars", "dueAmount", "paidAmount", "balance", "status", "remarks"],
+  settings: ["key", "value", "category", "updatedBy"]
 };
 
 function runRaw(sql, params = []) {

@@ -2,5 +2,14 @@
   "appId": "com.tapowan.school",
   "appName": "Tapovan Public School",
   "webDir": "public",
-  "bundledWebRuntime": false
+  "bundledWebRuntime": false,
+  "server": {
+    "allowNavigation": ["tapowan-school-system-2026-stable-v1.loca.lt", "*.loca.lt"],
+    "cleartext": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
 }

@@ -6,7 +6,7 @@ const MODULES = {
   classes: ["className", "section", "classTeacher", "roomNo", "capacity"],
   subjects: ["subjectCode", "subjectName", "className", "teacher", "credits"],
   attendance: ["date", "className", "studentName", "rollNo", "status", "arrivalTime", "departureTime", "remarks", "facePhoto"],
-  teacherAttendance: ["date", "department", "teacherName", "status", "remarks"],
+  teacherAttendance: ["date", "department", "teacherName", "status", "arrivalTime", "departureTime", "remarks"],
   exams: ["examName", "className", "subject", "studentName", "rollNo", "marksObtained", "maxMarks", "grade"],
   fees: ["studentName", "className", "rollNo", "term", "feeTypes", "tuitionFee", "computerFee", "developmentFee", "labFee", "sportsFee", "libraryFee", "examFee", "otherFee", "totalFee", "paidAmount", "balance", "status", "paymentDate", "paymentMethod"],
   library: ["bookCode", "bookTitle", "author", "issuedTo", "issueDate", "returnDate", "status"],

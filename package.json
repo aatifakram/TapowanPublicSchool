@@ -9,6 +9,9 @@
     "build": "echo 'skip build (static frontend served by Vercel)'"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
     "@google/genai": "^1.48.0",
     "better-sqlite3": "^11.8.1",
     "cors": "^2.8.5",
